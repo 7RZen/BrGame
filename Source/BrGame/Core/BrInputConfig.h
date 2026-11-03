@@ -21,7 +21,7 @@ public:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> LookAction;
 	UPROPERTY(EditAnywhere, Category="Input")
-	TObjectPtr<UInputAction> WalkAction;
+	TObjectPtr<UInputAction> SprintAction;
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> CrouchAction;
 	UPROPERTY(EditAnywhere, Category="Input")

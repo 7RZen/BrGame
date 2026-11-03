@@ -33,8 +33,11 @@ def mappable(outer, name, display):
 
 
 def main():
+    # Commandlets can reach Python before the async registry scan has completed.
+    # In particular, never silently miss the obsolete action during cleanup.
+    unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous([ROOT], force_rescan=True)
     specs = [
-        ("Move", "Move"), ("Look", "Look"), ("Walk", "Walk"), ("Crouch", "Crouch"),
+        ("Move", "Move"), ("Look", "Look"), ("Sprint", "Sprint"), ("Crouch", "Crouch"),
         ("Prone", "Prone"), ("Fire", "Fire"), ("ThrowGrenade", "Throw Grenade"),
         ("Reload", "Reload"), ("Interact", "Interact"), ("RespawnHold", "Hold to Respawn"),
         ("Scoreboard", "Scoreboard"), ("Menu", "Menu"), ("Zoom", "Zoom"), ("Map", "Full Map"),
@@ -87,7 +90,7 @@ def main():
     map_key("Move", "A", "Br.MoveLeft", "Move Left", negate=True)
     map_key("Move", "D", "Br.MoveRight", "Move Right")
     for action_name, key in [
-        ("Walk", "LeftShift"), ("Crouch", "C"), ("Prone", "Z"),
+        ("Sprint", "LeftShift"), ("Crouch", "C"), ("Prone", "Z"),
         ("Fire", "LeftMouseButton"), ("ThrowGrenade", "G"), ("Reload", "R"),
         ("Interact", "E"), ("RespawnHold", "SpaceBar"), ("Scoreboard", "Tab"), ("Menu", "Escape"), ("Map", "M"),
     ]:
@@ -111,6 +114,12 @@ def main():
     for name, _ in specs:
         config.set_editor_property(name + "Action", actions[name])
     save(config)
+    obsolete = f"{ROOT}/Actions/IA_Walk"
+    if unreal.EditorAssetLibrary.does_asset_exist(obsolete):
+        if not unreal.EditorAssetLibrary.delete_asset(obsolete):
+            raise RuntimeError("Could not remove obsolete Walk action")
+    if unreal.EditorAssetLibrary.does_asset_exist(obsolete):
+        raise RuntimeError("Obsolete Walk action still registered after deletion")
 
     # Validate serialized mappings rather than just trusting creation success.
     reloaded = context.get_editor_property("default_key_mappings").get_editor_property("mappings")
@@ -120,7 +129,7 @@ def main():
     names = set()
     expected_keys = {
         "Br.MoveForward": "W", "Br.MoveBackward": "S", "Br.MoveLeft": "A", "Br.MoveRight": "D",
-        "Br.Walk": "LeftShift", "Br.Crouch": "C", "Br.Prone": "Z", "Br.Fire": "LeftMouseButton",
+        "Br.Sprint": "LeftShift", "Br.Crouch": "C", "Br.Prone": "Z", "Br.Fire": "LeftMouseButton",
         "Br.ThrowGrenade": "G", "Br.Reload": "R", "Br.Interact": "E", "Br.RespawnHold": "SpaceBar",
         "Br.Scoreboard": "Tab", "Br.Menu": "Escape", "Br.Map": "M", "Zoom": "MouseWheelAxis",
     }

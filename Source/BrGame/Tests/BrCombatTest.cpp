@@ -43,11 +43,11 @@ bool FBrHitChanceTest::RunTest(const FString& Parameters)
 		}
 	}
 	// Movement's gait only changes speed; the same posture must be supplied to combat.
-	for (bool bWalking : {false, true})
+	for (bool bSprinting : {false, true})
 	{
 		const EBrPosture Posture = EBrPosture::Standing;
-		TestTrue(TEXT("Gait changes speed"), FBrMovementSpeed::Calculate(Posture, bWalking, 0.9f, 600, 0.5f, 0.2f, 0.2f) > 0);
-		TestEqual(TEXT("Walk/run use standing row"), FBrCombatMath::HitChance(Posture, EBrPosture::Crouching,
+		TestTrue(TEXT("Gait changes speed"), FBrMovementSpeed::Calculate(Posture, bSprinting, 0.9f, 600, 1.3f, 0.2f, 0.2f) > 0);
+		TestEqual(TEXT("Sprint/run use standing row"), FBrCombatMath::HitChance(Posture, EBrPosture::Crouching,
 			Rows[0], Rows[1], Rows[2]), 11.0f);
 	}
 	return true;

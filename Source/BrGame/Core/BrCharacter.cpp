@@ -176,6 +176,7 @@ void ABrCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (HitFeedback->UpdateReaction()) ApplyLifeMeshPose(true);
 #if !UE_BUILD_SHIPPING
+	ServiceSprintSmoke(DeltaSeconds);
 	ServiceMeshPoseSmoke(DeltaSeconds);
 #endif
 	if (Life->State == EBrLifeState::Downed)
@@ -221,7 +222,7 @@ void ABrCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 	UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	LoadedInputConfig = UBrDeveloperSettings::Get()->InputConfig.LoadSynchronous();
-	if (!Input || !LoadedInputConfig || !LoadedInputConfig->MoveAction || !LoadedInputConfig->WalkAction ||
+	if (!Input || !LoadedInputConfig || !LoadedInputConfig->MoveAction || !LoadedInputConfig->SprintAction ||
 		!LoadedInputConfig->CrouchAction || !LoadedInputConfig->ProneAction)
 	{
 		UE_LOG(LogBr, Error, TEXT("Cannot bind Br movement input: Enhanced Input or movement actions are missing."));
@@ -231,9 +232,9 @@ void ABrCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	if (LoadedInputConfig->LookAction)
 		Input->BindAction(LoadedInputConfig->LookAction, ETriggerEvent::Triggered, this, &ABrCharacter::Look);
 	else UE_LOG(LogBr, Error, TEXT("Br Look action missing; regenerate Br input assets."));
-	Input->BindAction(LoadedInputConfig->WalkAction, ETriggerEvent::Started, this, &ABrCharacter::WalkStarted);
-	Input->BindAction(LoadedInputConfig->WalkAction, ETriggerEvent::Completed, this, &ABrCharacter::WalkStopped);
-	Input->BindAction(LoadedInputConfig->WalkAction, ETriggerEvent::Canceled, this, &ABrCharacter::WalkStopped);
+	Input->BindAction(LoadedInputConfig->SprintAction, ETriggerEvent::Started, this, &ABrCharacter::SprintStarted);
+	Input->BindAction(LoadedInputConfig->SprintAction, ETriggerEvent::Completed, this, &ABrCharacter::SprintStopped);
+	Input->BindAction(LoadedInputConfig->SprintAction, ETriggerEvent::Canceled, this, &ABrCharacter::SprintStopped);
 	Input->BindAction(LoadedInputConfig->CrouchAction, ETriggerEvent::Started, this, &ABrCharacter::ToggleCrouch);
 	Input->BindAction(LoadedInputConfig->ProneAction, ETriggerEvent::Started, this, &ABrCharacter::ToggleProne);
 	if (LoadedInputConfig->ZoomAction)
@@ -311,10 +312,10 @@ void ABrCharacter::ApplyLifePresentation()
 {
 	const bool bAlive = Life->IsAlive();
 	if (bAlive) RequestAutoPickupRetry(); // BeginPlay, revive, respawn and restored Alive state.
-	Inventory->StopFire();
+	Inventory->CancelCombat();
 	ConsumeMovementInputVector();
 	GetCharacterMovement()->StopMovementImmediately();
-	GetBrMovement()->SetWalking(false);
+	GetBrMovement()->SetSprinting(false);
 	bUseControllerRotationYaw = Life->State != EBrLifeState::Eliminated;
 	HelpText->SetVisibility(Life->State == EBrLifeState::Downed);
 	WeaponVisual->SetVisibility(bAlive);
@@ -392,7 +393,7 @@ void ABrCharacter::ServiceFootsteps()
 	FootstepProgress = FMath::Fmod(FootstepProgress, 1.f);
 	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
 	{
-		const EBrSoundKind Kind = FBrAudioRules::StepKind(GetPosture(), GetBrMovement()->IsWalking());
+		const EBrSoundKind Kind = FBrAudioRules::StepKind(GetPosture(), GetBrMovement()->IsSprinting());
 		const TSoftObjectPtr<USoundBase> Sound = Audio->StepSound(Kind);
 		if (HasAuthority()) Audio->Emit(this, Kind, Sound, GetActorLocation());
 		// Only owners predict footsteps. Non-owners (including the listen host)
@@ -457,8 +458,13 @@ void ABrCharacter::Look(const FInputActionValue& Value)
 	FaceRotation(Rotation); // Same-frame facing; CMC carries control yaw to authority, also in MOVE_None.
 }
 
-void ABrCharacter::WalkStarted() { if (CanMove() && !IsGameplayInputBlocked()) GetBrMovement()->SetWalking(true); }
-void ABrCharacter::WalkStopped() { GetBrMovement()->SetWalking(false); }
+void ABrCharacter::SprintStarted()
+{
+	if (!CanMove() || IsGameplayInputBlocked() || GetPosture() == EBrPosture::Prone) return;
+	if (GetPosture() == EBrPosture::Crouching) GetBrMovement()->RequestPosture(EBrPosture::Standing);
+	GetBrMovement()->SetSprinting(true);
+}
+void ABrCharacter::SprintStopped() { GetBrMovement()->SetSprinting(false); }
 
 void ABrCharacter::ToggleCrouch()
 {

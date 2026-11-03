@@ -77,10 +77,10 @@ void ABrPlayerController::ToggleMenu()
 	if (!GetWorld()->GetGameState<ABrGameState>()) return; // Start page already has Settings.
 	if (ABrCharacter* BrPawn = Cast<ABrCharacter>(GetPawn()))
 	{
-		BrPawn->GetInventory()->StopFire();
+		BrPawn->GetInventory()->CancelCombat();
 		BrPawn->ConsumeMovementInputVector();
 		BrPawn->GetCharacterMovement()->StopMovementImmediately();
-		BrPawn->GetBrMovement()->SetWalking(false);
+		BrPawn->GetBrMovement()->SetSprinting(false);
 		BrPawn->GetLife()->StopInteract();
 		BrPawn->GetLife()->StopRespawnHold();
 	}
@@ -185,6 +185,7 @@ void ABrPlayerController::ServerUnstuck_Implementation()
 		return;
 	}
 	ABrCharacter* BrPawn = CastChecked<ABrCharacter>(GetPawn());
+	BrPawn->GetBrMovement()->SetSprinting(false);
 	BrPawn->GetLife()->CancelRevive();
 	UnstuckPawn = BrPawn;
 	UnstuckOrigin = BrPawn->GetActorLocation();

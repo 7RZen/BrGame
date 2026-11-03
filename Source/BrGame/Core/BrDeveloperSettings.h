@@ -98,14 +98,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
 	float RunStepHearingRange = 1500;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
-	float WalkStepHearingRange = 600;
+	float SprintStepHearingRange = 2000;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
 	float CrouchStepHearingRange = 300;
 	/** Fraction of hearing radius with full volume, followed by linear falloff. */
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="0.9"))
 	float AudioInnerRadiusFraction = 0.1f;
-	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="1"))
-	float WalkStepVolume = 0.45f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="1", ClampMax="3"))
+	float SprintStepVolume = 1.3f;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="1"))
 	float CrouchStepVolume = 0.2f;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="0.2"))
@@ -285,8 +285,24 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Movement", meta=(ClampMin="0.0", Units="cm/s"))
 	float BaseRunSpeed = 600.0f;
 
-	UPROPERTY(Config, EditAnywhere, Category="Movement", meta=(ClampMin="0.0", ClampMax="1.0"))
-	float WalkSpeedMultiplier = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="1.0", ClampMax="3.0"))
+	float SprintSpeedMultiplier = 1.3f;
+
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0", ClampMax="89", Units="deg"))
+	float SprintForwardHalfAngle = 50;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0.1", Units="s"))
+	float SprintStaminaDuration = 5;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0", Units="s"))
+	float SprintRegenDelay = 1;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0.1", Units="s"))
+	float SprintRegenDuration = 5;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0.01", Units="s"))
+	float SprintMinimumStart = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0", Units="s"))
+	float SprintToFireDelay = 0.2f;
+	/** Bounded arrival-time tolerance; never permits firing during an active sprint. */
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Sprint", meta=(ClampMin="0", ClampMax="0.05", Units="s"))
+	float SprintFireGrace = 0.03f;
 
 	UPROPERTY(Config, EditAnywhere, Category="Movement", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float CrouchSpeedMultiplier = 0.2f;

@@ -76,6 +76,8 @@ protected:
 	float OrthoWidth = 2500.0f;
 
 private:
+	friend class FBrSprintIntegrationTest;
+	friend class FBrSprintPickupRetryTest;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
 	TObjectPtr<class UBrHitFeedbackComponent> HitFeedback;
 	FTimerHandle FootstepTimer;
@@ -85,6 +87,14 @@ private:
 	void ApplyMeshPose(const FVector& Location, const FRotator& Rotation, bool bPreserveSmoothing = false);
 	void ApplyLifeMeshPose(bool bPreserveSmoothing = false);
 #if !UE_BUILD_SHIPPING
+public:
+	void BeginSprintSmoke();
+private:
+	void ServiceSprintSmoke(float DeltaSeconds);
+	bool bSprintSmokeRunning = false;
+	float SprintSmokeElapsed = 0;
+	int32 SprintSmokeCorrections = 0;
+	friend class UBrCharacterMovementComponent;
 	void ServiceMeshPoseSmoke(float DeltaSeconds);
 	float MeshPoseSmokeSeconds = 0;
 	int32 MeshPoseSmokeSamples = 0;
@@ -120,8 +130,8 @@ private:
 	void UpdateCameraActivation();
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
-	void WalkStarted();
-	void WalkStopped();
+	void SprintStarted();
+	void SprintStopped();
 	void ToggleCrouch();
 	void ToggleProne();
 	void FireStarted();

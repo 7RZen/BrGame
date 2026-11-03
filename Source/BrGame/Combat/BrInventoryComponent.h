@@ -106,8 +106,15 @@ public:
 	void RestoreState(const FBrInventoryState& State);
 	void StartFire();
 	void StopFire();
+	void CancelCombat();
+	bool IsCombatHeld() const { return GetOwner()->HasAuthority() ?
+		(bServerCombatHeld || PendingServerFire.IsSet() || PendingServerGrenade.IsSet()) :
+		(bFireHeld || bPendingFire || bPendingGrenade); }
 	void RequestReload();
 	void RequestGrenade();
+#if !UE_BUILD_SHIPPING
+	double GetLastSprintFireRecovery() const { return LastSprintFireRecovery; }
+#endif
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 protected:
@@ -116,11 +123,47 @@ protected:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBrServerAimTest;
+	friend class FBrSprintIntegrationTest;
+	friend class FBrSprintPendingCombatTest;
+	friend class FBrSprintReplayRecoveryTest;
 #endif
 	UPROPERTY()
 	TArray<FBrServerBullet> Bullets;
 	FTimerHandle FireTimer;
 	FTimerHandle ReloadTimer;
+	FTimerHandle SprintFireTimer;
+	FTimerHandle SprintGrenadeTimer;
+	struct FPendingSprintAction
+	{
+		FVector Aim = FVector::ForwardVector;
+		float MoveTimeStamp = 0;
+		TWeakObjectPtr<UObject> Definition;
+	};
+	// Bounded first-request-wins slots: retransmission/bursts cannot create an
+	// unbounded queue or bank a catch-up burst beyond the normal fire-rate gate.
+	TOptional<FPendingSprintAction> PendingServerFire;
+	TOptional<FPendingSprintAction> PendingServerGrenade;
+	FTimerHandle PendingServerFireTimer;
+	FTimerHandle PendingServerGrenadeTimer;
+	void QueueSprintAction(bool bGrenade, const FVector& Aim, float MoveTimeStamp);
+	void ServicePendingFire();
+	void ServicePendingGrenade();
+	void ClearServerPendingCombat();
+	bool CombatRequestsAllowed() const;
+	bool bFireHeld = false;
+	bool bServerCombatHeld = false;
+	bool bPendingFire = false;
+	bool bPendingGrenade = false;
+#if !UE_BUILD_SHIPPING
+	double LastSprintFireRecovery = -1;
+#endif
+	void DeferredFire();
+	void SendGrenade();
+	void UpdateCombatIntent();
+	UFUNCTION(Server, Reliable)
+	void ServerCombatIntent(bool bHeld);
+	UFUNCTION(Server, Reliable)
+	void ServerCancelCombat();
 	double NextAllowedFire = 0;
 	double NextLocalFire = 0;
 	double NextGrenade = 0;

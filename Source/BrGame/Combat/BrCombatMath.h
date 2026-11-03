@@ -24,7 +24,7 @@ struct FBrHitChanceRow
 
 struct FBrCombatMath
 {
-	// Walking/running are gaits, not postures; both preserve Standing.
+	// Sprinting/running are gaits, not postures; both preserve Standing.
 	static float HitChance(EBrPosture Shooter, EBrPosture Target,
 		const FBrHitChanceRow& Standing, const FBrHitChanceRow& Crouching, const FBrHitChanceRow& Prone)
 	{

@@ -13,8 +13,8 @@ bool FBrAudioRangesTest::RunTest(const FString& Parameters)
 {
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	TestEqual(TEXT("Run"), FBrAudioRules::StepRange(EBrPosture::Standing, false,
-		S->RunStepHearingRange, S->WalkStepHearingRange, S->CrouchStepHearingRange), 1500.f);
-	TestEqual(TEXT("Walk"), FBrAudioRules::StepRange(EBrPosture::Standing, true, 1500, 600, 300), 600.f);
+		S->RunStepHearingRange, S->SprintStepHearingRange, S->CrouchStepHearingRange), 1500.f);
+	TestEqual(TEXT("Sprint"), FBrAudioRules::StepRange(EBrPosture::Standing, true, 1500, 2000, 300), 2000.f);
 	TestEqual(TEXT("Crouch"), FBrAudioRules::StepRange(EBrPosture::Crouching, true, 1500, 600, 300), 300.f);
 	TestEqual(TEXT("Prone silent"), FBrAudioRules::StepRange(EBrPosture::Prone, false, 1500, 600, 300), 0.f);
 	for (float Range : {S->GunshotHearingRange, S->ExplosionHearingRange, S->DownedHearingRange, 1500.f, 600.f, 300.f})
@@ -58,7 +58,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioCadenceTest, "BrGame.Audio.FootstepCade
 bool FBrAudioCadenceTest::RunTest(const FString& Parameters)
 {
 	TestEqual(TEXT("Run 600cm/s"), FBrAudioRules::StepInterval(600, 180, 10), 0.3f);
-	TestEqual(TEXT("Walk slower"), FBrAudioRules::StepInterval(300, 180, 10), 0.6f);
+	TestEqual(TEXT("Sprint faster"), FBrAudioRules::StepInterval(780, 180, 10), 180.f / 780.f);
 	TestEqual(TEXT("Crouch slower"), FBrAudioRules::StepInterval(120, 180, 10), 1.5f);
 	TestEqual(TEXT("Stationary"), FBrAudioRules::StepInterval(0, 180, 10), 0.f);
 	TestEqual(TEXT("Jitter"), FBrAudioRules::StepInterval(9, 180, 10), 0.f);

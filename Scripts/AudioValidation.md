@@ -20,11 +20,14 @@
   The scripts intentionally restore placeholders, so change script assignments too
   if retaining custom references across regeneration.
 - Project Settings → BrGame → Audio contains hearing radii (cm), inner-radius fraction
-  and linear falloff, walk/crouch volume, fire pitch/volume variation, stride (180 cm),
+  and linear falloff, sprint/crouch volume, fire pitch/volume variation, stride (180 cm),
   minimum speed (10 cm/s), service interval (0.1 s), footsteps/scream/pickup fallback
   and class/mix soft references, batch interval and category voice policies.
   Defaults: fire 5000, explosion 8000, downed 4000,
-  run/walk/crouch 1500/600/300; walk/crouch volumes .45/.20; prone always silent.
+  run/sprint/crouch 1500/2000/300; sprint/crouch volumes 1.30/.20; prone always silent.
+  Issue 12 replaces walking entirely: SprintStep reuses generated RunFootsteps,
+  with separate range/volume and shared footstep concurrency. No separate sound
+  asset or regeneration of `create_sound_assets.py` is needed for sprint.
 - `SC_Master` → `SC_Effects`, `SM_Volume`: device base mix, not a travel-accumulating
   modifier stack. Local preferences use version-1 `BrAudio.sav` under Saved/SaveGames,
   separate from the name profile. Clamp both on load/change. Startup and world/controller

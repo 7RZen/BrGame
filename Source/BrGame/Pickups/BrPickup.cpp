@@ -1,6 +1,7 @@
 #include "BrPickup.h"
 #include "BrAudioSubsystem.h"
 #include "BrCharacter.h"
+#include "BrCharacterMovementComponent.h"
 #include "BrDeveloperSettings.h"
 #include "BrGameMode.h"
 #include "BrPickupManager.h"
@@ -160,7 +161,7 @@ bool ABrPickup::CanCollect(const ABrCharacter* Character) const
 
 bool ABrPickup::TryCollect(ABrCharacter* Character)
 {
-	if (!HasAuthority() || !CanCollect(Character)) return false;
+	if (!HasAuthority() || !CanCollect(Character) || Character->GetBrMovement()->IsSprinting()) return false;
 	bCollecting = true;
 	const bool bApplied = State.Definition->Apply(Character, State.Payload);
 	bCollecting = false;

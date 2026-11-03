@@ -18,6 +18,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | 10 | Real map with obstructions | Done: L_Town (200 m town/field/compound/forest) is the match map; all BrGame tests (44) and flow/fog/session/local smokes pass; gameplay screenshots reviewed; open items in Scripts\Step10Validation.md |
 | 11 | Further tests and playtesting | Automated suite done; manual playtest pending |
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
+| Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 
 ## Hosting
 - Player-hosted game (the host's game is the server) over Steam. Steam provides matchmaking, the server list, relays (hides IP addresses) and invites, but not server hosting.
@@ -86,7 +87,7 @@ Joining a different session leaves the previous session first. Browser joins and
 | Action | Key |
 |---|---|
 | Move (relative to screen, W = up) | W A S D |
-| Walk (running is the default) | Hold Shift |
+| Tactical sprint (forward/forward-diagonal only) | Hold Left Shift |
 | Crouch (toggle) | C |
 | Lie down (toggle) | Z |
 | Fire (hold for automatic weapons) | Left mouse |
@@ -125,14 +126,34 @@ Joining a different session leaves the previous session first. Browser joins and
   remaining cooldown in the menu. Selecting Unstuck closes the menu so progress is unobscured.
 
 ## Player states
-Standing, Walking, Running, Crouching, Lying down, Downed (dying), Dead (eliminated).
+Standing, Running, Tactical sprinting, Crouching, Lying down, Downed (dying), Dead (eliminated).
 
 ### Movement speed *(dev)*
 Base running speed is 600.
 - **Running:** base speed × weapon modifier: pistol 100%, assault rifle 90%, machine gun 80%.
-- **Walking:** 50% of base speed, no weapon penalty.
+- **Tactical sprinting:** 130% of running speed, including weapon modifier (780/702/624 cm/s).
 - **Crouching:** 20% of base speed, no weapon penalty.
 - **Lying down:** 20% of base speed, no weapon penalty.
+
+### Tactical sprint *(all tuning dev-only, UBrDeveloperSettings)*
+- Hold the rebindable Sprint action (Left Shift) while moving within ±50° of facing.
+  Pure strafe/backward movement is normal run. The server validates each CMC move's
+  acceleration against its control yaw; clients cannot grant sprint speed or stamina.
+- Crouch + Sprint requests standing and only sprints after capsule clearance permits
+  uncrouching. Prone + Sprint stays prone.
+- Five seconds of sprint energy; partial use is allowed. Regen starts after 1 s of
+  rest and restores an empty bar in 5 s; starting requires 0.5 s worth of energy.
+  Holding Shift can resume sprint when direction/energy becomes eligible again.
+  Stamina is move-time predicted, server-authoritative, and shown near player info
+  only while below full. No stamina or sprint state persists across a new pawn/round.
+- Fire or grenade cancels sprint, then fires/throws after 0.2 s recovery. A quick
+  fire tap still schedules one shot; holding automatic fire continues after recovery
+  and suppresses sprint. The server independently rejects sprint/recovery shots,
+  with 30 ms arrival grace (never while actively sprinting).
+- Release, non-forward input, empty stamina, posture change, downing, blocked gameplay
+  input/menu and unstuck hold stop sprint. E stops sprint then performs pickup/revive.
+  Automatic overlap pickups wait until sprint ends; starting sprint/moving cancels
+  an unstuck hold. Fire/interact/posture cancellation requires pressing Sprint again.
 
 ### Downed (dying)
 - When health reaches 0 the player is downed for 30 s *(dev)*. They can't move, shoot or be damaged, and they call for help (a pulsing "HELP!" sign above them).
@@ -170,7 +191,7 @@ Base running speed is 600.
 
 ## Fighting
 ### Hit chance *(dev)*
-Every bullet that reaches a player rolls a hit chance based on the shooter's and target's posture. Walking and running count as standing. A missed bullet passes through and can hit something behind.
+Every bullet that reaches a player rolls a hit chance based on the shooter's and target's posture. Sprinting and running count as standing. A missed bullet passes through and can hit something behind.
 
 | Shooter ↓ / Target → | Standing | Crouching | Lying down |
 |---|---|---|---|
@@ -202,9 +223,9 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 - Players start with 100 health, capped at their max health (which can be lowered by respawn penalties).
 
 ## Pickups
-- **Ammo:** one magazine for your current weapon. Collected by walking over it.
-- **Health:** restores 100%, 50% or 20% of max health (very few, a few and several, in a 1 : 3 : 6 ratio). Collected by walking over it, but not at full health.
-- **Hand grenade:** +1, up to 2. Collected by walking over it.
+- **Ammo:** one magazine for your current weapon. Collected on overlap while not sprinting.
+- **Health:** restores 100%, 50% or 20% of max health (very few, a few and several, in a 1 : 3 : 6 ratio). Collected on overlap while not sprinting, but not at full health.
+- **Hand grenade:** +1, up to 2. Collected on overlap while not sprinting.
 - **Weapons:** assault rifle and machine gun. Press E to pick up.
 - Placed randomly; the number grows with the player count. After pickup the spot refills after the host's respawn time (default 30 s) with a randomly chosen pickup.
 - Planned for later (not now): radar that reveals nearby enemies, and teleport to a safe location. Pickup types are data assets, so these can be added without changing the spawn system.
@@ -214,7 +235,7 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
   original scream-like downed vocal (not the Wilhelm recording), running/soft footsteps and
   distinct weapon/ammo/health/grenade pickups.
 - Spatial linear falloff *(dev, Audio settings)*: gunshots 50 m, explosions 80 m,
-  downed scream 40 m, running 15 m, walking 6 m at 45% volume, crouching 3 m at
+  downed scream 40 m, running 15 m, sprinting 20 m at 130% volume, crouching 3 m at
   20% volume; prone is silent. Listener distance/orientation follows the viewed pawn
   and camera yaw, not the elevated orthographic camera.
 - All nearby players can hear fire, explosions, screams and footsteps through fog.

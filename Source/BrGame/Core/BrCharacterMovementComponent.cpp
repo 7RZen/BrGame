@@ -3,6 +3,9 @@
 #include "BrCharacter.h"
 #include "BrDeveloperSettings.h"
 #include "BrAimingRules.h"
+#include "BrInventoryComponent.h"
+#include "BrLifeComponent.h"
+#include "Engine/World.h"
 #include "Components/CapsuleComponent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -12,7 +15,12 @@ namespace
 	{
 	public:
 		using Super = FSavedMove_Character;
-		bool bWalk = false;
+		bool bSprint = false;
+		bool bForwardSprint = false;
+		float SprintFacingYaw = 0;
+		double SprintMoveWorldTime = 0;
+		FBrSprintState StartSprint;
+		FBrSprintState EndSprint;
 		bool bProne = false;
 		EBrPosture EndPosture = EBrPosture::Standing;
 		EBrPosture StartPosture = EBrPosture::Standing;
@@ -20,21 +28,37 @@ namespace
 		virtual void Clear() override
 		{
 			Super::Clear();
-			bWalk = bProne = false;
+			bSprint = bProne = false;
+			bForwardSprint = false;
+			SprintFacingYaw = 0;
+			SprintMoveWorldTime = 0;
+			StartSprint = FBrSprintState();
+			EndSprint = FBrSprintState();
 			StartPosture = EndPosture = EBrPosture::Standing;
 		}
 
 		virtual uint8 GetCompressedFlags() const override
 		{
 			// Custom_2/3 report predicted actual posture, not a request or trusted server state.
-			return Super::GetCompressedFlags() | (bWalk ? FLAG_Custom_0 : 0) | (bProne ? FLAG_Custom_1 : 0) |
+			return Super::GetCompressedFlags() | (bSprint ? FLAG_Custom_0 : 0) | (bProne ? FLAG_Custom_1 : 0) |
 				(static_cast<uint8>(EndPosture) << 6);
 		}
 
 		virtual bool CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* Character, float MaxDelta) const override
 		{
 			const FBrSavedMove* Other = static_cast<const FBrSavedMove*>(NewMove.Get());
-			return bWalk == Other->bWalk && bProne == Other->bProne && EndPosture == Other->EndPosture &&
+			const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+			FBrSprintState Combined = StartSprint;
+			Combined.Advance(DeltaTime + Other->DeltaTime, bForwardSprint && bSprint, S->SprintStaminaDuration,
+				S->SprintMinimumStart, S->SprintRegenDelay, S->SprintRegenDuration);
+			// Combine linear drain/regen, but never span a gait/eligibility boundary.
+			// Native combining reruns the pending move; CombineWith must rewind our state too.
+			return bSprint == Other->bSprint && bForwardSprint == Other->bForwardSprint &&
+				StartSprint.bActive == EndSprint.bActive && StartSprint.bActive == Other->StartSprint.bActive &&
+				Combined.bActive == StartSprint.bActive &&
+				(!bSprint || !bForwardSprint || StartSprint.bActive ||
+					(StartSprint.Stamina >= S->SprintMinimumStart) == (Other->StartSprint.Stamina >= S->SprintMinimumStart)) &&
+				bProne == Other->bProne && EndPosture == Other->EndPosture &&
 				StartPosture == EndPosture && Other->StartPosture == Other->EndPosture &&
 				Super::CanCombineWith(NewMove, Character, MaxDelta);
 		}
@@ -44,7 +68,15 @@ namespace
 		{
 			Super::SetMoveFor(Character, InDeltaTime, NewAccel, ClientData);
 			const UBrCharacterMovementComponent* Movement = CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement());
-			bWalk = Movement->IsWalking();
+			bSprint = Movement->WantsSprint();
+			SprintFacingYaw = Character->GetControlRotation().Yaw;
+			// World time at this move's simulation end, retained across timestamp resets
+			// and combining (the newest move's end remains the combined move's end).
+			SprintMoveWorldTime = Character->GetWorld()->GetTimeSeconds();
+			StartSprint = EndSprint = Movement->GetSprintState();
+			bForwardSprint = Movement->IsMovingOnGround() && Movement->GetPosture() == EBrPosture::Standing &&
+				FBrSprintState::IsForward(NewAccel, SprintFacingYaw,
+					UBrDeveloperSettings::Get()->SprintForwardHalfAngle);
 			bProne = Movement->WantsProne();
 			StartPosture = EndPosture = Movement->GetPosture();
 		}
@@ -53,14 +85,26 @@ namespace
 		{
 			Super::PostUpdate(Character, PostUpdateMode);
 			EndPosture = CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement())->GetPosture();
-			bForceNoCombine |= StartPosture != EndPosture;
+			EndSprint = CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement())->GetSprintState();
+			bForceNoCombine |= StartPosture != EndPosture || StartSprint.bActive != EndSprint.bActive;
+			if (PostUpdateMode == PostUpdate_Replay)
+				CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement())->FinishSprintReplay();
+		}
+
+		virtual void CombineWith(const FSavedMove_Character* OldMove, ACharacter* Character,
+			APlayerController* PC, const FVector& OldStartLocation) override
+		{
+			StartSprint = static_cast<const FBrSavedMove*>(OldMove)->StartSprint;
+			CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement())->RestoreSprintStateForCombine(StartSprint);
+			Super::CombineWith(OldMove, Character, PC, OldStartLocation);
 		}
 
 		virtual void PrepMoveFor(ACharacter* Character) override
 		{
 			Super::PrepMoveFor(Character);
 			UBrCharacterMovementComponent* Movement = CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement());
-			Movement->SetWalking(bWalk);
+			Movement->RestoreSprintIntent(bSprint);
+			Movement->PrepareSprintReplay(SprintFacingYaw, SprintMoveWorldTime);
 			Movement->SetProne(bProne);
 		}
 	};
@@ -75,6 +119,31 @@ namespace
 	};
 }
 
+void FBrNetworkMoveData::ClientFillNetworkMoveData(const FSavedMove_Character& Move, ENetworkMoveType Type)
+{
+	FCharacterNetworkMoveData::ClientFillNetworkMoveData(Move, Type);
+	Sprint = static_cast<const FBrSavedMove&>(Move).EndSprint;
+}
+
+namespace
+{
+	void SerializeSprint(FArchive& Ar, FBrSprintState& State)
+	{
+		Ar << State.Stamina;
+		Ar << State.RestTime;
+		Ar.SerializeBits(&State.bActive, 1);
+		if (!FMath::IsFinite(State.Stamina) || !FMath::IsFinite(State.RestTime) ||
+			State.Stamina < 0 || State.RestTime < 0) Ar.SetError();
+	}
+}
+
+bool FBrNetworkMoveData::Serialize(UCharacterMovementComponent& Movement, FArchive& Ar, UPackageMap* Map, ENetworkMoveType Type)
+{
+	const bool bSuccess = FCharacterNetworkMoveData::Serialize(Movement, Ar, Map, Type);
+	SerializeSprint(Ar, Sprint);
+	return bSuccess && !Ar.IsError();
+}
+
 void FBrMoveResponseDataContainer::ServerFillResponseData(const UCharacterMovementComponent& Movement,
 	const FClientAdjustment& Adjustment)
 {
@@ -82,11 +151,13 @@ void FBrMoveResponseDataContainer::ServerFillResponseData(const UCharacterMoveme
 	const UBrCharacterMovementComponent& BrMovement = *CastChecked<UBrCharacterMovementComponent>(&Movement);
 	Posture = BrMovement.GetServerCorrectionPosture();
 	RequestedPosture = BrMovement.GetServerCorrectionRequest();
+	Sprint = BrMovement.GetServerCorrectionSprint();
 }
 
 bool FBrMoveResponseDataContainer::Serialize(UCharacterMovementComponent& Movement, FArchive& Ar, UPackageMap* PackageMap)
 {
 	const bool bBaseSuccess = FCharacterMoveResponseDataContainer::Serialize(Movement, Ar, PackageMap);
+	SerializeSprint(Ar, Sprint);
 	uint8 PostureBits = static_cast<uint8>(Posture);
 	uint8 RequestBits = static_cast<uint8>(RequestedPosture);
 	Ar.SerializeBits(&PostureBits, 2);
@@ -109,13 +180,20 @@ UBrCharacterMovementComponent::UBrCharacterMovementComponent()
 	SetIsReplicatedByDefault(true);
 	GetNavAgentPropertiesRef().bCanCrouch = true;
 	SetMoveResponseDataContainer(MoveResponseData);
+	SetNetworkMoveDataContainer(NetworkMoveData);
+}
+
+void UBrCharacterMovementComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	Sprint.Stamina = FMath::Max(0.1f, UBrDeveloperSettings::Get()->SprintStaminaDuration);
 }
 
 void UBrCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION(UBrCharacterMovementComponent, ReplicatedPosture, COND_SkipOwner);
-	DOREPLIFETIME_CONDITION(UBrCharacterMovementComponent, bWantsToWalk, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(UBrCharacterMovementComponent, bReplicatedSprint, COND_SkipOwner);
 }
 
 FNetworkPredictionData_Client* UBrCharacterMovementComponent::GetPredictionData_Client() const
@@ -154,6 +232,8 @@ void UBrCharacterMovementComponent::ApplyAcceptedCombatAim(const FVector& Aim, f
 
 void UBrCharacterMovementComponent::ServerMove_PerformMovement(const FCharacterNetworkMoveData& MoveData)
 {
+	// Prediction reports are comparison-only. Never accept client stamina as authority.
+	ClientReportedSprint = static_cast<const FBrNetworkMoveData&>(MoveData).Sprint;
 	const bool bAfterAim = CombatAimTimeStamp.IsSet() && FBrAimingRules::IsMoveAfterCombatAim(
 		MoveData.TimeStamp, CombatAimTimeStamp.GetValue(), MinTimeBetweenTimeStampResets);
 	if (CombatAimTimeStamp.IsSet() && !bAfterAim)
@@ -176,7 +256,7 @@ void UBrCharacterMovementComponent::ServerMove_PerformMovement(const FCharacterN
 void UBrCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 {
 	Super::UpdateFromCompressedFlags(Flags);
-	bWantsToWalk = (Flags & FSavedMove_Character::FLAG_Custom_0) != 0;
+	bWantsToSprint = (Flags & FSavedMove_Character::FLAG_Custom_0) != 0;
 	bWantsToProne = (Flags & FSavedMove_Character::FLAG_Custom_1) != 0;
 	// Prone is another low-capsule posture, encoded alongside the engine's crouch request.
 	bWantsToCrouch = bWantsToCrouch || bWantsToProne;
@@ -185,11 +265,12 @@ void UBrCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 
 bool UBrCharacterMovementComponent::ClientUpdatePositionAfterServerUpdate()
 {
-	const bool bRealWalk = bWantsToWalk;
+	const bool bRealSprint = bWantsToSprint;
 	const bool bRealProne = bWantsToProne;
 	const bool bRealCrouch = bWantsToCrouch;
 	const bool bReplayed = Super::ClientUpdatePositionAfterServerUpdate();
-	bWantsToWalk = bRealWalk;
+	FinishSprintReplay(); // Also cover native early-outs / an empty replay list.
+	bWantsToSprint = bRealSprint;
 	bWantsToProne = bRealProne;
 	bWantsToCrouch = bRealCrouch;
 	return bReplayed;
@@ -201,7 +282,10 @@ void UBrCharacterMovementComponent::ServerMoveHandleClientError(float ClientTime
 {
 	// A posture-only disagreement must correct even with zero positional error,
 	// including engine paths that otherwise tolerate error while falling.
-	if (ClientReportedPosture != static_cast<uint8>(LocalPosture))
+	if (ClientReportedPosture != static_cast<uint8>(LocalPosture) ||
+		FMath::Abs(ClientReportedSprint.Stamina - Sprint.Stamina) > 0.05f ||
+		FMath::Abs(ClientReportedSprint.RestTime - Sprint.RestTime) > 0.05f ||
+		ClientReportedSprint.bActive != Sprint.bActive)
 	{
 		GetPredictionData_Server_Character()->bForceClientUpdate = true;
 	}
@@ -213,11 +297,20 @@ void UBrCharacterMovementComponent::ServerMoveHandleClientError(float ClientTime
 		// Snapshot with the pending adjustment, not the later state at send time.
 		ServerCorrectionPosture = LocalPosture;
 		ServerCorrectionRequest = GetRequestedPosture();
+		ServerCorrectionSprint = Sprint;
 	}
 }
 
 void UBrCharacterMovementComponent::ClientHandleMoveResponse(const FCharacterMoveResponseDataContainer& MoveResponse)
 {
+#if !UE_BUILD_SHIPPING
+	// Count every correction received, including one native CMC cannot apply (unresolved base,
+	// expired saved move). Such a response must never produce a success-shaped smoke result.
+	if (MoveResponse.IsCorrection())
+		if (ABrCharacter* Character = Cast<ABrCharacter>(CharacterOwner))
+			if (Character->bSprintSmokeRunning && Character->SprintSmokeElapsed > 2.5f && Character->SprintSmokeElapsed < 6.5f)
+				++Character->SprintSmokeCorrections;
+#endif
 	const bool bKnownMove = HasValidData() &&
 		GetPredictionData_Client_Character()->GetSavedMoveIndex(MoveResponse.ClientAdjustment.TimeStamp) != INDEX_NONE;
 	Super::ClientHandleMoveResponse(MoveResponse);
@@ -235,6 +328,9 @@ void UBrCharacterMovementComponent::ClientHandleMoveResponse(const FCharacterMov
 	const FBrMoveResponseDataContainer& Response = static_cast<const FBrMoveResponseDataContainer&>(MoveResponse);
 	if (MoveResponse.IsCorrection() && ClientData->bUpdatePosition)
 	{
+		// Native correction rewinds location to this same move; replay then integrates energy
+		// from its authoritative end state, NOT each saved move's old predicted stamina.
+		Sprint = Response.Sprint;
 		ApplyAuthoritativePosture(Response.Posture);
 		// Do not immediately predict the same rejected expansion during replay.
 		// The server continues retrying the unchanged request; a new local request
@@ -262,9 +358,9 @@ float UBrCharacterMovementComponent::GetMaxSpeed() const
 		return Super::GetMaxSpeed();
 	}
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
-	return FBrMovementSpeed::Calculate(GetPosture(), bWantsToWalk,
+	return FBrMovementSpeed::Calculate(GetPosture(), IsSprinting(),
 		Character ? Character->GetWeaponRunSpeedMultiplier() : 1.0f,
-		Settings->BaseRunSpeed, Settings->WalkSpeedMultiplier,
+		Settings->BaseRunSpeed, Settings->SprintSpeedMultiplier,
 		Settings->CrouchSpeedMultiplier, Settings->ProneSpeedMultiplier);
 }
 
@@ -287,6 +383,7 @@ float UBrCharacterMovementComponent::GetPostureHalfHeight(EBrPosture Posture) co
 
 void UBrCharacterMovementComponent::RequestPosture(EBrPosture Posture)
 {
+	SetSprinting(false);
 	RejectedPostureRequest.Reset();
 	bWantsToCrouch = Posture != EBrPosture::Standing;
 	bWantsToProne = Posture == EBrPosture::Prone;
@@ -324,12 +421,14 @@ void UBrCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float Del
 			DisableMovement();
 			StopMovementImmediately();
 			RefreshPosture();
+			SetSprinting(false);
 			return;
 		}
 		if (CharacterOwner->GetLocalRole() == ROLE_AutonomousProxy &&
 			RejectedPostureRequest.IsSet() && RejectedPostureRequest.GetValue() == GetRequestedPosture())
 		{
 			RefreshPosture();
+			UpdateSprint(DeltaSeconds);
 			return;
 		}
 		if (IsCrouching() && bWantsToCrouch && CanCrouchInCurrentState())
@@ -344,6 +443,87 @@ void UBrCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float Del
 	}
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 	RefreshPosture();
+	UpdateSprint(DeltaSeconds);
+}
+
+float UBrCharacterMovementComponent::GetSprintFraction() const
+{
+	return FMath::Clamp(Sprint.Stamina / FMath::Max(0.1f, UBrDeveloperSettings::Get()->SprintStaminaDuration), 0.f, 1.f);
+}
+
+bool UBrCharacterMovementComponent::IsSprinting() const
+{
+	return CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy ? bReplicatedSprint : Sprint.bActive;
+}
+
+void UBrCharacterMovementComponent::SetSprinting(bool bSprinting)
+{
+	if (bSprinting && CharacterOwner && CharacterOwner->IsLocallyControlled())
+	{
+		const ABrCharacter* Character = Cast<ABrCharacter>(CharacterOwner);
+		if (Character && Character->GetInventory()->IsCombatHeld()) bSprinting = false;
+	}
+	bWantsToSprint = bSprinting;
+	if (!bSprinting && Sprint.bActive)
+	{
+		Sprint.bActive = false;
+		SprintStopped();
+	}
+	if (CharacterOwner && CharacterOwner->HasAuthority()) bReplicatedSprint = Sprint.bActive;
+}
+
+void UBrCharacterMovementComponent::PrepareSprintReplay(float FacingYaw, double MoveWorldTime)
+{
+	SprintReplayYaw = FacingYaw;
+	SprintReplayWorldTime = MoveWorldTime;
+}
+
+void UBrCharacterMovementComponent::FinishSprintReplay()
+{
+	SprintReplayYaw.Reset();
+}
+
+void UBrCharacterMovementComponent::SprintStopped()
+{
+	// Replaying a historical stop may reconstruct its original deadline, but must
+	// never move an existing combat recovery to "replay now + delay".
+	const double StopTime = SprintReplayYaw.IsSet() ? SprintReplayWorldTime : GetWorld()->GetTimeSeconds();
+	SprintFireReadyTime = FMath::Max(SprintFireReadyTime, StopTime + UBrDeveloperSettings::Get()->SprintToFireDelay);
+	if (!SprintReplayYaw.IsSet() && CharacterOwner && CharacterOwner->HasAuthority())
+		CastChecked<ABrCharacter>(CharacterOwner)->RequestAutoPickupRetry();
+}
+
+void UBrCharacterMovementComponent::CancelSprintForCombat()
+{
+	SetSprinting(false);
+}
+
+bool UBrCharacterMovementComponent::CanSprintFire() const
+{
+	return FBrSprintState::CanFire(IsSprinting(), GetWorld()->GetTimeSeconds(), SprintFireReadyTime,
+		FMath::Clamp(UBrDeveloperSettings::Get()->SprintFireGrace, 0.f, 0.05f));
+}
+
+void UBrCharacterMovementComponent::UpdateSprint(float DeltaSeconds)
+{
+	if (CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy) return;
+	const ABrCharacter* Character = CastChecked<ABrCharacter>(CharacterOwner);
+	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	const bool bWasActive = Sprint.bActive;
+	if (Character->IsGameplayInputBlocked()) bWantsToSprint = false;
+	// Acceleration is CMC's move acceleration on authority, not a separately supplied direction.
+	const float Yaw = SprintReplayYaw.Get(CharacterOwner->GetControlRotation().Yaw);
+	const bool bAllowed = bWantsToSprint && Character->CanMove() && !Character->IsGameplayInputBlocked() &&
+		GetPosture() == EBrPosture::Standing && IsMovingOnGround() &&
+		(!CharacterOwner->HasAuthority() || !Character->GetInventory()->IsCombatHeld()) && !Character->GetLife()->ReviveTarget &&
+		FBrSprintState::IsForward(Acceleration, Yaw, S->SprintForwardHalfAngle);
+	Sprint.Advance(DeltaSeconds, bAllowed, FMath::Max(0.1f, S->SprintStaminaDuration),
+		S->SprintMinimumStart, S->SprintRegenDelay, S->SprintRegenDuration);
+	if (bWasActive && !Sprint.bActive)
+	{
+		SprintStopped();
+	}
+	if (CharacterOwner->HasAuthority()) bReplicatedSprint = Sprint.bActive;
 }
 
 void UBrCharacterMovementComponent::UpdateCharacterStateAfterMovement(float DeltaSeconds)

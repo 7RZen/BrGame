@@ -225,7 +225,7 @@ bool FBrServerAimTest::RunTest(const FString& Parameters)
 
 		auto Move = [&](float TimeStamp, double Yaw)
 		{
-			FCharacterNetworkMoveData Data;
+			FBrNetworkMoveData Data;
 			Data.TimeStamp = TimeStamp;
 			Data.ControlRotation = FRotator(0, Yaw, 0);
 			Data.Location = Pawn->GetActorLocation();

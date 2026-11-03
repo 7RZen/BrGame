@@ -32,6 +32,8 @@ public:
 	void ClientAudioSmokeProbe(int32 Stage, FVector_NetQuantize Origin);
 	UFUNCTION(Client, Reliable)
 	void ClientHitSmokeProbe(int32 Stage, bool bVictim, FVector_NetQuantize Origin);
+	UFUNCTION(Client, Reliable)
+	void ClientSprintSmoke(bool bStart, FVector Location);
 	UFUNCTION(Server, Reliable)
 	void ServerSettings(FBrMatchSettings Settings);
 	UFUNCTION(Server, Reliable)

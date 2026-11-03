@@ -21,7 +21,7 @@ struct FBrSessionRules
 		if (Visibility == EBrSessionVisibility::Public || bMember) return EAdmission::Accept;
 		return WaitSeconds < 5.0 ? EAdmission::Wait : EAdmission::Reject;
 	}
-	static constexpr int32 Protocol = 9;
+	static constexpr int32 Protocol = 10;
 	static constexpr const TCHAR* GameId = TEXT("BrGame");
 	static bool Compatible(const FOnlineSessionSettings& Settings)
 	{

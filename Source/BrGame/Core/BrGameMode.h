@@ -78,6 +78,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBrMenuSameFrameForfeitTest;
 	friend class FBrServerAimTest;
+	friend class FBrSprintPendingCombatTest;
 #endif
 	FTimerHandle FlowTimer, ResultsTimer;
 	struct FPendingSteamLogin
@@ -140,6 +141,13 @@ private:
 	bool bMatchSmokeFriendlyFireChanged = false;
 	void ServiceMatchSmoke();
 #if !UE_BUILD_SHIPPING
+	bool ServiceSprintSmoke(ABrPlayerController* Runner);
+	int32 SprintSmokeStage = 0;
+	float SprintSmokeDeadline = 0;
+	FVector SprintSmokeOriginalLocation;
+	float SprintSmokePeakSpeed = 0;
+	float SprintSmokeFirstActive = 0;
+	int32 SprintSmokeLoaded = 0;
 	bool ServiceAudioSmoke(ABrPlayerController* Host, ABrPlayerController* Listener);
 	bool ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
 	int32 HitSmokeStage = 0;

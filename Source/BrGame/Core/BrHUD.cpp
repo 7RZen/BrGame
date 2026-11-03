@@ -58,11 +58,16 @@ void ABrHUD::DrawHUD()
 		return InputOwner ? InputOwner->GetBindingLabel(Name) : FString(TEXT("[input unavailable]"));
 	};
 	const FString Posture = StaticEnum<EBrPosture>()->GetNameStringByValue(static_cast<int64>(Character->GetPosture()));
-	const TCHAR* Gait = Movement->IsWalking() ? TEXT("Walk") : TEXT("Run");
+	const TCHAR* Gait = Movement->IsSprinting() ? TEXT("Sprint") : TEXT("Run");
 	DrawText(FString::Printf(TEXT("%s | %s%s\nSpeed: %.0f cm/s | Max: %.0f cm/s"),
 		*Posture, Gait, Character->GetPosture() != EBrPosture::Standing ? TEXT(" (modifier ignored)") : TEXT(""),
 		Character->GetVelocity().Size2D(), Movement->GetMaxSpeed()), FLinearColor::White, 20.0f, 20.0f);
 	const UBrInventoryComponent* Inventory = Character->GetInventory();
+	if (Movement->GetSprintFraction() < 0.999f)
+	{
+		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 0.8f), 20, 158, 150, 6);
+		DrawRect(FLinearColor(0.2f, 0.8f, 0.65f, 1), 20, 158, 150 * Movement->GetSprintFraction(), 6);
+	}
 	const UBrHealthComponent* Health = Character->GetHealth();
 	DrawText(FString::Printf(TEXT("Health: %.0f / %.0f\n%s | Mag: %d | Reserve: %d%s\nGrenades: %d"),
 		Health->Health, Health->MaxHealth, Inventory->Weapon ? *Inventory->Weapon->DisplayName.ToString() : TEXT("Unarmed"),

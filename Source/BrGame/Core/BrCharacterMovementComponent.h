@@ -9,9 +9,23 @@ struct FBrMoveResponseDataContainer : public FCharacterMoveResponseDataContainer
 {
 	EBrPosture Posture = EBrPosture::Standing;
 	EBrPosture RequestedPosture = EBrPosture::Standing;
+	FBrSprintState Sprint;
 
 	virtual void ServerFillResponseData(const UCharacterMovementComponent& Movement, const FClientAdjustment& Adjustment) override;
 	virtual bool Serialize(UCharacterMovementComponent& Movement, FArchive& Ar, UPackageMap* PackageMap) override;
+};
+
+struct FBrNetworkMoveData : public FCharacterNetworkMoveData
+{
+	FBrSprintState Sprint;
+	virtual void ClientFillNetworkMoveData(const FSavedMove_Character& Move, ENetworkMoveType Type) override;
+	virtual bool Serialize(UCharacterMovementComponent& Movement, FArchive& Ar, UPackageMap* Map, ENetworkMoveType Type) override;
+};
+
+struct FBrNetworkMoveDataContainer : public FCharacterNetworkMoveDataContainer
+{
+	FBrNetworkMoveDataContainer() { NewMoveData = &Moves[0]; PendingMoveData = &Moves[1]; OldMoveData = &Moves[2]; }
+	FBrNetworkMoveData Moves[3];
 };
 
 UCLASS()
@@ -44,24 +58,55 @@ public:
 	EBrPosture GetRequestedPosture() const;
 	EBrPosture GetServerCorrectionPosture() const { return ServerCorrectionPosture; }
 	EBrPosture GetServerCorrectionRequest() const { return ServerCorrectionRequest; }
-	bool IsWalking() const { return bWantsToWalk; }
+	bool IsSprinting() const;
+	bool WantsSprint() const { return bWantsToSprint; }
+	const FBrSprintState& GetSprintState() const { return Sprint; }
+	const FBrSprintState& GetServerCorrectionSprint() const { return ServerCorrectionSprint; }
+	float GetSprintFraction() const;
+	double GetSprintFireReadyTime() const { return SprintFireReadyTime; }
+	bool CanSprintFire() const;
 	bool WantsProne() const { return bWantsToProne; }
-	void SetWalking(bool bWalking) { bWantsToWalk = bWalking; }
+	void SetSprinting(bool bSprinting);
+	void RestoreSprintIntent(bool bSprint) { bWantsToSprint = bSprint; }
+	/** Move-local replay context; never changes the controller's live input rotation. */
+	void PrepareSprintReplay(float FacingYaw, double MoveWorldTime);
+	void FinishSprintReplay();
+	/** Only native move combining rewinds energy. Correction replay uses the server snapshot instead. */
+	void RestoreSprintStateForCombine(const FBrSprintState& State) { Sprint = State; }
+	/** Cancels move intent and starts the fire gate immediately, also before the next CMC update. */
+	void CancelSprintForCombat();
 	void SetProne(bool bProne) { bWantsToProne = bProne; }
 	void RequestPosture(EBrPosture Posture);
 	void ApplyReplicatedPosture();
 
 protected:
+	virtual void BeginPlay() override;
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 
 private:
 	friend class FBrHitFeedbackSmoothingTest;
+	friend class FBrSprintIntegrationTest;
+	friend class FBrSprintReplayYawTest;
+	friend class FBrSprintReplayRecoveryTest;
+	friend class FBrSprintPendingCombatTest;
+	friend class FBrSprintPickupRetryTest;
 	UPROPERTY(ReplicatedUsing=OnRep_Posture)
 	EBrPosture ReplicatedPosture = EBrPosture::Standing;
 
 	UPROPERTY(Replicated)
-	bool bWantsToWalk = false;
+	bool bReplicatedSprint = false;
+
+	bool bWantsToSprint = false;
+	FBrSprintState Sprint;
+	FBrSprintState ServerCorrectionSprint;
+	FBrSprintState ClientReportedSprint;
+	FBrNetworkMoveDataContainer NetworkMoveData;
+	double SprintFireReadyTime = 0;
+	TOptional<float> SprintReplayYaw;
+	double SprintReplayWorldTime = 0;
+	void UpdateSprint(float DeltaSeconds);
+	void SprintStopped();
 
 	bool bWantsToProne = false;
 	EBrPosture LocalPosture = EBrPosture::Standing;

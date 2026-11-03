@@ -1,6 +1,7 @@
 #include "BrLifeComponent.h"
 #include "BrAudioSubsystem.h"
 #include "BrCharacter.h"
+#include "BrCharacterMovementComponent.h"
 #include "BrDeveloperSettings.h"
 #include "BrGameMode.h"
 #include "BrGameState.h"
@@ -148,13 +149,14 @@ ABrCharacter* UBrLifeComponent::FindReviveTarget() const
 	return Best;
 }
 
-void UBrLifeComponent::StartInteract() { ServerStartRevive(); }
+void UBrLifeComponent::StartInteract() { Character()->GetBrMovement()->SetSprinting(false); ServerStartRevive(); }
 void UBrLifeComponent::StopInteract() { ServerStopRevive(); }
 void UBrLifeComponent::StartRespawnHold() { ServerRespawnHold(true); }
 void UBrLifeComponent::StopRespawnHold() { ServerRespawnHold(false); }
 
 void UBrLifeComponent::ServerStartRevive_Implementation()
 {
+	Character()->GetBrMovement()->SetSprinting(false);
 	if (!IsAlive() || ReviveTarget) return;
 	ABrCharacter* Target = FindReviveTarget(); // Intent only; never accept a client-selected target.
 	if (!Target)

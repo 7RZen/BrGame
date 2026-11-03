@@ -57,12 +57,16 @@ Status: Unresolved
 
 ## 10 (FR) Maps and map selector
 The person hosting should be able to choose from available maps.
+Status: Unresolved
 
 ## 11 (FR) All buildings have roofs
 the roof should have same effect as fog of war, whn a player is inside the building the roof disapears. When a player looks inside a door from outside the roof should be invisible where the look angle for the player is.
+Status: Unresolved
 
 ## 12 (FR) Tactical sprint
 The player should use SHIFT as tactical sprint. Walking should be removed. When in tactical sprint the player can not shoot. Tactical sprint should be 130% running speed. This should be a developer setting.
+Status: Implemented; all four P2 review defects fixed (historical replay yaw/recovery, retained authoritative fire/throw requests, shared pickup retry on stop). Full UBT build zero compiler warnings, 79/79 automation and 12/12 regression PASS; logs Saved/Logs/RunAll/20261103-222246/. Forward-only hold Sprint replaces Walk, with weapon-adjusted 130% speed, predicted server-authoritative stamina, sprint-to-fire gate, louder 20 m steps and owner stamina HUD. Four remote sprint runs reached 780 cm/s, received zero steady-sprint corrections, exhausted by the 5.50 s service poll and fired after 0.191–0.210 s recovery (configured grace). Physical-input/audio/lag and stationary-overlap pickup playtests remain: Scripts/SprintValidation.md.
 
 ## 13 (I) Wrong player name in multiplayer
 When testing local the player names are correct for other players, but when joingin via steam the other players name are Player and not what they set.
+Status: Unresolved

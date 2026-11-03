@@ -44,7 +44,7 @@ function WaitLog([string]$Role, [string]$Pattern, [int]$Minimum = 1) {
             if ($Process.HasExited) { throw "Launched PID $($Process.Id) exited early: $($Process.ExitCode)" }
         }
         foreach ($ProbeLog in Get-ChildItem -LiteralPath $Logs -Filter *.log) {
-            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E HIT PROBE FAIL" | Select-Object -Last 1
+            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E HIT PROBE FAIL|E2E SPRINT (CLIENT|SERVER) FAIL" | Select-Object -Last 1
             if ($Failure) { throw "$($ProbeLog.Name) E2E assertion failed: $($Failure.Line)" }
         }
         if (Test-Path -LiteralPath $File) {
@@ -80,6 +80,9 @@ try {
     WaitLog "Host" "Flow admitted: MatchLateJoin.*Lobby=0"
     WaitLog "Client3" "Flow client state: L_Town Phase=2 Pawn=BrCharacter"
     WaitLog "Host" "E2E MATCH SMOKE PASS"
+    WaitLog "Host" "E2E SPRINT SPEED PASS" 2
+    WaitLog "Host" "E2E SPRINT FIRE PASS" 2
+    WaitLog "Client3" "E2E SPRINT CLIENT PASS: Corrections=0" 2
     foreach ($Stage in 1..2) {
         WaitLog "Client3" "E2E HIT PROBE PASS Stage=$Stage Victim=0" 2
         $VictimMatches = @(Get-ChildItem -LiteralPath $Logs -Filter "Client*.log" |

@@ -23,10 +23,21 @@ count and test both modes.
 - [OK] **Start/results/return:** start a match on L_Town, finish it, and wait
   for results. Expected: map travel, winner/table, return to lobby, and prior
   lobby settings/groups retained.
-- [Issues] **Movement/map:** run/walk, crouch, prone, rotate/zoom the camera, enter
+- [Issues] **Movement/map:** run/sprint, crouch, prone, rotate/zoom the camera, enter
   buildings, cross low cover and approach the boundary. Expected: movement
   speeds/postures change; walls block movement and shots; low cover blocks
   shots but not fog vision; doors are passable; boundary contains players.
+- [ ] **Tactical sprint (host + remote):** hold/rebind Left Shift, test W/WA/WD versus
+  A/D/S and mouse turns at the ±50° cone. Expect 1.3× weapon-adjusted run speed,
+  five seconds of energy, 1 s regen wait, 5 s full regen, 0.5 s minimum restart.
+  Verify partial use and HUD bar hiding at full. Crouch stands only with room;
+  prone stays prone. Try blocked uncrouch beneath cover.
+- [ ] **Sprint cancellation/combat:** tap/hold Fire and throw G during sprint:
+  no immediate shot/throw, then action after 0.2 s; automatic fire keeps sprint
+  suppressed. E stops sprint then picks up/revives; overlap pickups wait for sprint
+  to end. Test posture/down/menu/map/unstuck/release/non-forward/empty cancellations.
+  Repeat with artificial lag/loss and watch for corrections, lost shots or extra ammo.
+  Old saved binding profiles must show Sprint (not a stale Walk row/conflict).
 - [OK] **Combat:** fire/reload each weapon at standing, crouching and prone
   targets; throw grenades near and behind cover. Expected: server-authoritative
   damage follows hit chance/posture reduction, grenade radius and wall
@@ -107,7 +118,7 @@ to leave processes running for interactive use.
   and collect each pickup type. Expected: distinct fire with slight variation,
   boom and original generated vocal; no scream replay on fog entry/late join;
   pickup sound only on the picker's machine. Empty/reload audio is not implemented.
-- [ ] **Hearing/fog:** compare running (15 m), walking (quiet, 6 m), crouching
+- [ ] **Hearing/fog:** compare running (15 m), sprinting (louder, 20 m), crouching
   (very quiet, 3 m) and prone (silent). Hide opponents behind walls and cross fog
   boundaries while moving/firing. Expected: footsteps from anyone in range,
   gunshots through fog to 50 m, booms to 80 m, screams to 40 m; no duplicate

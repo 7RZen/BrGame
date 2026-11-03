@@ -7,7 +7,7 @@
 UENUM()
 enum class EBrSoundKind : uint8
 {
-	Fire, Explosion, Downed, RunStep, WalkStep, CrouchStep, Pickup
+	Fire, Explosion, Downed, RunStep, SprintStep, CrouchStep, Pickup
 };
 
 USTRUCT()
@@ -97,14 +97,14 @@ struct FBrAudioVoicePolicy
 /** Shared by authority targeting, local attenuation and automation. Distances are cm. */
 struct FBrAudioRules
 {
-	static EBrSoundKind StepKind(EBrPosture Posture, bool bWalking)
+	static EBrSoundKind StepKind(EBrPosture Posture, bool bSprinting)
 	{
 		return Posture == EBrPosture::Crouching ? EBrSoundKind::CrouchStep :
-			bWalking ? EBrSoundKind::WalkStep : EBrSoundKind::RunStep;
+			bSprinting ? EBrSoundKind::SprintStep : EBrSoundKind::RunStep;
 	}
-	static float StepRange(EBrPosture Posture, bool bWalking, float Run, float Walk, float Crouch)
+	static float StepRange(EBrPosture Posture, bool bSprinting, float Run, float Sprint, float Crouch)
 	{
-		return Posture == EBrPosture::Prone ? 0 : Posture == EBrPosture::Crouching ? Crouch : bWalking ? Walk : Run;
+		return Posture == EBrPosture::Prone ? 0 : Posture == EBrPosture::Crouching ? Crouch : bSprinting ? Sprint : Run;
 	}
 	static bool InRange(const FVector& Source, const FVector& Listener, float Range)
 	{

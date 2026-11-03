@@ -49,7 +49,9 @@ try {
     WaitLog "Wrong" "Flow client state: L_MainMenu Phase=0" "Incorrect or missing server password"
     Launch "Correct" @("-BrSessionSmokeClient")
     WaitLog "Correct" "Session search complete: Success=1 Compatible=1"
-    WaitLog "Host" "Flow admitted: Player.*Lobby=1"
+    # Player name is a saved local preference, not necessarily the factory default "Player".
+    # The exact admission count below still requires host + the correct-password client only.
+    WaitLog "Host" "PostLogin: Controller=BrPlayerController_1 Pawn=None"
     WaitLog "Correct" "Flow client state: L_Lobby Phase=1"
     WaitLog "Correct" "Session destroyed: Success=1"
     WaitLog "Correct" "Flow client state: L_MainMenu Phase=0" "Flow client state: L_Lobby Phase=1"

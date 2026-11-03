@@ -10,6 +10,7 @@
 #include "BrLog.h"
 #include "BrLifeComponent.h"
 #include "BrGameMode.h"
+#include "BrGameState.h"
 #include "BrPickupRules.h"
 #include "CollisionQueryParams.h"
 #include "Engine/World.h"
@@ -46,7 +47,7 @@ void UBrInventoryComponent::BeginPlay()
 
 void UBrInventoryComponent::EndPlay(const EEndPlayReason::Type Reason)
 {
-	StopFire();
+	CancelCombat();
 	CancelReload();
 	Bullets.Empty();
 	if (ABrCharacter* Character = Cast<ABrCharacter>(GetOwner()))
@@ -121,7 +122,7 @@ bool UBrInventoryComponent::EquipWeapon(UBrWeaponDefinition* Definition, int32 L
 		return false;
 	}
 	CancelReload();
-	StopFire();
+	CancelCombat();
 	Weapon = Definition;
 	// Shared reserve is kept. The caller decides whether this is a fresh grant or a dropped instance.
 	Loaded = FMath::Clamp(LoadedRounds, 0, Definition->MagazineSize);
@@ -148,7 +149,7 @@ void UBrInventoryComponent::RestoreState(const FBrInventoryState& State)
 	if (!GetOwner()->HasAuthority()) return;
 	bRestoredState = true;
 	CancelReload();
-	StopFire();
+	CancelCombat();
 	Weapon = State.Weapon;
 	Loaded = FMath::Clamp(State.Loaded, 0, Weapon ? FMath::Max(0, Weapon->MagazineSize) : 0);
 	Ammo.Empty();
@@ -160,7 +161,7 @@ void UBrInventoryComponent::RestoreState(const FBrInventoryState& State)
 
 void UBrInventoryComponent::OnRep_Weapon()
 {
-	StopFire();
+	CancelCombat();
 	if (ABrCharacter* Character = Cast<ABrCharacter>(GetOwner()))
 	{
 		Character->UpdateWeaponVisual();
@@ -176,7 +177,21 @@ bool UBrInventoryComponent::ValidAim(const FVector& Aim)
 
 void UBrInventoryComponent::StartFire()
 {
-	if (!IsAlive()) return;
+	ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
+	if (!IsAlive() || !Character || !Character->IsLocallyControlled() || Character->IsGameplayInputBlocked()) return;
+	bFireHeld = true;
+	Character->GetBrMovement()->CancelSprintForCombat();
+	UpdateCombatIntent();
+	const float Delay = FMath::Max(0.f, static_cast<float>(Character->GetBrMovement()->GetSprintFireReadyTime() - GetWorld()->GetTimeSeconds()));
+	if (Delay > 0)
+	{
+		if (!bPendingFire)
+		{
+			bPendingFire = true;
+			GetWorld()->GetTimerManager().SetTimer(SprintFireTimer, this, &UBrInventoryComponent::DeferredFire, Delay, false);
+		}
+		return;
+	}
 	AttemptFire();
 	if (Weapon && Weapon->bAutomatic)
 	{
@@ -188,6 +203,113 @@ void UBrInventoryComponent::StartFire()
 void UBrInventoryComponent::StopFire()
 {
 	GetWorld()->GetTimerManager().ClearTimer(FireTimer);
+	bFireHeld = false;
+	UpdateCombatIntent();
+}
+
+void UBrInventoryComponent::CancelCombat()
+{
+	bPendingFire = bPendingGrenade = false;
+	GetWorld()->GetTimerManager().ClearTimer(SprintFireTimer);
+	GetWorld()->GetTimerManager().ClearTimer(SprintGrenadeTimer);
+	ClearServerPendingCombat();
+	StopFire();
+	// Remote menus/downing/gear changes must cancel the authority's queued action,
+	// not only the already-expired local recovery timer. StopFire (tap release)
+	// intentionally does NOT cancel an accepted pending single shot.
+	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
+	if (Character && Character->IsLocallyControlled()) ServerCancelCombat();
+}
+
+void UBrInventoryComponent::UpdateCombatIntent()
+{
+	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
+	if (Character && Character->IsLocallyControlled())
+		ServerCombatIntent(bFireHeld || bPendingFire || bPendingGrenade);
+}
+
+void UBrInventoryComponent::ServerCombatIntent_Implementation(bool bHeld)
+{
+	bServerCombatHeld = bHeld;
+	if (bHeld)
+		if (ABrCharacter* Character = Cast<ABrCharacter>(GetOwner())) Character->GetBrMovement()->CancelSprintForCombat();
+}
+
+void UBrInventoryComponent::ClearServerPendingCombat()
+{
+	PendingServerFire.Reset();
+	PendingServerGrenade.Reset();
+	GetWorld()->GetTimerManager().ClearTimer(PendingServerFireTimer);
+	GetWorld()->GetTimerManager().ClearTimer(PendingServerGrenadeTimer);
+	if (GetOwner()->HasAuthority()) bServerCombatHeld = false;
+}
+
+void UBrInventoryComponent::ServerCancelCombat_Implementation()
+{
+	ClearServerPendingCombat();
+}
+
+bool UBrInventoryComponent::CombatRequestsAllowed() const
+{
+	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
+	const ABrGameState* State = GetWorld()->GetGameState<ABrGameState>();
+	return IsAlive() && Character && !Character->IsGameplayInputBlocked() &&
+		(!State || (!State->bLobby && !State->bResults));
+}
+
+void UBrInventoryComponent::QueueSprintAction(bool bGrenade, const FVector& Aim, float MoveTimeStamp)
+{
+	TOptional<FPendingSprintAction>& Pending = bGrenade ? PendingServerGrenade : PendingServerFire;
+	if (Pending.IsSet()) return;
+	FPendingSprintAction Action;
+	Action.Aim = Aim;
+	Action.MoveTimeStamp = MoveTimeStamp;
+	Action.Definition = bGrenade ? static_cast<UObject*>(Throwable) : static_cast<UObject*>(Weapon);
+	Pending = Action;
+	const ABrCharacter* Character = CastChecked<ABrCharacter>(GetOwner());
+	const float Delay = FMath::Max(UE_KINDA_SMALL_NUMBER, static_cast<float>(
+		Character->GetBrMovement()->GetSprintFireReadyTime() - GetWorld()->GetTimeSeconds()));
+	GetWorld()->GetTimerManager().SetTimer(bGrenade ? PendingServerGrenadeTimer : PendingServerFireTimer,
+		this, bGrenade ? &UBrInventoryComponent::ServicePendingGrenade : &UBrInventoryComponent::ServicePendingFire, Delay, false);
+}
+
+void UBrInventoryComponent::ServicePendingFire()
+{
+	if (!PendingServerFire.IsSet()) return;
+	const FPendingSprintAction Action = PendingServerFire.GetValue();
+	PendingServerFire.Reset();
+	GetWorld()->GetTimerManager().ClearTimer(PendingServerFireTimer);
+	if (CombatRequestsAllowed() && Action.Definition.IsValid() && Action.Definition.Get() == Weapon)
+		ServerFire_Implementation(Action.Aim, Action.MoveTimeStamp);
+}
+
+void UBrInventoryComponent::ServicePendingGrenade()
+{
+	if (!PendingServerGrenade.IsSet()) return;
+	const FPendingSprintAction Action = PendingServerGrenade.GetValue();
+	PendingServerGrenade.Reset();
+	GetWorld()->GetTimerManager().ClearTimer(PendingServerGrenadeTimer);
+	if (CombatRequestsAllowed() && Action.Definition.IsValid() && Action.Definition.Get() == Throwable)
+		ServerGrenade_Implementation(Action.Aim, Action.MoveTimeStamp);
+}
+
+void UBrInventoryComponent::DeferredFire()
+{
+	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
+	if (!Character || !IsAlive() || Character->IsGameplayInputBlocked()) { CancelCombat(); return; }
+	const float Remaining = static_cast<float>(Character->GetBrMovement()->GetSprintFireReadyTime() - GetWorld()->GetTimeSeconds());
+	if (Remaining > UE_KINDA_SMALL_NUMBER)
+	{
+		// A genuine newer stop (not replay) may have established another recovery.
+		// Keep a quick tap pending instead of clearing it before AttemptFire can run.
+		GetWorld()->GetTimerManager().SetTimer(SprintFireTimer, this, &UBrInventoryComponent::DeferredFire, Remaining, false);
+		return;
+	}
+	const bool bContinue = bFireHeld;
+	bPendingFire = false;
+	if (bContinue) StartFire();
+	else AttemptFire(); // A quick tap still produces the deferred single shot.
+	UpdateCombatIntent();
 }
 
 void UBrInventoryComponent::AttemptFire()
@@ -195,6 +317,7 @@ void UBrInventoryComponent::AttemptFire()
 	ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
 	if (!Character || !Character->IsLocallyControlled() || Character->IsGameplayInputBlocked() || !IsAlive() || !Weapon || bReloading) return;
 	const double Now = GetWorld()->GetTimeSeconds();
+	if (!Character->GetBrMovement()->CanSprintFire()) return;
 	if (!FBrCombatMath::CanFire(Now, NextLocalFire)) return;
 	NextLocalFire = FBrCombatMath::NextFireTime(Now, NextLocalFire, Weapon->FireRate);
 	const FVector Aim = FRotator(0, Character->GetControlRotation().Yaw, 0).Vector();
@@ -212,9 +335,19 @@ void UBrInventoryComponent::ServerFire_Implementation(FVector_NetQuantizeNormal 
 	if (const ABrCharacter* OwnerCharacter = Cast<ABrCharacter>(GetOwner()))
 		if (ABrPlayerController* PC = Cast<ABrPlayerController>(OwnerCharacter->GetController()))
 			PC->CancelUnstuck(TEXT("Unstuck cancelled: firing."));
-	if (!IsAlive() || !Weapon || bReloading || !ValidAim(Aim)) return;
+	if (!CombatRequestsAllowed() || !Weapon || bReloading || !ValidAim(Aim)) return;
 	ABrCharacter* Character = CastChecked<ABrCharacter>(GetOwner());
 	if (!Character->GetBrMovement()->IsValidCombatMoveTimeStamp(MoveTimeStamp)) return;
+	if (!Character->GetBrMovement()->CanSprintFire())
+	{
+		// Active sprint without a stop/intent is still rejected. Once authority
+		// has stopped, a valid action survives coalesced reliable delivery.
+		if (!Character->GetBrMovement()->IsSprinting() && Loaded > 0 &&
+			FBrCombatMath::CanFire(GetWorld()->GetTimeSeconds(), NextAllowedFire))
+			QueueSprintAction(false, Aim, MoveTimeStamp);
+		return;
+	}
+	if (PendingServerFire.IsSet()) return;
 	const double Now = GetWorld()->GetTimeSeconds();
 	if (!FBrCombatMath::CanFire(Now, NextAllowedFire)) return;
 	if (Loaded <= 0)
@@ -224,6 +357,10 @@ void UBrInventoryComponent::ServerFire_Implementation(FVector_NetQuantizeNormal 
 	}
 	NextAllowedFire = FBrCombatMath::NextFireTime(Now, NextAllowedFire, Weapon->FireRate);
 	--Loaded;
+#if !UE_BUILD_SHIPPING
+	LastSprintFireRecovery = Now - Character->GetBrMovement()->GetSprintFireReadyTime() +
+		UBrDeveloperSettings::Get()->SprintToFireDelay;
+#endif
 	Character->GetBrMovement()->ApplyAcceptedCombatAim(Aim, MoveTimeStamp);
 	Character->GetLife()->Fired();
 	Character->RequestAutoPickupRetry();
@@ -284,15 +421,31 @@ void UBrInventoryComponent::CancelReload()
 
 void UBrInventoryComponent::HealthDepleted()
 {
-	StopFire();
+	CancelCombat();
 	if (GetOwner()->HasAuthority()) CancelReload();
 }
 
 void UBrInventoryComponent::RequestGrenade()
 {
+	ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
+	if (!Character || !Character->IsLocallyControlled() || Character->IsGameplayInputBlocked() || !IsAlive() || bPendingGrenade) return;
+	Character->GetBrMovement()->CancelSprintForCombat();
+	bPendingGrenade = true;
+	UpdateCombatIntent();
+	const float Delay = FMath::Max(0.f, static_cast<float>(Character->GetBrMovement()->GetSprintFireReadyTime() - GetWorld()->GetTimeSeconds()));
+	if (Delay > 0)
+		GetWorld()->GetTimerManager().SetTimer(SprintGrenadeTimer, this, &UBrInventoryComponent::SendGrenade, Delay, false);
+	else SendGrenade();
+}
+
+void UBrInventoryComponent::SendGrenade()
+{
 	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
-	if (Character) ServerGrenade(FRotator(0, Character->GetControlRotation().Yaw, 0).Vector(),
-		Character->GetBrMovement()->GetCombatMoveTimeStamp());
+	if (Character && !Character->IsGameplayInputBlocked() && IsAlive())
+		ServerGrenade(FRotator(0, Character->GetControlRotation().Yaw, 0).Vector(),
+			Character->GetBrMovement()->GetCombatMoveTimeStamp());
+	bPendingGrenade = false;
+	UpdateCombatIntent();
 }
 
 void UBrInventoryComponent::ServerGrenade_Implementation(FVector_NetQuantizeNormal Aim, float MoveTimeStamp)
@@ -300,10 +453,16 @@ void UBrInventoryComponent::ServerGrenade_Implementation(FVector_NetQuantizeNorm
 	if (const ABrCharacter* OwnerCharacter = Cast<ABrCharacter>(GetOwner()))
 		if (ABrPlayerController* PC = Cast<ABrPlayerController>(OwnerCharacter->GetController()))
 			PC->CancelUnstuck(TEXT("Unstuck cancelled: throwing."));
-	if (!IsAlive() || !Throwable || Grenades <= 0 || !ValidAim(Aim) ||
+	if (!CombatRequestsAllowed() || !Throwable || Grenades <= 0 || !ValidAim(Aim) ||
 		GetWorld()->GetTimeSeconds() < NextGrenade) return;
 	ABrCharacter* Character = CastChecked<ABrCharacter>(GetOwner());
 	if (!Character->GetBrMovement()->IsValidCombatMoveTimeStamp(MoveTimeStamp)) return;
+	if (!Character->GetBrMovement()->CanSprintFire())
+	{
+		if (!Character->GetBrMovement()->IsSprinting()) QueueSprintAction(true, Aim, MoveTimeStamp);
+		return;
+	}
+	if (PendingServerGrenade.IsSet()) return;
 	FActorSpawnParameters Params;
 	Params.Owner = Character;
 	Params.Instigator = Character;

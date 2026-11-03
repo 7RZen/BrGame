@@ -269,6 +269,7 @@ void ABrGameMode::ServiceMatchSmoke()
 				ABrPlayerController* Observer = Cast<ABrPlayerController>(Entry->GetPlayerController());
 				if (!ServiceHitSmoke(Host, Observer)) return;
 				if (!ServiceAudioSmoke(Host, Observer)) return;
+				if (!ServiceSprintSmoke(Observer)) return;
 			}
 		for (APlayerState* Entry : GS->PlayerArray)
 		{

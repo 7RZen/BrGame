@@ -123,6 +123,9 @@ void UBrAudioSettingsPanel::RefreshBindings()
 	Names.Sort(FNameLexicalLess());
 	for (FName Name : Names)
 	{
+		// Old saved profiles may retain the removed action. It is not registered by the
+		// current IMC, must not appear in UI, and must not reserve LeftShift.
+		if (Name == TEXT("Br.Walk")) continue;
 		for (const FPlayerKeyMapping& Mapping : Profile->GetPlayerMappingRows().FindChecked(Name).Mappings)
 		{
 			if (Mapping.GetSlot() != EPlayerMappableKeySlot::First || Mapping.GetCurrentKey() == EKeys::MouseX ||
@@ -167,6 +170,7 @@ void UBrAudioSettingsPanel::SelectBinding(FName Name)
 		FGameplayTagContainer Errors;
 		for (const auto& Row : User->GetActiveKeyProfile()->GetPlayerMappingRows())
 		{
+			if (Row.Key == TEXT("Br.Walk")) continue;
 			FMapPlayerKeyArgs Args;
 			Args.MappingName = Row.Key;
 			User->ResetAllPlayerKeysInRow(Args, Errors);
@@ -188,8 +192,11 @@ void UBrAudioSettingsPanel::CommitBinding(FKey Key)
 	if (!User || !User->GetActiveKeyProfile()) { PendingBinding = NAME_None; return; }
 	TMap<FName, FKey> Current;
 	for (const auto& Row : User->GetActiveKeyProfile()->GetPlayerMappingRows())
+	{
+		if (Row.Key == TEXT("Br.Walk")) continue;
 		for (const FPlayerKeyMapping& Mapping : Row.Value.Mappings)
 			Current.Add(Row.Key, Mapping.GetCurrentKey());
+	}
 	FString Error;
 	if (FBrMenuRules::CanBind(PendingBinding, Key, Current, Error))
 	{

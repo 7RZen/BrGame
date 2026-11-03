@@ -99,7 +99,7 @@ void UBrAudioSubsystem::ServiceWindowSmoke()
 	else if (WindowSmokeStage < 8)
 	{
 		Kind = WindowSmokeStage == 5 ? EBrSoundKind::RunStep :
-			WindowSmokeStage == 6 ? EBrSoundKind::WalkStep : EBrSoundKind::CrouchStep;
+			WindowSmokeStage == 6 ? EBrSoundKind::SprintStep : EBrSoundKind::CrouchStep;
 		Sound = StepSound(Kind);
 	}
 	else if (WindowSmokeStage < 12)
@@ -130,7 +130,7 @@ float UBrAudioSubsystem::Range(EBrSoundKind Kind) const
 	case EBrSoundKind::Explosion: return S->ExplosionHearingRange;
 	case EBrSoundKind::Downed: return S->DownedHearingRange;
 	case EBrSoundKind::RunStep: return S->RunStepHearingRange;
-	case EBrSoundKind::WalkStep: return S->WalkStepHearingRange;
+	case EBrSoundKind::SprintStep: return S->SprintStepHearingRange;
 	case EBrSoundKind::CrouchStep: return S->CrouchStepHearingRange;
 	default: return 0;
 	}
@@ -175,7 +175,8 @@ ABrCharacter* UBrAudioSubsystem::ListenerPawn(const ABrPlayerController* PC)
 TSoftObjectPtr<USoundBase> UBrAudioSubsystem::StepSound(EBrSoundKind Kind) const
 {
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
-	const auto& Steps = Kind == EBrSoundKind::RunStep ? S->RunFootsteps : S->SoftFootsteps;
+	// Sprint deliberately reuses generated run placeholders, with its own range/volume.
+	const auto& Steps = Kind == EBrSoundKind::RunStep || Kind == EBrSoundKind::SprintStep ? S->RunFootsteps : S->SoftFootsteps;
 	return Steps.IsEmpty() ? TSoftObjectPtr<USoundBase>() : Steps[FMath::RandHelper(Steps.Num())];
 }
 
@@ -278,7 +279,7 @@ void UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound
 	}
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	const FBrAudioVoicePolicy& Policy = S->VoicePolicy(Kind);
-	const EBrSoundKind Category = Kind == EBrSoundKind::WalkStep || Kind == EBrSoundKind::CrouchStep ? EBrSoundKind::RunStep : Kind;
+	const EBrSoundKind Category = Kind == EBrSoundKind::SprintStep || Kind == EBrSoundKind::CrouchStep ? EBrSoundKind::RunStep : Kind;
 	USoundConcurrency* Concurrency = Concurrencies.FindRef(Category);
 	if (!Concurrency)
 	{
@@ -303,7 +304,7 @@ void UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound
 		A.FalloffDistance = Range(Kind) - A.AttenuationShapeExtents.X;
 		Attenuations.Add(Kind, Attenuation);
 	}
-	float Volume = Kind == EBrSoundKind::WalkStep ? S->WalkStepVolume :
+	float Volume = Kind == EBrSoundKind::SprintStep ? S->SprintStepVolume :
 		Kind == EBrSoundKind::CrouchStep ? S->CrouchStepVolume : 1.f;
 	float Pitch = 1.f;
 	if (Kind == EBrSoundKind::Fire)

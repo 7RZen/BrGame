@@ -13,15 +13,54 @@ enum class EBrPosture : uint8
 
 struct FBrMovementSpeed
 {
-	static float Calculate(EBrPosture Posture, bool bWalking, float WeaponRunMultiplier,
-		float BaseRunSpeed, float WalkMultiplier, float CrouchMultiplier, float ProneMultiplier)
+	static float Calculate(EBrPosture Posture, bool bSprinting, float WeaponRunMultiplier,
+		float BaseRunSpeed, float SprintMultiplier, float CrouchMultiplier, float ProneMultiplier)
 	{
 		switch (Posture)
 		{
 		case EBrPosture::Crouching: return BaseRunSpeed * CrouchMultiplier;
 		case EBrPosture::Prone: return BaseRunSpeed * ProneMultiplier;
-		default: return BaseRunSpeed * (bWalking ? WalkMultiplier : WeaponRunMultiplier);
+		default: return BaseRunSpeed * WeaponRunMultiplier * (bSprinting ? SprintMultiplier : 1.f);
 		}
+	}
+};
+
+/** Deterministic move-time rules shared by prediction, authority and tests. Units are seconds of sprint. */
+struct FBrSprintState
+{
+	float Stamina = 5;
+	float RestTime = 0;
+	bool bActive = false;
+
+	static bool IsForward(const FVector& Acceleration, float FacingYaw, float HalfAngle)
+	{
+		return !Acceleration.IsNearlyZero() && FVector::DotProduct(Acceleration.GetSafeNormal2D(),
+			FRotator(0, FacingYaw, 0).Vector()) >= FMath::Cos(FMath::DegreesToRadians(FMath::Clamp(HalfAngle, 0.f, 89.f)));
+	}
+
+	void Advance(float Delta, bool bAllowed, float Capacity, float MinimumStart, float RegenDelay, float RegenDuration)
+	{
+		bActive = bAllowed && Stamina > UE_KINDA_SMALL_NUMBER &&
+			(bActive || Stamina + UE_KINDA_SMALL_NUMBER >= FMath::Min(Capacity, MinimumStart));
+		if (bActive)
+		{
+			Stamina = FMath::Max(0.f, Stamina - Delta);
+			RestTime = 0;
+			// This move used its remaining sprint energy. The next move must pass the minimum-start gate.
+			if (Stamina <= UE_KINDA_SMALL_NUMBER) bActive = false;
+		}
+		else
+		{
+			const float RegenDelta = FMath::Max(0.f, RestTime + Delta - RegenDelay) -
+				FMath::Max(0.f, RestTime - RegenDelay);
+			RestTime = FMath::Min(RegenDelay, RestTime + Delta);
+			Stamina = FMath::Min(Capacity, Stamina + RegenDelta * Capacity / FMath::Max(0.01f, RegenDuration));
+		}
+	}
+
+	static bool CanFire(bool bSprinting, double Now, double ReadyTime, float Grace)
+	{
+		return !bSprinting && Now + Grace >= ReadyTime;
 	}
 };
 
