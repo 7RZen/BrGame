@@ -44,7 +44,7 @@ function WaitLog([string]$Role, [string]$Pattern, [int]$Minimum = 1) {
             if ($Process.HasExited) { throw "Launched PID $($Process.Id) exited early: $($Process.ExitCode)" }
         }
         foreach ($ProbeLog in Get-ChildItem -LiteralPath $Logs -Filter *.log) {
-            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL" | Select-Object -Last 1
+            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E HIT PROBE FAIL" | Select-Object -Last 1
             if ($Failure) { throw "$($ProbeLog.Name) E2E assertion failed: $($Failure.Line)" }
         }
         if (Test-Path -LiteralPath $File) {
@@ -67,9 +67,9 @@ try {
         "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:RespawnHoldTime=0.1",
         "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:DownedDuration=4")
     WaitLog "Host" "Flow ready: L_Lobby Lobby=1"
-    Launch "Client1" "127.0.0.1:$Port`?Name=MatchClient1"
+    Launch "Client1" "127.0.0.1:$Port`?Name=MatchClient1" @("-BrMatchSmoke")
     WaitLog "Host" "Flow admitted: MatchClient1.*Lobby=1"
-    Launch "Client2" "127.0.0.1:$Port`?Name=MatchClient2"
+    Launch "Client2" "127.0.0.1:$Port`?Name=MatchClient2" @("-BrMatchSmoke")
     WaitLog "Host" "Flow admitted: MatchClient2.*Lobby=1"
 
     # Host + two clients start the match. The hook opens a bounded event-driven
@@ -80,6 +80,12 @@ try {
     WaitLog "Host" "Flow admitted: MatchLateJoin.*Lobby=0"
     WaitLog "Client3" "Flow client state: L_Town Phase=2 Pawn=BrCharacter"
     WaitLog "Host" "E2E MATCH SMOKE PASS"
+    foreach ($Stage in 1..2) {
+        WaitLog "Client3" "E2E HIT PROBE PASS Stage=$Stage Victim=0" 2
+        $VictimMatches = @(Get-ChildItem -LiteralPath $Logs -Filter "Client*.log" |
+            Select-String -Pattern "E2E HIT PROBE PASS Stage=$Stage Victim=1")
+        if ($VictimMatches.Count -ne 2) { throw "Expected one victim hit assertion per round at stage $Stage; found $($VictimMatches.Count)." }
+    }
     foreach ($Stage in 1..5) {
         WaitLog "Client3" "E2E AUDIO PROBE PASS Stage=$Stage " 2
     }

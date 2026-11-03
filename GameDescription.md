@@ -17,6 +17,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | 9 | Steam hosting (sessions, browser, invites) | Implemented; automated checks passed, two-PC Steam validation pending |
 | 10 | Real map with obstructions | Done: L_Town (200 m town/field/compound/forest) is the match map; all BrGame tests (44) and flow/fog/session/local smokes pass; gameplay screenshots reviewed; open items in Scripts\Step10Validation.md |
 | 11 | Further tests and playtesting | Automated suite done; manual playtest pending |
+| Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
 
 ## Hosting
 - Player-hosted game (the host's game is the server) over Steam. Steam provides matchmaking, the server list, relays (hides IP addresses) and invites, but not server hosting.
@@ -179,6 +180,23 @@ Every bullet that reaches a player rolls a hit chance based on the shooter's and
 
 ### Damage reduction *(dev)*
 On top of the hit chance, crouching targets take 75% damage and lying-down targets 50%. This also applies to grenades.
+
+### Hit feedback *(dev: HitFeedback settings)*
+- After actual bullet/grenade health loss, the victim's local camera twists up to ±3° for
+  0.15 s (bullet), or ±12° with an 18 cm jolt for 0.4 s (grenade). No control/facing/aim
+  rotation, stun, movement penalty or near-miss effect. Repeated hits refresh the strongest
+  active profile without summing amplitudes.
+- Red screen edges flash (damage-scaled); up to eight red directional arcs fade over 1 s.
+  Arcs point toward the captured bullet launch position or explosion centre and track
+  the current rotated camera and below-centre pawn position. Hidden attackers still give
+  direction, but no attacker identity is sent to the victim.
+- Other players see a brief body jerk away from the origin and a translucent red mesh
+  overlay, only while the victim is locally fog-visible and network-relevant. Old hits do
+  not replay on fog entry or late join. Spectators receive no camera/HUD hit feedback.
+- Friendly fire with health loss counts. Protection, misses, zero damage, downed players
+  **and the downing hit** give no feedback. Zone damage has no combat flinch.
+- All tuning/assets are developer-only. Placeholder overlay is generated through editor
+  Python; character team materials are preserved.
 
 ## Health
 - Players start with 100 health, capped at their max health (which can be lowered by respawn penalties).

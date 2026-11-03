@@ -1,4 +1,5 @@
 #include "BrCharacter.h"
+#include "BrHitFeedbackComponent.h"
 #include "BrAimingRules.h"
 #include "BrGameInstance.h"
 #include "Engine/GameViewportClient.h"
@@ -58,6 +59,7 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	GetMesh()->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 
 	Health = CreateDefaultSubobject<UBrHealthComponent>(TEXT("Health"));
+	HitFeedback = CreateDefaultSubobject<UBrHitFeedbackComponent>(TEXT("HitFeedback"));
 	Inventory = CreateDefaultSubobject<UBrInventoryComponent>(TEXT("Inventory"));
 	Life = CreateDefaultSubobject<UBrLifeComponent>(TEXT("Life"));
 	HelpText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("HelpText"));
@@ -144,6 +146,7 @@ void ABrCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 	ClipData.SetViewRectangle(FIntRect(0, 0, ViewSize.X, ViewSize.Y));
 	OutResult.AutoCalculateOrthoPlanes(ClipData);
 	OutResult.bAutoCalculateOrthoPlanes = false;
+	HitFeedback->Camera(OutResult);
 }
 
 void ABrCharacter::OnRep_IsCrouched()
@@ -171,6 +174,7 @@ void ABrCharacter::OnEndCrouch(float HeightAdjust, float ScaledHeightAdjust)
 void ABrCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (HitFeedback->UpdateReaction()) ApplyLifeMeshPose(true);
 #if !UE_BUILD_SHIPPING
 	ServiceMeshPoseSmoke(DeltaSeconds);
 #endif
@@ -280,18 +284,27 @@ bool ABrCharacter::IsGameplayInputBlocked() const
 }
 bool ABrCharacter::CanChangePosture() const { return CanMove(); }
 
-void ABrCharacter::ApplyMeshPose(const FVector& Location, const FRotator& Rotation)
+void ABrCharacter::ApplyMeshPose(const FVector& Location, const FRotator& Rotation, bool bPreserveSmoothing)
 {
+	// CMC has already rendered this frame's network smoothing using the previous cached
+	// base (including the previous reaction). Replace only that base, not its residual.
+	// This also works when CMC skips a completed/disabled smoothing update: the old
+	// base is still present in the mesh, so refreshing/restoring cannot accumulate jerk.
+	const FVector TranslationResidual = bPreserveSmoothing ?
+		GetMesh()->GetRelativeLocation() - GetBaseTranslationOffset() : FVector::ZeroVector;
+	const FQuat RotationResidual = bPreserveSmoothing ?
+		GetMesh()->GetRelativeRotation().Quaternion() * GetBaseRotationOffset().Inverse() : FQuat::Identity;
 	CacheInitialMeshOffset(Location, Rotation);
-	GetMesh()->SetRelativeLocationAndRotation(Location, Rotation);
+	GetMesh()->SetRelativeLocationAndRotation(Location + TranslationResidual,
+		RotationResidual * GetBaseRotationOffset());
 }
 
-void ABrCharacter::ApplyLifeMeshPose()
+void ABrCharacter::ApplyLifeMeshPose(bool bPreserveSmoothing)
 {
 	const bool bAlive = !Life || Life->IsAlive();
 	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	ApplyMeshPose(FVector(0, 0, -HalfHeight + (bAlive ? 0 : 12)),
-		FRotator(bAlive ? 0 : 90, -90, 0));
+	ApplyMeshPose(FVector(0, 0, -HalfHeight + (bAlive ? 0 : 12)) + (bAlive && HitFeedback ? HitFeedback->MeshOffset() : FVector::ZeroVector),
+		FRotator(bAlive ? 0 : 90, -90, 0), bPreserveSmoothing);
 }
 
 void ABrCharacter::ApplyLifePresentation()
@@ -412,7 +425,12 @@ float ABrCharacter::TakeDamage(float Damage, const FDamageEvent& Event, AControl
 	if (bExplosion && bSelf && !Settings->bGrenadeSelfDamage) return 0;
 	const float Adjusted = bZone ? Damage : FBrCombatMath::Damage(Damage, GetPosture(), bExplosion, Settings->bGrenadePostureDamage,
 		Settings->StandingDamageMultiplier, Settings->CrouchingDamageMultiplier, Settings->ProneDamageMultiplier);
+	const float BeforeHealth = Health->Health;
 	const float Applied = Super::TakeDamage(Adjusted, Event, InstigatorController, Causer);
+	// The downing hit is deliberately excluded, just like all damage while downed.
+	// Only native combat events carry an authoritative launch/explosion origin.
+	if ((bBullet || bExplosion) && Event.IsOfType(FBrDamageEvent::ClassID))
+		HitFeedback->ServerDamage(BeforeHealth - Health->Health, static_cast<const FBrDamageEvent&>(Event).Origin, bExplosion);
 	if (Applied > 0 && Life->State == EBrLifeState::Downed && !bSelf && !bZone) Mode->CreditDown(Source);
 	if (Applied > 0) Life->DamageReceived();
 	return Applied;

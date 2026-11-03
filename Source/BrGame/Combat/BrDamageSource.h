@@ -25,7 +25,9 @@ struct FBrDamageEvent : public FDamageEvent
 {
 	static constexpr int32 ClassID = 1001;
 	FBrDamageSource Source;
-	FBrDamageEvent(const FBrDamageSource& InSource, TSubclassOf<UDamageType> Type) : Source(InSource) { DamageTypeClass = Type; }
+	FVector Origin = FVector::ZeroVector;
+	FBrDamageEvent(const FBrDamageSource& InSource, TSubclassOf<UDamageType> Type, FVector InOrigin = FVector::ZeroVector)
+		: Source(InSource), Origin(InOrigin) { DamageTypeClass = Type; }
 	virtual int32 GetTypeID() const override { return ClassID; }
 	virtual bool IsOfType(int32 InID) const override { return InID == ClassID || FDamageEvent::IsOfType(InID); }
 };

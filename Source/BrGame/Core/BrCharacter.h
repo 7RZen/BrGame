@@ -53,6 +53,7 @@ public:
 	virtual float TakeDamage(float Damage, const FDamageEvent& Event, AController* InstigatorController, AActor* Causer) override;
 	UBrInventoryComponent* GetInventory() const { return Inventory; }
 	UBrHealthComponent* GetHealth() const { return Health; }
+	class UBrHitFeedbackComponent* GetHitFeedback() const { return HitFeedback; }
 	void UpdateWeaponVisual();
 	/** Coalesced server-only retry of cached auto-pickup overlaps, after state mutation completes. */
 	void RequestAutoPickupRetry();
@@ -75,12 +76,14 @@ protected:
 	float OrthoWidth = 2500.0f;
 
 private:
+	UPROPERTY(VisibleAnywhere, Category="Combat")
+	TObjectPtr<class UBrHitFeedbackComponent> HitFeedback;
 	FTimerHandle FootstepTimer;
 	double LastFootstepService = 0;
 	float FootstepProgress = 0;
 	void ServiceFootsteps();
-	void ApplyMeshPose(const FVector& Location, const FRotator& Rotation);
-	void ApplyLifeMeshPose();
+	void ApplyMeshPose(const FVector& Location, const FRotator& Rotation, bool bPreserveSmoothing = false);
+	void ApplyLifeMeshPose(bool bPreserveSmoothing = false);
 #if !UE_BUILD_SHIPPING
 	void ServiceMeshPoseSmoke(float DeltaSeconds);
 	float MeshPoseSmokeSeconds = 0;

@@ -141,6 +141,14 @@ private:
 	void ServiceMatchSmoke();
 #if !UE_BUILD_SHIPPING
 	bool ServiceAudioSmoke(ABrPlayerController* Host, ABrPlayerController* Listener);
+	bool ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
+	int32 HitSmokeStage = 0;
+	float HitSmokeDeadline = 0;
+	TWeakObjectPtr<ABrCharacter> HitSmokeVictim;
+	FVector HitSmokeVictimLocation, HitSmokeObserverLocation, HitSmokeOrigin;
+	int32 HitSmokeVictimTeam = -1, HitSmokeObserverTeam = -1;
+	float HitSmokeHealth = 0;
+	uint8 HitSmokeVictimMode = 0, HitSmokeObserverMode = 0;
 	int32 AudioSmokeStage = 0;
 	float AudioSmokeDeadline = 0, AudioSmokeOriginalVision = 0;
 	FVector AudioSmokeHostLocation, AudioSmokeListenerLocation;

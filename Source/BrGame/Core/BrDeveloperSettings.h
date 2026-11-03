@@ -26,6 +26,39 @@ class BRGAME_API UBrDeveloperSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="deg"))
+	float BulletHitAngle = 3;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="deg"))
+	float GrenadeHitAngle = 12;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="s"))
+	float BulletHitDuration = 0.15f;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="s"))
+	float GrenadeHitDuration = 0.4f;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="cm"))
+	float GrenadeHitJolt = 18;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="s"))
+	float HitIndicatorDuration = 1;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="1", ClampMax="32"))
+	int32 HitIndicatorCap = 8;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="s"))
+	float HitFlashDuration = 0.3f;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", ClampMax="1"))
+	float HitFlashOpacity = 0.45f;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="1"))
+	float HitFlashFullDamage = 30;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0"))
+	float HitEdgeWidth = 45;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="s"))
+	float HitReactionDuration = 0.18f;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="cm"))
+	float HitReactionDistance = 10;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback")
+	FLinearColor HitMeshColor = FLinearColor(2, 0, 0, 1);
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", ClampMax="1"))
+	float HitMeshOpacity = 0.65f;
+	UPROPERTY(Config, EditAnywhere, Category="HitFeedback")
+	TSoftObjectPtr<UMaterialInterface> HitOverlay = TSoftObjectPtr<UMaterialInterface>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Feedback/M_HitOverlay.M_HitOverlay")));
 	UPROPERTY(Config, EditAnywhere, Category="Menu", meta=(ClampMin="0.1", ClampMax="10", Units="s"))
 	float ForfeitAckTimeout = 2;
 	UPROPERTY(Config, EditAnywhere, Category="Menu", meta=(ClampMin="0.1", ClampMax="2", Units="s"))

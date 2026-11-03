@@ -30,6 +30,8 @@ public:
 	void ClientSounds(const TArray<FBrSoundType>& Types, const TArray<FBrSoundEvent>& Events);
 	UFUNCTION(Client, Reliable)
 	void ClientAudioSmokeProbe(int32 Stage, FVector_NetQuantize Origin);
+	UFUNCTION(Client, Reliable)
+	void ClientHitSmokeProbe(int32 Stage, bool bVictim, FVector_NetQuantize Origin);
 	UFUNCTION(Server, Reliable)
 	void ServerSettings(FBrMatchSettings Settings);
 	UFUNCTION(Server, Reliable)
@@ -136,6 +138,7 @@ private:
 	TWeakObjectPtr<APawn> MatchSmokeReadyPawn;
 	FVector AudioSmokeOrigin = FVector::ZeroVector;
 	int32 AudioSmokeFire = 0, AudioSmokeSteps = 0, AudioSmokeDown = 0, AudioSmokeProneBaseline = 0;
+	uint32 HitSmokeBaseline = 0;
 #endif
 	UPROPERTY(VisibleAnywhere, Category="Fog")
 	TObjectPtr<UBrFogComponent> Fog;

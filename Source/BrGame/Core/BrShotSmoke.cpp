@@ -3,6 +3,10 @@
 #include "BrMenuWidget.h"
 #include "BrDeveloperSettings.h"
 #include "BrCharacter.h"
+#include "BrCombatDefinitions.h"
+#include "BrHealthComponent.h"
+#include "BrCharacterMovementComponent.h"
+#include "TimerManager.h"
 #include "BrDevCheatPolicy.h"
 #include "BrLog.h"
 #include "Engine/Engine.h"
@@ -56,6 +60,63 @@ void ABrGameMode::ServiceShotSmoke()
 	if (!Host || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Host->IsLocalController(), GetNetMode())) return;
 	if (!Cast<ABrCharacter>(Host->GetPawn())) return;
 	const float Now = GetWorld()->GetTimeSeconds();
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrHitShot")))
+	{
+		if (Now - MatchBeganTime < 6 || Now < ShotSmokeNextTime || ShotSmokeStage > 6) return;
+		if (ShotSmokeStage == 6)
+		{
+			UE_LOG(LogBr, Display, TEXT("SHOT SMOKE PASS: 3 hit feedback screenshots requested"));
+			++ShotSmokeStage;
+			return;
+		}
+		ABrCharacter* Victim = CastChecked<ABrCharacter>(Host->GetPawn());
+		ABrCharacter* Other = nullptr;
+		for (APlayerState* Entry : GetGameState<ABrGameState>()->PlayerArray)
+			if (Entry && Entry != Host->PlayerState)
+				if (ABrCharacter* C = Cast<ABrCharacter>(Entry->GetPawn())) { Other = C; break; }
+		if (!Other) return;
+		Victim->GetBrMovement()->DisableMovement();
+		Other->GetBrMovement()->DisableMovement();
+		Victim->GetLife()->InvulnerabilityEndTime = Other->GetLife()->InvulnerabilityEndTime = 0;
+		Victim->GetHealth()->SetHealth(Victim->GetHealth()->MaxHealth);
+		Other->GetHealth()->SetHealth(Other->GetHealth()->MaxHealth);
+		Victim->SetActorLocation(FVector(-6000, -6000, 100), false, nullptr, ETeleportType::TeleportPhysics);
+		Other->SetActorLocation(FVector(-5700, -5850, 100), false, nullptr, ETeleportType::TeleportPhysics);
+		const int32 HitIndex = ShotSmokeStage / 2;
+		const float Yaw = HitIndex == 2 ? 125.f : 37.f;
+		Host->SetControlRotation(FRotator(0, Yaw, 0));
+		Victim->FaceRotation(FRotator(0, Yaw, 0));
+		if (ShotSmokeStage % 2 == 0)
+		{
+			// Let camera, fog and remote pose settle before applying a transient hit.
+			++ShotSmokeStage;
+			ShotSmokeNextTime = Now + 3;
+			return;
+		}
+		const bool bExplosion = HitIndex == 1;
+		const FBrDamageEvent Event(CaptureDamageSource(Other->GetController()),
+			bExplosion ? UBrExplosionDamageType::StaticClass() : UBrBulletDamageType::StaticClass(), Other->GetActorLocation());
+		Victim->TakeDamage(15, Event, Other->GetController(), Other);
+		if (HitIndex == 2)
+		{
+			const FBrDamageEvent Second(CaptureDamageSource(Other->GetController()), UBrBulletDamageType::StaticClass(),
+				Victim->GetActorLocation() + FVector(-700, -600, 0));
+			Victim->TakeDamage(10, Second, Other->GetController(), Other);
+		}
+		const FBrDamageEvent Remote(CaptureDamageSource(Host), UBrBulletDamageType::StaticClass(), Victim->GetActorLocation());
+		Other->TakeDamage(10, Remote, Host, Victim);
+		const TCHAR* Names[] = {TEXT("bullet"), TEXT("grenade"), TEXT("turned_multi")};
+		const FString CaptureName = Names[HitIndex];
+		// Next tick's timers run after character presentation, while the 0.18s reaction is live.
+		GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [CaptureName]()
+		{
+			UE_LOG(LogBr, Display, TEXT("Shot smoke capture: Name=%s"), *CaptureName);
+			FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("HitFeedback_%s"), *CaptureName), false, false);
+		}));
+		++ShotSmokeStage;
+		ShotSmokeNextTime = Now + 3;
+		return;
+	}
 	if (Now - MatchBeganTime < 4.0f || Now < ShotSmokeNextTime) return;
 	if (ShotSmokeStage > ShotPointCount * 2) return;
 	if (ShotSmokeStage == ShotPointCount * 2)

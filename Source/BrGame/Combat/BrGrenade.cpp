@@ -161,7 +161,7 @@ void ABrGrenade::Impact(const FHitResult& Hit)
 			Damage *= FMath::Clamp(1.0f - FVector::Distance(ExplosionCenter, Target->GetActorLocation()) /
 				FMath::Max(1.0f, Definition->BlastRadius), 0.0f, 1.0f);
 		}
-		const FBrDamageEvent Event(DamageSource, UBrExplosionDamageType::StaticClass());
+		const FBrDamageEvent Event(DamageSource, UBrExplosionDamageType::StaticClass(), ExplosionCenter);
 		AController* Controller = DamageSource.PlayerState.IsValid() ? Cast<AController>(DamageSource.PlayerState->GetOwner()) : nullptr;
 		Target->TakeDamage(Damage, Event, Controller, this);
 	}

@@ -143,6 +143,26 @@ See `Scripts\Step9Validation.md` for App ID 480/Steam launch caveats.
 - [ ] **Issue report:** include the exact scenario, both game logs from
   `Saved\Logs\MP\` and Steam/engine version; redact all passwords and bearer
   proofs. Do not attach raw diagnostic logs publicly.
+
+## Issue 7 — hit feedback (manual playtest pending)
+- [ ] Compare pistol/AR/MG hits and grenade damage on listen host and remote owner:
+  quick bounded twist; grenade is stronger with a positional jolt; no aim/control rotation,
+  movement slowdown or stun. Sustained/multiple hits must not accumulate unbounded shake.
+- [ ] Turn rapidly while arcs remain visible, at pitch 30/65/90, different zoom/aspect
+  ratios and below-centre framing. Arcs should stay aligned from the pawn toward the
+  original shot origin, not follow a moving shooter. Up to eight arcs, then oldest replaced.
+- [ ] Hit through fog from a hidden source: victim gets direction/red edges only;
+  no attacker actor, name, minimap marker or visibility change. Missed hit roll,
+  spawn-protected/zero-damage/downed/downing hits give no feedback. Friendly damage counts.
+- [ ] Observe another victim while standing/crouching/prone, moving/turning and with
+  simulated-proxy smoothing: brief jerk away and red overlay, then exact restored pose
+  and team material. Hide/reveal them during hits: no hidden reaction or replay on reveal.
+- [ ] Spectate a damaged target: no camera twist/jolt or victim arcs/edge flash.
+  Check rapid target switching, down/revive, respawn, reconnect, late join and round travel.
+- [ ] With latency/packet loss and many simultaneous players (~60), verify comfort,
+  reliable owner notification ordering and acceptable bandwidth; remote cosmetics are
+  intentionally unreliable. Review flash accessibility and placeholder intensity.
+
 ## Issue 8 — relative mouse aiming
 - In a listen-server match, move the mouse horizontally: pawn faces screen-up and camera turns instantly.
   Vertical mouse movement must do nothing. No crosshair/cursor should appear in gameplay.

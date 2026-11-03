@@ -65,6 +65,7 @@ struct FBrServerBullet
 {
 	GENERATED_BODY()
 	FVector Position = FVector::ZeroVector;
+	FVector Origin = FVector::ZeroVector;
 	FVector Direction = FVector::ForwardVector;
 	float Remaining = 0;
 	EBrPosture ShooterPosture = EBrPosture::Standing;

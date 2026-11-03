@@ -56,6 +56,7 @@ protected:
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 
 private:
+	friend class FBrHitFeedbackSmoothingTest;
 	UPROPERTY(ReplicatedUsing=OnRep_Posture)
 	EBrPosture ReplicatedPosture = EBrPosture::Standing;
 

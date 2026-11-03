@@ -1,4 +1,5 @@
 #include "BrHUD.h"
+#include "BrHitFeedbackComponent.h"
 #include "BrSafeZone.h"
 #include "EngineUtils.h"
 #include "BrCharacter.h"
@@ -50,6 +51,7 @@ void ABrHUD::DrawHUD()
 		return;
 	}
 	const UBrCharacterMovementComponent* Movement = Character->GetBrMovement();
+	Character->GetHitFeedback()->Draw(this, Canvas);
 	const ABrPlayerController* InputOwner = Cast<ABrPlayerController>(PlayerOwner);
 	const auto Binding = [InputOwner](FName Name)
 	{

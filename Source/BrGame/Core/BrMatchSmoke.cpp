@@ -265,7 +265,11 @@ void ABrGameMode::ServiceMatchSmoke()
 			}
 		for (APlayerState* Entry : GS->PlayerArray)
 			if (Entry && Entry->GetPlayerName() == TEXT("MatchLateJoin"))
-				if (!ServiceAudioSmoke(Host, Cast<ABrPlayerController>(Entry->GetPlayerController()))) return;
+			{
+				ABrPlayerController* Observer = Cast<ABrPlayerController>(Entry->GetPlayerController());
+				if (!ServiceHitSmoke(Host, Observer)) return;
+				if (!ServiceAudioSmoke(Host, Observer)) return;
+			}
 		for (APlayerState* Entry : GS->PlayerArray)
 		{
 			const ABrPlayerState* PS = Cast<ABrPlayerState>(Entry);

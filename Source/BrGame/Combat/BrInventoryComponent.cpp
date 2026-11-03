@@ -230,6 +230,7 @@ void UBrInventoryComponent::ServerFire_Implementation(FVector_NetQuantizeNormal 
 	FBrServerBullet& Bullet = Bullets.AddDefaulted_GetRef();
 	// Center origin prevents a client/muzzle offset from spawning a shot beyond a wall.
 	Bullet.Position = Character->GetActorLocation();
+	Bullet.Origin = Bullet.Position;
 	Bullet.Direction = FVector(Aim.X, Aim.Y, 0).GetSafeNormal();
 	Bullet.Remaining = Weapon->MaxRange;
 	Bullet.ShooterPosture = Character->GetPosture();
@@ -380,7 +381,7 @@ void UBrInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 					Query.AddIgnoredActor(Target);
 					continue;
 				}
-				const FBrDamageEvent Event(Bullet.Source, UBrBulletDamageType::StaticClass());
+				const FBrDamageEvent Event(Bullet.Source, UBrBulletDamageType::StaticClass(), Bullet.Origin);
 				Target->TakeDamage(Bullet.Definition->Damage, Event, Shooter->GetController(), Shooter);
 			}
 			bStopped = true;

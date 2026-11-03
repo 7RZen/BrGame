@@ -29,6 +29,10 @@ Add sounds for:
 * Pickup sounds
 Status: Resolved (placeholder sounds; pending playtest)
 
+## 4.1. (FR) Sound
+* Reload sound
+* Out of ammo sound, simple click sound
+
 ## 5. (FR) In-game menu
 Player should be allowed to leave game. Press ESC to get in-game menu with option to leave or to respawn (in case of stuck)
 Status: Resolved (ESC menu, settings/rebinding, server unstuck and forfeit implemented; four review fixes validated: 62/62 automation, menu smoke, 12/12 full regression PASS. Remaining physical-input/network-stress playtests: Scripts/MenuValidation.md.)
@@ -40,9 +44,8 @@ The same for the pickup, medium model for AR and long for MG.
 Status: Unresolved
 
 ## 7. (FR) Flinching
-When hit with a bullet the player should have a visual indication. 30% flinch on gun aiming.
-Want to discuss option, but it could be like a brief flinch, brief stun and/or read overlay on screen.
-Status: Unresolved
+When hit with a bullet the player should have a visual indication from the direction the bullet came from and a small and quick screen shak. Maybe +-20% rotation? No stun. Grenades should have a much larger flinch.
+Status: Implemented (server-confirmed health loss; owner-only bounded camera twist/jolt, directional arcs/red edges, fog-gated remote mesh jerk/red overlay; downing hit excluded). Independent-review P2 fixes validated: reaction updates/restoration preserve CMC translation/rotation smoothing; single camera-local roll keeps total twist within the configured amplitude at every pitch. Full UBT build zero compiler warnings; 72/72 automation and 12/12 regression PASS, including non-owner downed/revived pose checks. Screenshot/manual validation details: Scripts/FlinchValidation.md.
 
 ## 8. (FR) Aiming
 Player is locked at looking up, mouse rotates map. Keys W and S moves forward and backwards. Keys A and D is strafe left and right.
@@ -53,4 +56,13 @@ Pressing CTRL til slide if running.
 Status: Unresolved
 
 ## 10 (FR) Maps and map selector
-The hoster should be able to choose from available maps.
+The person hosting should be able to choose from available maps.
+
+## 11 (FR) All buildings have roofs
+the roof should have same effect as fog of war, whn a player is inside the building the roof disapears. When a player looks inside a door from outside the roof should be invisible where the look angle for the player is.
+
+## 12 (FR) Tactical sprint
+The player should use SHIFT as tactical sprint. Walking should be removed. When in tactical sprint the player can not shoot. Tactical sprint should be 130% running speed. This should be a developer setting.
+
+## 13 (I) Wrong player name in multiplayer
+When testing local the player names are correct for other players, but when joingin via steam the other players name are Player and not what they set.
