@@ -18,6 +18,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | 10 | Real map with obstructions | Done: L_Town (200 m town/field/compound/forest) is the match map; all BrGame tests (44) and flow/fog/session/local smokes pass; gameplay screenshots reviewed; open items in Scripts\Step10Validation.md |
 | 11 | Further tests and playtesting | Automated suite done; manual playtest pending |
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
+| Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 
 ## Hosting
@@ -35,7 +36,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 - The host decides every shot, hit and damage (server-authoritative), to prevent cheating.
 
 ## Game flow
-1. **Start page:** enter a player name, then Host, refresh/join a browser entry, Join by IP (development), or Quit. The browser shows host/game name, current/max players, mode, password lock, in-progress state and available ping. Steam/LAN-IP status and connection errors are shown here.
+1. **Start page:** enter a player name, then Host, refresh/join a browser entry, Join by IP (development), or Quit. The browser shows host/game name, selected map (including Random), current/max players, mode, password lock, in-progress state and available ping. Steam/LAN-IP status and connection errors are shown here.
 2. **Lobby:** player list and host settings, visible live to everyone. Only the host can change settings and press Start (a single host may start alone to test).
 3. **Match.**
 4. **Results:** shown for about 10 s *(dev)*: the winner, and per player: group, downs inflicted, deaths, survived/eliminated.
@@ -45,6 +46,7 @@ If the host leaves, everyone returns to the start page with a message.
 Joining a different session leaves the previous session first. Browser joins and Steam invite acceptance prompt for a protected game's password; wrong passwords return to the start page with an error. Steam cold-start invitations use the engine's `+connect_lobby` launch path; Steam must launch the BrGame executable for the selected App ID (App ID 480 normally belongs to Spacewar, so this launch routing needs manual validation).
 
 ### Host settings
+- Map: Town (default), Test Arena, or Random. Click the map button to cycle; all players see the name, description, preview and recommended player-count hint. Recommendations never limit admission. Only the host can change it, until Start.
 - Mode: all vs all, or grouped.
 - Number of groups, e.g. 12 players as 4 groups of 3 or 2 groups of 6.
 - Group selection: players choose their group, or the host lets the game assign players evenly.
@@ -256,7 +258,13 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 - Hidden enemies are not sent to a player's computer at all, so they can't be revealed by cheating.
 
 ## Map *(step 10)*
-The match map is `/Game/BrGame/Maps/L_Town` (about 200 x 200 m) with a town of roofless, enterable buildings, open fields with low cover, and dense clusters. Walls are 280 cm tall, low cover is 110 cm and does not block vision, and invisible boundary walls enclose the map. It has 48 player starts, 244 pickup spawn points and a navmesh bounds volume. Built by `Scripts\Content\create_br_map.py` (re-runnable). `Lvl_TopDown` remains available with `-MatchLevel Lvl_TopDown` in the smoke scripts.
+The default match map is `/Game/BrGame/Maps/L_Town` (about 200 x 200 m) with a town of roofless, enterable buildings, open fields with low cover, and dense clusters. Walls are 280 cm tall, low cover is 110 cm and does not block vision, and invisible boundary walls enclose the map. It has 48 player starts, 244 pickup spawn points and a navmesh bounds volume. Built by `Scripts\Content\create_br_map.py` (re-runnable). `/Game/TopDown/Lvl_TopDown` is selectable in the lobby as **Test Arena**; `-MatchLevel Lvl_TopDown` still works in flow/fog smokes by selecting its allowlisted ID.
+
+Maps are developer-managed in Project Settings → BrGame → **Maps** (`Maps`, `DefaultMapId`), replacing the old `MatchMap` path setting. Each entry has a stable ID, localized name/description, soft world/preview references and recommended min/max players. Invalid/missing/duplicate entries are skipped with a warning. A missing preview shows a text placeholder; no valid maps means Start reports an error instead of travelling to an arbitrary destination.
+
+Only IDs are accepted from the lobby; the authoritative server resolves the destination from its own list. **Random** draws uniformly from valid entries at Start. The chosen map is announced at match entry. The selection survives results → lobby → next round; Random stays Random and **re-rolls each round**. Session keys `BRMAP`/`BRMAPNAME` advertise the selection, not the last Random outcome. Protocol 11 prevents older wire layouts joining; Steam/Null password and engine-version checks are unchanged.
+
+See [How to add a new map](Docs/AddingMaps.md) for authoring, cooking, previews and validation.
 
 ### Minimap
 - Circular top-right minimap (220 reference pixels, 60 m radius, developer settings), rotating with the camera: screen-up is camera forward.

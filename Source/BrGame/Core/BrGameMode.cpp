@@ -39,6 +39,7 @@ ABrGameMode::ABrGameMode()
 void ABrGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
 	InitialMatchSettings = FBrMatchSettings();
+	InitialMatchSettings.MapId = UBrDeveloperSettings::Get()->InitialMapId();
 	if (const UBrGameInstance* GI = GetGameInstance<UBrGameInstance>())
 		if (GI->bCarrySettings) InitialMatchSettings = GI->HostSettings;
 	const FString Value = UGameplayStatics::ParseOption(Options, TEXT("PickupRespawnTime"));
@@ -61,6 +62,16 @@ void ABrGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 	ReadInt(TEXT("MaxPlayers"), InitialMatchSettings.MaxPlayers);
 	ReadInt(TEXT("NumGroups"), InitialMatchSettings.NumGroups);
 	if (UGameplayStatics::ParseOption(Options, TEXT("Mode")) == TEXT("Grouped")) InitialMatchSettings.Mode = EBrMode::Grouped;
+	const FString MapOption = UGameplayStatics::ParseOption(Options, TEXT("MapId"));
+	if (!MapOption.IsEmpty())
+	{
+		if (UBrDeveloperSettings::Get()->IsMapSelectionValid(FName(*MapOption))) InitialMatchSettings.MapId = FName(*MapOption);
+		else UE_LOG(LogBr, Warning, TEXT("Rejected unknown MapId option '%s'"), *MapOption);
+	}
+	if (IsLobbyMode()) InitialMatchSettings.ResolvedMapId = NAME_None;
+	else if (InitialMatchSettings.ResolvedMapId.IsNone())
+		for (const FBrMapEntry& Entry : UBrDeveloperSettings::Get()->ValidMaps())
+			if (MapName.EndsWith(Entry.Map.ToSoftObjectPath().GetAssetName())) InitialMatchSettings.ResolvedMapId = Entry.Id;
 	InitialMatchSettings.NumGroups = FMath::Clamp(InitialMatchSettings.NumGroups, 2, 1024);
 	InitialMatchSettings.Sanitize();
 	Super::InitGame(MapName, Options, ErrorMessage);

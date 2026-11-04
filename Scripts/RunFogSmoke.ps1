@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param([int]$Port = 17977, [int]$TimeoutSeconds = 120, [switch]$Grouped, [switch]$Windowed,
     [switch]$Spectator, [ValidateRange(0,240)][int]$FrameRate = 0,
-    # Short name of the match level the lobby travels to (BrDeveloperSettings.MatchMap). Use Lvl_TopDown for the template map.
+    # Legacy level-name interface, translated to the lobby map selection.
     [ValidatePattern('^[A-Za-z0-9_]+$')][string]$MatchLevel = "L_Town",
     [ValidatePattern('^[a-zA-Z0-9_-]*$')][string]$RunLabel = "")
 $ErrorActionPreference = "Stop"
@@ -60,8 +60,8 @@ try {
     $MatchExtra = @()
     if ($MatchLevel -ne "L_Town") {
         # Override the match map for this run only (e.g. Lvl_TopDown). Default run uses DefaultGame.ini (L_Town).
-        $MatchPath = if ($MatchLevel -eq "Lvl_TopDown") { "/Game/TopDown/Lvl_TopDown.Lvl_TopDown" } else { "/Game/BrGame/Maps/$MatchLevel.$MatchLevel" }
-        $MatchExtra += "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:MatchMap=$MatchPath"
+        if ($MatchLevel -ne "Lvl_TopDown") { throw "Unknown allowlisted MatchLevel: $MatchLevel" }
+        $MatchExtra += "-BrSmokeMapId=TestArena"
     }
     Launch "Host" $URL (@("-Port=$Port", "-BrFlowSmoke") + $MatchExtra)
     WaitLog "Host" "Flow ready: L_Lobby Lobby=1"

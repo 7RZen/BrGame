@@ -15,6 +15,12 @@ USTRUCT(BlueprintType)
 struct FBrMatchSettings
 {
 	GENERATED_BODY()
+	/** Stable allowlisted selection; Random is kept across rounds and re-rolled by the server. */
+	UPROPERTY()
+	FName MapId;
+	/** Server-owned outcome, distinct from the host's selection. */
+	UPROPERTY()
+	FName ResolvedMapId;
 	UPROPERTY(BlueprintReadOnly, Category="Match")
 	float PickupRespawnTime = 30;
 	UPROPERTY()

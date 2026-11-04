@@ -116,6 +116,8 @@ try {
         @{ Name="Flow-Zone"; Script="RunFlowSmoke.ps1"; Args=@("-Zone"); Logs="Saved\Logs\MP\Zone"; Pass="ZONE SMOKE PASS" },
         @{ Name="Flow-DisconnectGrace"; Script="RunFlowSmoke.ps1"; Args=@("-DisconnectGrace"); Logs="Saved\Logs\MP\FlowDisconnect"; Pass="FLOW DISCONNECT PASS" },
         @{ Name="Flow-LvlTopDown"; Script="RunFlowSmoke.ps1"; Args=@("-MatchLevel","Lvl_TopDown"); Logs="Saved\Logs\MP\Flow"; Pass="FLOW SMOKE PASS" },
+        @{ Name="Maps-Selection"; Script="RunFlowSmoke.ps1"; Args=@("-MapSelector"); Logs="Saved\Logs\MP\MapSelector"; Pass="MAP SELECTOR SMOKE PASS" },
+        @{ Name="Maps-Random"; Script="RunFlowSmoke.ps1"; Args=@("-MapSelector","-RandomMap"); Logs="Saved\Logs\MP\MapSelectorRandom"; Pass="MAP SELECTOR SMOKE PASS" },
         @{ Name="Fog"; Script="RunFogSmoke.ps1"; Args=@(); Logs="Saved\Logs\MP\Fog"; Pass="FOG SMOKE PASS" },
         @{ Name="Fog-Grouped"; Script="RunFogSmoke.ps1"; Args=@("-Grouped"); Logs="Saved\Logs\MP\FogGrouped"; Pass="FOG SMOKE PASS" },
         @{ Name="Session"; Script="RunSessionSmoke.ps1"; Args=@(); Logs="Saved\Logs\MP\Session"; Pass="PASS: Null create/find/join" },

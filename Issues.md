@@ -56,8 +56,8 @@ Pressing CTRL til slide if running.
 Status: Unresolved
 
 ## 10 (FR) Maps and map selector
-The person hosting should be able to choose from available maps.
-Status: Unresolved
+More maps will be added. The person hosting should be able to choose from available maps.
+Status: Implemented (developer-managed map list/default, host-only replicated lobby selector with descriptions/previews/player-count hints, server-side Random re-roll each round, persistent selection across rounds, browser map advertisement and map/cook validation). Independent-review fixes: transparent match-only root with compact fading map banner (world-visible screenshot inspected); dedicated two-round multiplayer smokes verify non-default/Random carry without reapplying settings and late lobby join replication before Start. Full UBT build zero compiler warnings; 84/84 automation and 14/14 regression steps PASS (Saved/Logs/RunAll/20261104-074112/). Town and Test Arena selectable. Validation/results and remaining manual checks: Scripts/MapSelectorValidation.md; adding maps: Docs/AddingMaps.md.
 
 ## 11 (FR) All buildings have roofs
 the roof should have same effect as fog of war, whn a player is inside the building the roof disapears. When a player looks inside a door from outside the roof should be invisible where the look angle for the player is.

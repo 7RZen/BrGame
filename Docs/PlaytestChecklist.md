@@ -23,6 +23,17 @@ count and test both modes.
 - [OK] **Start/results/return:** start a match on L_Town, finish it, and wait
   for results. Expected: map travel, winner/table, return to lobby, and prior
   lobby settings/groups retained.
+- [ ] **Lobby map selector (host + remote):** cycle Town → Test Arena → Random;
+  verify the same name, description, preview and hint on both clients. Remote
+  controls must be disabled. Join the lobby late and verify the current choice.
+  Start each map; verify the map announcement and destination, then results →
+  lobby retains the selection. Random must remain Random and may re-roll.
+- [ ] **Map browser / failure paths:** refresh the Null and two-PC Steam
+  browsers after changing the map; expect its name (Random stays Random).
+  Retest password/version rejection and late joins. In a developer-only test
+  remove a preview: expect a text placeholder. Invalid/missing map entries
+  warn and are omitted; an empty list must refuse Start with a visible error.
+  Try player counts outside recommendations: hints must not enforce a cap.
 - [Issues] **Movement/map:** run/sprint, crouch, prone, rotate/zoom the camera, enter
   buildings, cross low cover and approach the boundary. Expected: movement
   speeds/postures change; walls block movement and shots; low cover blocks

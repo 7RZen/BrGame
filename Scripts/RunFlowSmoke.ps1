@@ -1,8 +1,9 @@
 # Bounded flow smoke: lobby, seamless match, late join, eliminations, results, lobby.
 [CmdletBinding()]
 param([int]$Port = 17877, [int]$TimeoutSeconds = 180, [switch]$Grouped, [switch]$DisconnectGrace, [switch]$Zone,
+    [switch]$MapSelector, [switch]$RandomMap,
     [string]$Packaged,
-    # Short name of the match level the lobby travels to (BrDeveloperSettings.MatchMap). Use Lvl_TopDown for the template map.
+    # Legacy level-name interface, now translated to an allowlisted lobby selection.
     [ValidatePattern('^[A-Za-z0-9_]+$')][string]$MatchLevel = "L_Town")
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -32,6 +33,11 @@ if ($DisconnectGrace) {
     $Case = if ($Grouped) { "FlowDisconnectGrouped" } else { "FlowDisconnect" }
     $Logs = Join-Path $Root "Saved\Logs\MP\$Case"
 }
+if ($MapSelector) {
+    if ($Grouped -or $Zone -or $DisconnectGrace) { throw "Map selector is a separate smoke fixture." }
+    $Logs = Join-Path $Root $(if ($RandomMap) { "Saved\Logs\MP\MapSelectorRandom" } else { "Saved\Logs\MP\MapSelector" })
+}
+elseif ($RandomMap) { throw "-RandomMap requires -MapSelector." }
 if (Get-Process UnrealEditor, UnrealEditor-Cmd, LiveCodingConsole -ErrorAction SilentlyContinue) {
     throw "UnrealEditor/UnrealEditor-Cmd/LiveCodingConsole running; close it before smoke. Nothing was stopped."
 }
@@ -77,13 +83,46 @@ function WaitLog($Role, $Pattern, $Minimum = 1, $AfterPattern = "") {
     throw "Timed out waiting for $Role pattern '$Pattern' x$Minimum"
 }
 try {
+    if ($MapSelector) {
+        $Selection = if ($RandomMap) { "Random" } else { "TestArena" }
+        Launch "Host" "/Game/BrGame/Maps/L_Lobby?listen?Name=SmokeHost" @(
+            "-Port=$Port", "-BrMapSelectorSmoke", "-BrSmokeMapId=$Selection",
+            "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:ResultsDuration=2")
+        # Host selection happens before ANY client connects. Unlike the legacy
+        # flow hook this fixture never reapplies it after returning to lobby.
+        WaitLog "Host" "Map selector smoke selected before join: Selection=$Selection"
+        Launch "Client1" "127.0.0.1:$Port`?Name=SmokeClient1"
+        WaitLog "Client1" "Map settings: Selection=$Selection Resolved=None"
+        WaitLog "Client1" "Flow client state: L_Lobby Phase=1"
+        Write-Output "MAP LATE LOBBY JOIN PASS: Client1 received $Selection before Start"
+        # This connection is the start gate, so observing the late-join lobby
+        # state above cannot accidentally be satisfied by a match snapshot.
+        Launch "Client2" "127.0.0.1:$Port`?Name=SmokeClient2"
+        for ($Round = 1; $Round -le 2; $Round++) {
+            $Outcome = if ($RandomMap) { "(Town|TestArena)" } else { "TestArena" }
+            WaitLog "Host" "Map selector smoke match: Round=$Round Selection=$Selection Resolved=$Outcome Valid=1"
+            WaitLog "Client1" "Flow client state: (L_Town|Lvl_TopDown) Phase=2 Pawn=BrCharacter" $Round
+            WaitLog "Client1" "Map settings: Selection=$Selection Resolved=$Outcome"
+            WaitLog "Client1" "Flow client state: (L_Town|Lvl_TopDown) Phase=3" $Round
+            WaitLog "Host" "Map selector smoke carried: Round=$Round Selection=$Selection Resolved=None"
+            WaitLog "Client1" "Flow client state: L_Lobby Phase=1" ($Round + 1)
+            WaitLog "Client1" "Map settings: Selection=$Selection Resolved=None" 1 "Flow client state: (L_Town|Lvl_TopDown) Phase=3"
+        }
+        WaitLog "Host" "MAP SELECTOR SMOKE PASS"
+        foreach ($File in Get-ChildItem $Logs -Filter *.log) {
+            if (Select-String -Path $File.FullName -Pattern "LogBr: Error|Fatal error|Assertion failed|Ensure condition failed|LogScript: Warning") {
+                throw "Map selector smoke log errors in $($File.Name)"
+            }
+        }
+        Write-Output "MAP SELECTOR SMOKE PASS: late lobby join, two real rounds, $Selection retained without reapplication"
+        return
+    }
     $URL = "/Game/BrGame/Maps/L_Lobby?listen?Name=SmokeHost"
     if ($Grouped) { $URL += "?Mode=Grouped?NumGroups=2" }
     $HostExtra = @("-Port=$Port", "-BrFlowSmoke")
     if ($MatchLevel -ne "L_Town") {
-        # Override the match map for this run only (e.g. Lvl_TopDown). Default run uses DefaultGame.ini (L_Town).
-        $MatchPath = if ($MatchLevel -eq "Lvl_TopDown") { "/Game/TopDown/Lvl_TopDown.Lvl_TopDown" } else { "/Game/BrGame/Maps/$MatchLevel.$MatchLevel" }
-        $HostExtra += "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:MatchMap=$MatchPath"
+        if ($MatchLevel -ne "Lvl_TopDown") { throw "Unknown allowlisted MatchLevel: $MatchLevel" }
+        $HostExtra += "-BrSmokeMapId=TestArena"
     }
     if ($Zone) {
         $HostExtra += @("-BrZoneSmoke", "-LogCmds=`"LogBr Verbose`"",
@@ -103,6 +142,8 @@ try {
     WaitLog "Host" "Flow admitted: SmokeClient1.*Lobby=1"
     WaitLog "Host" "Flow ready: $MatchLevel Lobby=0"
     WaitLog "Client1" "Flow client state: $MatchLevel Phase=2 Pawn=BrCharacter"
+    $ExpectedMapId = if ($MatchLevel -eq "Lvl_TopDown") { "TestArena" } else { "Town" }
+    WaitLog "Client1" "Map settings: Selection=$ExpectedMapId Resolved=$ExpectedMapId"
     if ($Zone) {
         # A late join must receive the current snapshot, not start its own timeline.
         Launch "Client2" "127.0.0.1:$Port`?Name=SmokeLateJoin"
@@ -117,6 +158,7 @@ try {
         WaitLog "Host" "Flow ready: L_Lobby Lobby=1" 2
         WaitLog "Client1" "Flow client state: L_Lobby Phase=1" 1 "Flow client state: $MatchLevel Phase=2"
         WaitLog "Client2" "Flow client state: L_Lobby Phase=1" 1 "Flow client state: $MatchLevel Phase=2"
+        WaitLog "Client1" "Map settings: Selection=$ExpectedMapId Resolved=None" 1 "Flow client state: $MatchLevel Phase=3"
         $StageLines = @(Select-String -Path (Join-Path $Logs "Host.log") -Pattern "Zone stage: (\d+)/(\d+) Radius=([\d.]+) Target=([\d.]+)")
         if ($StageLines.Count -ne 5) { throw "Expected five zone stages, got $($StageLines.Count)" }
         # A target may be narrowed after navmesh validation. The unverified target
@@ -172,6 +214,7 @@ try {
         WaitLog "Host" "Flow admitted: SmokeClient1 Team=1 Lobby=1" 2
         WaitLog "Host" "Flow admitted: SmokeLateJoin Team=0 Lobby=1"
     }
+    WaitLog "Client1" "Map settings: Selection=$ExpectedMapId Resolved=None" 1 "Flow client state: $MatchLevel Phase=3"
     WaitLog "Host" "Flow spectating \(server\):"
     WaitLog "Client1" "Flow spectating:"
     }

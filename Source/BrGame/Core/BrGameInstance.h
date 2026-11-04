@@ -37,6 +37,8 @@ class BRGAME_API UBrGameInstance : public UGameInstance
 public:
 #if !UE_BUILD_SHIPPING
 	bool bMenuSmokeRejoin = false;
+	// Fixture progress only; selection must survive via the production carry path.
+	int32 MapSelectorSmokeStage = 0;
 #endif
 	virtual void Init() override;
 	virtual void Shutdown() override;

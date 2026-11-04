@@ -19,6 +19,24 @@
 #include "EngineUtils.h"
 #include "Kismet/KismetRenderingLibrary.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/Paths.h"
+
+bool ABrHUD::ExportMapPreview()
+{
+#if !UE_BUILD_SHIPPING
+	if (!MapImage || !MapCapture) return false;
+	for (const FBrMapEntry& Entry : UBrDeveloperSettings::Get()->ValidMaps())
+		if (GetWorld()->GetMapName() == Entry.Map.ToSoftObjectPath().GetAssetName())
+		{
+			const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots/Maps/Previews"));
+			UKismetRenderingLibrary::ExportRenderTarget(this, MapImage, Directory, TEXT("T_") + Entry.Id.ToString() + TEXT(".png"));
+			UE_LOG(LogBr, Display, TEXT("BR MAP PREVIEW PASS: %s"), *Entry.Id.ToString());
+			return true;
+		}
+	UE_LOG(LogBr, Error, TEXT("Preview capture requires an allowlisted match map"));
+#endif
+	return false;
+}
 
 void ABrHUD::EndPlay(const EEndPlayReason::Type Reason)
 {

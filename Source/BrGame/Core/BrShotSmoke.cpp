@@ -1,4 +1,5 @@
 #include "BrGameMode.h"
+#include "BrHUD.h"
 #include "BrPlayerController.h"
 #include "BrMenuWidget.h"
 #include "BrDeveloperSettings.h"
@@ -58,8 +59,30 @@ void ABrGameMode::ServiceShotSmoke()
 	}
 	ABrPlayerController* Host = Cast<ABrPlayerController>(GetWorld()->GetFirstPlayerController());
 	if (!Host || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Host->IsLocalController(), GetNetMode())) return;
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrMapPreview")))
+	{
+		if (GetWorld()->GetTimeSeconds() > 8 && ShotSmokeStage == 0)
+			if (ABrHUD* HUD = Host->GetHUD<ABrHUD>())
+				if (HUD->ExportMapPreview()) { ++ShotSmokeStage; FPlatformMisc::RequestExit(false); }
+		return;
+	}
 	if (!Cast<ABrCharacter>(Host->GetPawn())) return;
 	const float Now = GetWorld()->GetTimeSeconds();
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrMapAnnouncementShot")))
+	{
+		if (Now - MatchBeganTime > 2 && ShotSmokeStage == 0)
+		{
+			UE_LOG(LogBr, Display, TEXT("Shot smoke capture: Name=announcement MatchAge=%.2f"), Now - MatchBeganTime);
+			FScreenshotRequest::RequestScreenshot(TEXT("Maps_announcement"), true, false);
+			++ShotSmokeStage;
+		}
+		else if (Now - MatchBeganTime > 3 && ShotSmokeStage == 1)
+		{
+			UE_LOG(LogBr, Display, TEXT("SHOT SMOKE PASS: match announcement requested during gameplay"));
+			++ShotSmokeStage;
+		}
+		return;
+	}
 	if (FParse::Param(FCommandLine::Get(), TEXT("BrHitShot")))
 	{
 		if (Now - MatchBeganTime < 6 || Now < ShotSmokeNextTime || ShotSmokeStage > 6) return;

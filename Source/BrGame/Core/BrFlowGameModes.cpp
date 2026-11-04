@@ -23,6 +23,7 @@
 #include "Engine/NetDriver.h"
 #include "Engine/NetConnection.h"
 #include "Engine/LocalPlayer.h"
+#include "UnrealClient.h"
 
 ABrLobbyGameMode::ABrLobbyGameMode()
 {
@@ -352,7 +353,8 @@ void ABrGameMode::UpdateLobby()
 void ABrGameMode::ChangeSettings(APlayerController* Requester, FBrMatchSettings Settings)
 {
 	if (!Requester || !Requester->IsLocalController() || !HasAuthority() || !IsLobbyMode() || bTravelling) return;
-	if (Settings.NumGroups < 2 || Settings.NumGroups > 1024 || Settings.MaxPlayers < 0 ||
+	if (!UBrDeveloperSettings::Get()->IsMapSelectionValid(Settings.MapId) ||
+		Settings.NumGroups < 2 || Settings.NumGroups > 1024 || Settings.MaxPlayers < 0 ||
 		(Settings.MaxPlayers > 0 && Settings.MaxPlayers < GetGameState<ABrGameState>()->PlayerArray.Num()) ||
 		!FMath::IsFinite(Settings.PickupRespawnTime) ||
 		(Settings.Mode != EBrMode::AllVsAll && Settings.Mode != EBrMode::Grouped) ||
@@ -363,6 +365,7 @@ void ABrGameMode::ChangeSettings(APlayerController* Requester, FBrMatchSettings 
 		return;
 	}
 	Settings.Sanitize();
+	Settings.ResolvedMapId = NAME_None; // Client requests cannot choose a Random outcome.
 	if (Settings.Visibility != EBrSessionVisibility::Public && Settings.Visibility != EBrSessionVisibility::FriendsOnly &&
 		Settings.Visibility != EBrSessionVisibility::InviteOnly) return;
 	// Protection state comes only from the server's private credential, never an RPC flag.
@@ -413,10 +416,24 @@ bool ABrGameMode::TravelFlow(const FString& Map)
 }
 void ABrGameMode::StartRound(APlayerController* Requester)
 {
-	if (!HasAuthority() || !Requester || !Requester->IsLocalController() || !IsLobbyMode() || NumTravellingPlayers > 0 ||
+	if (!HasAuthority() || !Requester || !Requester->IsLocalController() || !IsLobbyMode() || bTravelling || NumTravellingPlayers > 0 ||
 		GetGameState<ABrGameState>()->PlayerArray.IsEmpty()) return;
 	UpdateLobby();
-	TravelFlow(UBrDeveloperSettings::Get()->MatchMap.ToSoftObjectPath().GetLongPackageName());
+	ABrGameState* GS = GetGameState<ABrGameState>();
+	FBrMapEntry Chosen;
+	FRandomStream Random(FMath::Rand());
+	if (!UBrDeveloperSettings::Get()->ResolveMap(GS->MatchSettings.MapId, Random, Chosen))
+	{
+		UE_LOG(LogBr, Error, TEXT("Cannot start round: selected map '%s' is unavailable"), *GS->MatchSettings.MapId.ToString());
+		if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>()) GI->FlowError = TEXT("Selected map is unavailable. Check Project Settings > BrGame > Maps.");
+		return;
+	}
+	FBrMatchSettings Settings = GS->MatchSettings;
+	Settings.ResolvedMapId = Chosen.Id;
+	GS->SetMatchSettings(Settings);
+	UE_LOG(LogBr, Display, TEXT("Round map: Selection=%s Resolved=%s Map: %s"),
+		*Settings.MapId.ToString(), *Chosen.Id.ToString(), *Chosen.DisplayName.ToString());
+	TravelFlow(Chosen.Map.ToSoftObjectPath().GetLongPackageName());
 }
 void ABrGameMode::ReturnToLobby()
 {
@@ -490,11 +507,41 @@ void ABrGameMode::FlowService()
 				if (ABrPlayerController* PC = Cast<ABrPlayerController>(Entry.Get())) PC->ServiceSpectator();
 	}
 #if !UE_BUILD_SHIPPING
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrMapSelectorSmoke")))
+	{
+		ServiceMapSelectorSmoke();
+		return;
+	}
 	UBrGameInstance* GI = GetGameInstance<UBrGameInstance>();
 	if (!GI || GI->bSmokeFinished || !FParse::Param(FCommandLine::Get(), TEXT("BrFlowSmoke"))) return;
 	APlayerController* Host = GetWorld()->GetFirstPlayerController();
 	if (!Host || !Host->IsLocalController()) return;
 	ABrGameState* GS = GetGameState<ABrGameState>();
+	if (IsLobbyMode())
+	{
+		FString MapId;
+		if (FParse::Value(FCommandLine::Get(), TEXT("BrSmokeMapId="), MapId) && GS->MatchSettings.MapId != FName(*MapId))
+		{
+			FBrMatchSettings Settings = GS->MatchSettings;
+			Settings.MapId = FName(*MapId);
+			ChangeSettings(Host, Settings);
+		}
+		if (FParse::Param(FCommandLine::Get(), TEXT("BrMapsShot")))
+		{
+			if (GetWorld()->GetTimeSeconds() > 5 && ShotSmokeStage == 0)
+			{
+				UE_LOG(LogBr, Display, TEXT("Shot smoke capture: Name=lobby"));
+				FScreenshotRequest::RequestScreenshot(TEXT("Maps_lobby"), true, false);
+				++ShotSmokeStage;
+			}
+			else if (GetWorld()->GetTimeSeconds() > 7 && ShotSmokeStage == 1)
+			{
+				UE_LOG(LogBr, Display, TEXT("SHOT SMOKE PASS: lobby map selector requested"));
+				++ShotSmokeStage;
+			}
+			return;
+		}
+	}
 	if (FParse::Param(FCommandLine::Get(), TEXT("BrMenuSmoke")))
 	{
 		ServiceMenuSmoke();
@@ -550,6 +597,70 @@ void ABrGameMode::FlowService()
 	}
 #endif
 }
+#if !UE_BUILD_SHIPPING
+void ABrGameMode::ServiceMapSelectorSmoke()
+{
+	UBrGameInstance* GI = GetGameInstance<UBrGameInstance>();
+	ABrPlayerController* Host = Cast<ABrPlayerController>(GetWorld()->GetFirstPlayerController());
+	ABrGameState* GS = GetGameState<ABrGameState>();
+	if (!GI || !GS || !Host || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Host->IsLocalController(), GetNetMode())) return;
+	int32& Stage = GI->MapSelectorSmokeStage;
+	FString Requested;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("BrSmokeMapId="), Requested)) Requested = TEXT("TestArena");
+	const FName Expected(*Requested);
+	auto Fail = [&Stage](const TCHAR* Reason)
+	{
+		UE_LOG(LogBr, Error, TEXT("Map selector smoke failed: %s"), Reason);
+		Stage = -1;
+	};
+	if (Stage == 0 && IsLobbyMode())
+	{
+		FBrMatchSettings Settings = GS->MatchSettings;
+		Settings.MapId = Expected;
+		Host->ServerSettings(Settings); // Exercise the real host RPC handler exactly once.
+		if (GS->MatchSettings.MapId != Expected) { Fail(TEXT("initial selection rejected")); return; }
+		Stage = 1;
+		UE_LOG(LogBr, Display, TEXT("Map selector smoke selected before join: Selection=%s"), *Expected.ToString());
+	}
+	else if ((Stage == 1 || Stage == 4) && IsLobbyMode() &&
+		GS->PlayerArray.Num() >= 3 && NumTravellingPlayers == 0 && GetWorld()->GetTimeSeconds() - MatchBeganTime > 4)
+	{
+		// In round 1, the script connects player 3 only AFTER observing player 2's
+		// initial lobby replication. Round 2 never reapplies or repairs settings.
+		if (GS->MatchSettings.MapId != Expected) { Fail(TEXT("selection lost before Start")); return; }
+		StartRound(Host);
+		if (bTravelling) ++Stage;
+	}
+	else if ((Stage == 2 || Stage == 5) && !IsLobbyMode() && !GS->bResults &&
+		NumTravellingPlayers == 0 && GetWorld()->GetTimeSeconds() - MatchBeganTime > 5)
+	{
+		const FBrMapEntry* Resolved = UBrDeveloperSettings::Get()->FindMap(GS->MatchSettings.ResolvedMapId);
+		if (GS->MatchSettings.MapId != Expected || !Resolved ||
+			GetWorld()->GetMapName() != Resolved->Map.ToSoftObjectPath().GetAssetName() ||
+			(Expected != TEXT("Random") && Resolved->Id != Expected))
+		{
+			Fail(TEXT("round selection/outcome/destination is not allowlisted or does not match")); return;
+		}
+		UE_LOG(LogBr, Display, TEXT("Map selector smoke match: Round=%d Selection=%s Resolved=%s Valid=1"),
+			Stage == 2 ? 1 : 2, *Expected.ToString(), *Resolved->Id.ToString());
+		for (int32 I = GS->PlayerArray.Num() - 1; I >= 0; --I)
+			if (const ABrPlayerState* PS = Cast<ABrPlayerState>(GS->PlayerArray[I]))
+				if (!PS->bHost) EliminatePlayer(Host, I);
+		++Stage;
+	}
+	else if ((Stage == 3 || Stage == 6) && IsLobbyMode())
+	{
+		if (GS->MatchSettings.MapId != Expected || !GS->MatchSettings.ResolvedMapId.IsNone())
+		{
+			Fail(TEXT("production match -> lobby carry lost selection or retained outcome")); return;
+		}
+		UE_LOG(LogBr, Display, TEXT("Map selector smoke carried: Round=%d Selection=%s Resolved=None"),
+			Stage == 3 ? 1 : 2, *Expected.ToString());
+		if (Stage == 6) UE_LOG(LogBr, Display, TEXT("MAP SELECTOR SMOKE PASS: two rounds, retained selection, valid outcomes"));
+		++Stage;
+	}
+}
+#endif
 void ABrGameMode::EndPlay(const EEndPlayReason::Type Reason)
 {
 	GetWorldTimerManager().ClearTimer(SteamLoginTimer);

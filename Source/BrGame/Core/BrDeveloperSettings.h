@@ -6,6 +6,7 @@
 #include "BrLifeRules.h"
 #include "BrZoneRules.h"
 #include "BrAudioRules.h"
+#include "BrMapEntry.h"
 #include "BrDeveloperSettings.generated.h"
 
 class UAnimInstance;
@@ -175,8 +176,17 @@ public:
 	bool bDisableRespawnDuringFinalStage = true;
 	UPROPERTY(Config, EditAnywhere, Category="Zone|Assets")
 	TSoftObjectPtr<UMaterialInterface> ZoneRingMaterial;
-	UPROPERTY(Config, EditAnywhere, Category="Flow")
-	TSoftObjectPtr<UWorld> MatchMap = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/TopDown/Lvl_TopDown.Lvl_TopDown")));
+	UPROPERTY(Config, EditAnywhere, Category="Maps", meta=(TitleProperty="DisplayName"))
+	TArray<FBrMapEntry> Maps;
+	UPROPERTY(Config, EditAnywhere, Category="Maps")
+	FName DefaultMapId = TEXT("Town");
+	/** Filters invalid/duplicate IDs, non-world assets and missing packages without loading levels. */
+	TArray<FBrMapEntry> ValidMaps() const;
+	const FBrMapEntry* FindMap(FName Id) const;
+	bool IsMapSelectionValid(FName Id) const;
+	FName InitialMapId() const;
+	bool ResolveMap(FName Selection, FRandomStream& Random, FBrMapEntry& Out) const;
+	FText MapName(FName Id) const;
 	UPROPERTY(Config, EditAnywhere, Category="Flow", meta=(ClampMin="1", Units="s"))
 	float ResultsDuration = 10;
 	/** Allow a single contestant to finish; false keeps solo practice running. */

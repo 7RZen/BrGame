@@ -8,6 +8,13 @@
 #include "BrPlayerController.h"
 #include "BrPlayerState.h"
 #include "BrLog.h"
+#include "BrDeveloperSettings.h"
+#include "Engine/Texture2D.h"
+#include "Components/Image.h"
+#include "Components/SizeBox.h"
+#include "Components/VerticalBoxSlot.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/VerticalBox.h"
 #include "Components/TextBlock.h"
@@ -74,6 +81,10 @@ UEditableTextBox* UBrFlowWidget::Field(const FString& Label, const FString& Valu
 void UBrFlowWidget::Build(int32 NewPhase)
 {
 	Phase = NewPhase;
+	PreviewMapId = NAME_None;
+	MapPreview = nullptr;
+	MapPlaceholder = nullptr;
+	MapLabel = MapDetails = nullptr;
 	AudioPanel = nullptr;
 	TeamsSignature.Empty();
 	HostControls.Empty();
@@ -83,6 +94,27 @@ void UBrFlowWidget::Build(int32 NewPhase)
 	PasswordField = PromptField = nullptr;
 	BrowserRevision = -1;
 	NameField = AddressField = GroupsField = MaximumField = RespawnField = nullptr;
+	SetRenderOpacity(1);
+	AnnouncementStartedTime = -1;
+	if (Phase == 2)
+	{
+		// An overlay has no brush: only this compact banner paints over gameplay.
+		// Never reuse the full-screen menu/lobby background for an active match.
+		Root = nullptr;
+		UOverlay* MatchRoot = WidgetTree->ConstructWidget<UOverlay>();
+		UBorder* Banner = WidgetTree->ConstructWidget<UBorder>();
+		Banner->SetBrushColor(FLinearColor(0.015f, 0.02f, 0.03f, 0.75f));
+		Banner->SetPadding(FMargin(20, 8));
+		Status = WidgetTree->ConstructWidget<UTextBlock>();
+		Status->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		Banner->SetContent(Status);
+		UOverlaySlot* BannerSlot = MatchRoot->AddChildToOverlay(Banner);
+		BannerSlot->SetHorizontalAlignment(HAlign_Center);
+		BannerSlot->SetVerticalAlignment(VAlign_Top);
+		BannerSlot->SetPadding(FMargin(0, 24, 0, 0));
+		WidgetTree->RootWidget = MatchRoot;
+		return;
+	}
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>();
 	Background->SetBrushColor(FLinearColor(0.015f, 0.02f, 0.03f, 0.96f));
 	Background->SetPadding(FMargin(32));
@@ -134,6 +166,25 @@ void UBrFlowWidget::Build(int32 NewPhase)
 			Caption = Cast<UTextBlock>(Control->GetContent());
 			HostControls.Add(Control);
 		};
+		Setting(TEXT("Map"), TEXT("Map"), MapLabel);
+		MapDetails = Text(Root, TEXT(""));
+		USizeBox* PreviewBox = WidgetTree->ConstructWidget<USizeBox>();
+		PreviewBox->SetWidthOverride(192);
+		PreviewBox->SetHeightOverride(192);
+		UBorder* PreviewBorder = WidgetTree->ConstructWidget<UBorder>();
+		PreviewBorder->SetBrushColor(FLinearColor(0.06f, 0.07f, 0.09f, 1));
+		UOverlay* PreviewContent = WidgetTree->ConstructWidget<UOverlay>();
+		MapPreview = WidgetTree->ConstructWidget<UImage>();
+		MapPlaceholder = WidgetTree->ConstructWidget<UTextBlock>();
+		MapPlaceholder->SetText(NSLOCTEXT("BrMaps", "NoPreview", "Preview unavailable"));
+		MapPlaceholder->SetAutoWrapText(true);
+		UOverlaySlot* ImageSlot = PreviewContent->AddChildToOverlay(MapPreview);
+		ImageSlot->SetHorizontalAlignment(HAlign_Fill);
+		ImageSlot->SetVerticalAlignment(VAlign_Fill);
+		PreviewContent->AddChildToOverlay(MapPlaceholder);
+		PreviewBorder->SetContent(PreviewContent);
+		PreviewBox->SetContent(PreviewBorder);
+		Root->AddChildToVerticalBox(PreviewBox)->SetHorizontalAlignment(HAlign_Left);
 		Setting(TEXT("Mode"), TEXT("Mode"), ModeLabel);
 		Setting(TEXT("Visibility"), TEXT("Visibility"), VisibilityLabel);
 		LockLabel = Text(Root, TEXT(""));
@@ -174,7 +225,17 @@ void UBrFlowWidget::Refresh()
 		Build(NewPhase);
 		if (!IsInViewport()) AddToViewport();
 	}
-	if (Phase == 2) { SetVisibility(ESlateVisibility::Collapsed); return; }
+	if (Phase == 2)
+	{
+		// Start locally when the persistent outcome arrives, including on late join.
+		if (GS->MatchSettings.ResolvedMapId.IsNone()) { SetVisibility(ESlateVisibility::Collapsed); return; }
+		if (AnnouncementStartedTime < 0) AnnouncementStartedTime = GetWorld()->GetTimeSeconds();
+		const float Age = GetWorld()->GetTimeSeconds() - AnnouncementStartedTime;
+		Status->SetText(FText::FromString(TEXT("Map: ") + UBrDeveloperSettings::Get()->MapName(GS->MatchSettings.ResolvedMapId).ToString()));
+		SetRenderOpacity(1 - FMath::Clamp((Age - 3.5f) / 1.5f, 0.f, 1.f));
+		SetVisibility(Age < 5 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		return;
+	}
 	SetVisibility(ESlateVisibility::Visible);
 	const UBrGameInstance* GI = GetGameInstance<UBrGameInstance>();
 	if (Phase == 0)
@@ -204,6 +265,22 @@ void UBrFlowWidget::Refresh()
 	for (UWidget* Control : HostControls) if (Control) Control->SetIsEnabled(bHost);
 	for (UWidget* Control : PasswordControls) if (Control) Control->SetVisibility(bHost ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	const FBrMatchSettings& Settings = GS->MatchSettings;
+	const UBrDeveloperSettings* Developer = UBrDeveloperSettings::Get();
+	MapLabel->SetText(FText::FromString(TEXT("Map: ") + Developer->MapName(Settings.MapId).ToString() + (bHost ? TEXT(" (click to change)") : TEXT(""))));
+	if (PreviewMapId != Settings.MapId)
+	{
+		PreviewMapId = Settings.MapId;
+		const FBrMapEntry* Entry = Developer->FindMap(Settings.MapId);
+		UTexture2D* Texture = Entry ? Entry->Preview.LoadSynchronous() : nullptr;
+		MapPreview->SetBrushFromTexture(Texture);
+		MapPreview->SetVisibility(Texture ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		MapPlaceholder->SetVisibility(Texture ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+		FString Details = Entry ? Entry->Description.ToString() + FString::Printf(TEXT("\nRecommended: %d–%d players (hint only)"),
+			Entry->RecommendedMinPlayers, Entry->RecommendedMaxPlayers) : TEXT("Random: server chooses a map uniformly at match start; re-rolls each round.");
+		if (!Texture) Details += TEXT("\n[Preview unavailable]");
+		MapDetails->SetText(FText::FromString(Details));
+		if (Entry && !Texture) UE_LOG(LogBr, Warning, TEXT("Map preview unavailable: %s"), *Entry->Preview.ToString());
+	}
 	VisibilityLabel->SetText(FText::FromString(Settings.Visibility == EBrSessionVisibility::Public ? TEXT("Visibility: Public") :
 		Settings.Visibility == EBrSessionVisibility::FriendsOnly ? TEXT("Visibility: Friends only") : TEXT("Visibility: Invite only")));
 	LockLabel->SetText(FText::FromString(Settings.bPasswordProtected ? TEXT("[LOCK] Password protected") : TEXT("No password")));
@@ -296,6 +373,13 @@ void UBrFlowWidget::Act(FName Action, int32 Index)
 	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
 	if (!GS) return;
 	FBrMatchSettings Settings = GS->MatchSettings;
+	if (Action == TEXT("Map"))
+	{
+		TArray<FName> Choices = { FName(TEXT("Random")) };
+		for (const FBrMapEntry& Entry : UBrDeveloperSettings::Get()->ValidMaps()) Choices.Add(Entry.Id);
+		const int32 Current = Choices.IndexOfByKey(Settings.MapId);
+		Settings.MapId = Choices[(Current + 1) % Choices.Num()];
+	}
 	if (Action == TEXT("Visibility")) Settings.Visibility = static_cast<EBrSessionVisibility>((static_cast<int32>(Settings.Visibility) + 1) % 3);
 	if (Action == TEXT("SetPassword"))
 	{

@@ -106,6 +106,7 @@ private:
 	float ShotSmokeNextTime = 0;
 	void ServiceShotSmoke();
 #if !UE_BUILD_SHIPPING
+	void ServiceMapSelectorSmoke();
 	void ServiceMinimapShot();
 	void ServiceMenuSmoke();
 	void ServiceMenuShot();

@@ -36,7 +36,17 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UBrAudioSettingsPanel> AudioPanel;
 	int32 Phase = -1;
+	float AnnouncementStartedTime = -1;
 	FString TeamsSignature;
+	FName PreviewMapId;
+	UPROPERTY(Transient)
+	TObjectPtr<class UImage> MapPreview;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> MapPlaceholder;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> MapLabel;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> MapDetails;
 	int32 BrowserRevision = -1;
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> Root;

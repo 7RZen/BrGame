@@ -6,6 +6,8 @@ param([int]$Port = 17981, [int]$TimeoutSeconds = 180,
     [switch]$Menu,
     [switch]$Aiming,
     [switch]$HitFeedback,
+    [switch]$Maps,
+    [switch]$MapAnnouncement,
     [ValidateRange(30,90)][float]$CameraPitchAngle = 65,
     [ValidatePattern('^[a-zA-Z0-9_-]*$')][string]$RunLabel = "")
 $ErrorActionPreference = "Stop"
@@ -14,7 +16,7 @@ $Editor = Join-Path ${env:ProgramFiles} "Epic Games\UE_5.8\Engine\Binaries\Win64
 $Project = Join-Path $Root "BrGame.uproject"
 $Case = "Shot$RunLabel"
 $Logs = Join-Path $Root "Saved\Logs\MP\$Case"
-$ShotDir = Join-Path $Root $(if ($HitFeedback) { "Saved\Screenshots\HitFeedback" } elseif ($Aiming) { "Saved\Screenshots\Aiming" } elseif ($Menu) { "Saved\Screenshots\Menu" } elseif ($Minimap) { "Saved\Screenshots\Minimap" } else { "Saved\Screenshots\Step10" })
+$ShotDir = Join-Path $Root $(if ($Maps -or $MapAnnouncement) { "Saved\Screenshots\Maps" } elseif ($HitFeedback) { "Saved\Screenshots\HitFeedback" } elseif ($Aiming) { "Saved\Screenshots\Aiming" } elseif ($Menu) { "Saved\Screenshots\Menu" } elseif ($Minimap) { "Saved\Screenshots\Minimap" } else { "Saved\Screenshots\Step10" })
 $Source = Join-Path $Root "Saved\Screenshots\WindowsEditor"
 if (Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue) {
     throw "Editor/LiveCodingConsole running; close it first. Nothing was stopped."
@@ -50,8 +52,12 @@ function WaitLog($Role, $Pattern) {
     throw "Timed out waiting for $Role '$Pattern'"
 }
 try {
-    if (([int]$Menu.IsPresent + [int]$Minimap.IsPresent + [int]$Aiming.IsPresent + [int]$HitFeedback.IsPresent) -gt 1) { throw "Menu, Minimap, Aiming and HitFeedback are separate fixtures." }
-    if ($Menu) {
+    if (([int]$MapAnnouncement.IsPresent + [int]$Maps.IsPresent + [int]$Menu.IsPresent + [int]$Minimap.IsPresent + [int]$Aiming.IsPresent + [int]$HitFeedback.IsPresent) -gt 1) { throw "Shot fixtures cannot be combined." }
+    if ($MapAnnouncement) {
+        Launch "Host" "/Game/BrGame/Maps/L_Town?Name=MapHost" @("-BrShotSmoke", "-BrMapAnnouncementShot")
+    } elseif ($Maps) {
+        Launch "Host" "/Game/BrGame/Maps/L_Lobby?listen?Name=MapHost" @("-BrMapsShot", "-Port=$Port")
+    } elseif ($Menu) {
         Launch "Host" "/Game/BrGame/Maps/L_Town?Name=MenuHost" @("-BrShotSmoke", "-BrMenuShot")
     } elseif ($Minimap) {
         Launch "Host" "/Game/BrGame/Maps/L_Town?Name=MapHost?Mode=Grouped" @("-BrShotSmoke", "-BrMinimapShot")
@@ -70,7 +76,7 @@ try {
         ForEach-Object { $_.Matches[0].Groups[1].Value })
     $Found = 0
     foreach ($Name in $Names) {
-        $Prefix = if ($HitFeedback) { "HitFeedback" } elseif ($Menu) { "Menu" } elseif ($Minimap) { "Minimap" } else { "Step10" }
+        $Prefix = if ($Maps -or $MapAnnouncement) { "Maps" } elseif ($HitFeedback) { "HitFeedback" } elseif ($Menu) { "Menu" } elseif ($Minimap) { "Minimap" } else { "Step10" }
         $Source1 = Join-Path $Source "${Prefix}_$Name.png"
         if (!(Test-Path -LiteralPath $Source1)) { throw "Missing screenshot $Source1" }
         $Target = Join-Path $ShotDir "$Name$RunLabel.png"

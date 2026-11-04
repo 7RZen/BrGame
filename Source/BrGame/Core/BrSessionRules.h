@@ -21,7 +21,14 @@ struct FBrSessionRules
 		if (Visibility == EBrSessionVisibility::Public || bMember) return EAdmission::Accept;
 		return WaitSeconds < 5.0 ? EAdmission::Wait : EAdmission::Reject;
 	}
-	static constexpr int32 Protocol = 10;
+	static constexpr int32 Protocol = 11;
+	static constexpr const TCHAR* MapIdKey = TEXT("BRMAP");
+	static constexpr const TCHAR* MapNameKey = TEXT("BRMAPNAME");
+	static void AdvertiseMap(FOnlineSessionSettings& Settings, FName Id, const FText& Name)
+	{
+		Settings.Set(MapIdKey, Id.ToString(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+		Settings.Set(MapNameKey, Name.ToString(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	}
 	static constexpr const TCHAR* GameId = TEXT("BrGame");
 	static bool Compatible(const FOnlineSessionSettings& Settings)
 	{

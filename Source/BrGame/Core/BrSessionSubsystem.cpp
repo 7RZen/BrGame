@@ -1,4 +1,5 @@
 #include "BrSessionSubsystem.h"
+#include "BrDeveloperSettings.h"
 #include "BrSessionRules.h"
 #include "BrGameInstance.h"
 #include "BrGameState.h"
@@ -277,6 +278,8 @@ FOnlineSessionSettings UBrSessionSubsystem::Settings() const
 	Out.Set(TEXT("BRLOCK"), !HostPassword.IsEmpty(), Advertise);
 	Out.Set(TEXT("BRCOUNT"), GS ? GS->PlayerArray.Num() : 1, Advertise);
 	Out.Set(TEXT("BRMAX"), Match.MaxPlayers, Advertise);
+	const FName MapId = Match.MapId.IsNone() ? UBrDeveloperSettings::Get()->InitialMapId() : Match.MapId;
+	FBrSessionRules::AdvertiseMap(Out, MapId, UBrDeveloperSettings::Get()->MapName(MapId));
 	Out.Set(TEXT("BRMODE"), Match.Mode == EBrMode::Grouped ? FString(TEXT("Grouped")) : FString(TEXT("All vs all")), Advertise);
 	Out.Set(TEXT("BRPLAY"), GS && !GS->bLobby && !GS->bResults, Advertise);
 	return Out;
@@ -354,14 +357,15 @@ FString UBrSessionSubsystem::Describe(int32 Index) const
 	if (!Servers.IsValidIndex(Index)) return FString();
 	const auto& Result = Servers[Index];
 	const auto& Value = Result.Session.SessionSettings;
-	FString Name, Mode;
+	FString Name, Mode, MapName;
 	int32 Count = 0, Max = 0;
 	bool Lock = false, Playing = false;
 	Value.Get(TEXT("BRNAME"), Name); Value.Get(TEXT("BRMODE"), Mode);
 	Value.Get(TEXT("BRCOUNT"), Count); Value.Get(TEXT("BRMAX"), Max);
 	Value.Get(TEXT("BRLOCK"), Lock); Value.Get(TEXT("BRPLAY"), Playing);
+	Value.Get(FBrSessionRules::MapNameKey, MapName);
 	return FString::Printf(TEXT("%s%s | %d/%s | %s | %s | %s"), Lock ? TEXT("[LOCK] ") : TEXT(""),
-		*Name, Count, Max ? *FString::FromInt(Max) : TEXT("unlimited"), *Mode,
+		*Name, Count, Max ? *FString::FromInt(Max) : TEXT("unlimited"), *(Mode + TEXT(" | Map: ") + MapName),
 		Playing ? TEXT("In progress") : TEXT("Lobby/results"),
 		Result.PingInMs < 9999 ? *FString::Printf(TEXT("%d ms"), Result.PingInMs) : TEXT("Ping unavailable"));
 }
