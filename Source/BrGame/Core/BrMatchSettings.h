@@ -22,7 +22,7 @@ struct FBrMatchSettings
 	UPROPERTY()
 	FName ResolvedMapId;
 	UPROPERTY(BlueprintReadOnly, Category="Match")
-	float PickupRespawnTime = 30;
+	float CrateDropInterval = 30;
 	UPROPERTY()
 	EBrMode Mode = EBrMode::AllVsAll;
 	UPROPERTY()
@@ -43,9 +43,9 @@ struct FBrMatchSettings
 	{
 		NumGroups = FMath::Max(2, NumGroups);
 		MaxPlayers = FMath::Max(0, MaxPlayers);
-		PickupRespawnTime = ClampPickupRespawnTime(PickupRespawnTime);
+		CrateDropInterval = ClampCrateDropInterval(CrateDropInterval);
 	}
-	static float ClampPickupRespawnTime(float Seconds)
+	static float ClampCrateDropInterval(float Seconds)
 	{
 		return FMath::IsFinite(Seconds) ? FMath::Clamp(Seconds, 1.0f, 3600.0f) : 30.0f;
 	}

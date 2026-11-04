@@ -470,7 +470,7 @@ void ABrGameMode::ChangeSettings(APlayerController* Requester, FBrMatchSettings 
 	if (!UBrDeveloperSettings::Get()->IsMapSelectionValid(Settings.MapId) ||
 		Settings.NumGroups < 2 || Settings.NumGroups > 1024 || Settings.MaxPlayers < 0 ||
 		(Settings.MaxPlayers > 0 && Settings.MaxPlayers < GetGameState<ABrGameState>()->PlayerArray.Num()) ||
-		!FMath::IsFinite(Settings.PickupRespawnTime) ||
+		!FMath::IsFinite(Settings.CrateDropInterval) ||
 		(Settings.Mode != EBrMode::AllVsAll && Settings.Mode != EBrMode::Grouped) ||
 		(Settings.TeamSelection != EBrTeamSelection::AutoEven && Settings.TeamSelection != EBrTeamSelection::PlayerChoice) ||
 		(Settings.ReviveRule != EBrReviveRule::Anyone && Settings.ReviveRule != EBrReviveRule::TeammatesOnly))

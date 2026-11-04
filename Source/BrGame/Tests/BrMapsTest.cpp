@@ -3,7 +3,7 @@
 #include "BrGameInstance.h"
 #include "BrSessionRules.h"
 #include "BrZoneBounds.h"
-#include "BrPickupSpawnPoint.h"
+#include "BrCrateRules.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -121,7 +121,7 @@ public:
 			return false;
 		}
 		if (Nav && UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(World) && FPlatformTime::Seconds() - Started < 120) return false;
-		bool bGround = false, bClearStart = false, bPickup = false;
+		bool bGround = false, bClearStart = false;
 		FBox Bounds(ForceInit);
 		// Match the safe-zone source order, but never accept its emergency bounds.
 		for (TActorIterator<ABrZoneBounds> It(World); It; ++It) Bounds += It->GetPlayableBounds();
@@ -145,7 +145,6 @@ public:
 				!World->OverlapBlockingTestByProfile(Hit.ImpactPoint + FVector(0,0,100), FQuat::Identity, TEXT("Pawn"), FCollisionShape::MakeCapsule(42,96));
 		};
 		for (TActorIterator<APlayerStart> It(World); It; ++It) bClearStart |= ClearFloor(It->GetActorLocation() - FVector(0,0,96));
-		for (TActorIterator<ABrPickupSpawnPoint> It(World); It; ++It) bPickup |= ClearFloor(It->GetActorLocation());
 		FNavLocation Point;
 		const bool bNav = Nav && Nav->GetRandomPoint(Point);
 		bool bFallback = false;
@@ -159,7 +158,18 @@ public:
 					bFallback |= ClearFloor(Hit.ImpactPoint);
 			}
 		Test->TestTrue(*(Prefix + TEXT("no capsule-clear PlayerStart, navigation spawn or grounded spiral fallback")), bClearStart || bNav || bFallback);
-		Test->TestTrue(*(Prefix + TEXT("no usable BrPickupSpawnPoint or runtime navigation for pickup placement")), bPickup || bNav);
+		bool bLanding = false;
+		const float Radius = Bounds.IsValid ? Bounds.GetExtent().Size2D() : 0;
+		for (int32 I = 0; Nav && I < 256; ++I)
+		{
+			FNavLocation Landing;
+			if (Nav->GetRandomPoint(Landing) &&
+				FBrCrateRules::Contains(Landing.Location, Bounds.GetCenter(), Radius, Bounds) &&
+				ClearFloor(Landing.Location) &&
+				!World->OverlapBlockingTestByProfile(Landing.Location + FVector(0,0,100), FQuat::Identity,
+					TEXT("Pawn"), FCollisionShape::MakeCapsule(85,96))) { bLanding = true; break; }
+		}
+		Test->TestTrue(*(Prefix + TEXT("no navigable capsule-clear crate landing ground inside initial zone/playable bounds")), bLanding);
 		return true;
 	}
 private:

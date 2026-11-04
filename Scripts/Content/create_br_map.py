@@ -23,7 +23,6 @@ CUBE = "/Engine/BasicShapes/Cube"
 CYLINDER = "/Engine/BasicShapes/Cylinder"
 NAV_VOLUME_CLASS = "/Script/NavigationSystem.NavMeshBoundsVolume"
 ZONE_CLASS = "/Script/BrGame.BrZoneBounds"
-PICKUP_CLASS = "/Script/BrGame.BrPickupSpawnPoint"
 
 PLAY_HALF = 10000.0      # playable half-extent (200 m map)
 BOUNDARY_T = 200.0       # invisible boundary wall thickness
@@ -41,8 +40,6 @@ SEED = 1010
 PLAYER_START_COUNT = 48
 PLAYER_START_Z = 100.0      # capsule half-height 96 + clearance above ground top (Z=0)
 PLAYER_START_MARGIN = 150.0
-PICKUP_MIN_COUNT = 144   # 24 + 4 * 30 players (PickupCountBase/PerPlayer)
-PICKUP_MARGIN = 100.0
 
 # ---------- layout data (rects are (x0, y0, x1, y1)) ----------
 ROADS = [
@@ -127,7 +124,6 @@ reserved = []          # rects dense pieces must not touch (shot points, doorway
 start_points = []      # PlayerStart xy (reachability audit)
 ENTRANCES = []         # intended building doorways: x, y (door centre), axis ("X" = passage along X)
 ENTRANCE_CLEAR = 120.0 # minimum clear doorway width, cm (standing capsule r=60 must pass)
-pickup_candidates = []
 footprints = []
 label_counter = {"n": 0}
 dense_counter = {"n": 0}
@@ -301,12 +297,6 @@ def building(b):
     spawn_box(tag + "_Floor", b["rect"], 0.0, ROAD_H, MATS["floor"], "NoCollision")
     footprints.append(b["rect"])
     stats["buildings"] += 1
-    # quarter points inside the footprint are candidates for pickups (filtered later)
-    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
-    for fx in (0.25, 0.75):
-        for fy in (0.25, 0.75):
-            pickup_candidates.append((x0 + (x1 - x0) * fx, y0 + (y1 - y0) * fy))
-    pickup_candidates.append((cx, cy))
 
 
 def free_for_cover(rect, margin):
@@ -785,51 +775,6 @@ def build_player_starts():
     log("player starts=%d (candidates=%d)" % (len(chosen), len(cands)))
 
 
-def zone_pickup_points():
-    # 350 cm lattice inside the dense zones; filtered by reachability and clearance later.
-    pts = []
-    for zone in (COMPOUND_RECT, FOREST_RECT):
-        x = zone[0] + 350.0
-        while x <= zone[2] - 350.0:
-            y = zone[1] + 350.0
-            while y <= zone[3] - 350.0:
-                pts.append((x, y))
-                y += 350.0
-            x += 350.0
-    return pts
-
-
-def build_pickups():
-    cls = unreal.load_class(None, PICKUP_CLASS)
-    if cls is None:
-        raise RuntimeError("Missing class " + PICKUP_CLASS)
-    pts = []
-    v = -8750.0
-    while v <= 8750.0:
-        u = -8750.0
-        while u <= 8750.0:
-            pts.append((u, v))
-            u += 1250.0
-        v += 1250.0
-    pts.extend(pickup_candidates)
-    pts.extend(zone_pickup_points())
-    kept = []
-    for (x, y) in pts:
-        if abs(x) > PLAY_HALF - 300 or abs(y) > PLAY_HALF - 300:
-            continue
-        if not reachable(x, y):  # seed-component floor only (no pockets, not inside geometry)
-            continue
-        if clear_of_solids(x, y, PICKUP_MARGIN):
-            if all(math.hypot(x - kx, y - ky) >= 200.0 for kx, ky in kept):
-                kept.append((x, y))
-    if len(kept) < PICKUP_MIN_COUNT:
-        raise RuntimeError("Only %d pickup spots; need %d" % (len(kept), PICKUP_MIN_COUNT))
-    for (x, y) in kept:
-        sp = UTIL.spawn_actor_from_class(cls, unreal.Vector(x, y, 10.0), unreal.Rotator(), False)
-        sp.set_actor_label(next_label("PickupSpawn"))
-    log("pickup spawn points=%d" % len(kept))
-
-
 def build_zone_bounds():
     cls = unreal.load_class(None, ZONE_CLASS)
     if cls is None:
@@ -906,7 +851,7 @@ def main():
     purge_br_actors()
     label_counter["n"] = 0
     dense_counter["n"] = 0
-    for lst in (solids, vision_solids, reserved, start_points, ENTRANCES, footprints, pickup_candidates):
+    for lst in (solids, vision_solids, reserved, start_points, ENTRANCES, footprints):
         lst.clear()
     WALK.clear()
     stats.update({"walls": 0, "low_cover": 0, "containers": 0, "trunks": 0, "buildings": 0, "roads": 0})
@@ -923,7 +868,6 @@ def main():
     audit_passages()
     build_walk_grid()
     build_player_starts()
-    build_pickups()
     audit_reachability()
     report_sightlines()
     build_entrance_markers()

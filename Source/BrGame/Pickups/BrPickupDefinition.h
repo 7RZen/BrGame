@@ -103,6 +103,7 @@ struct FBrPickupTableEntry
 	float Weight = 1;
 };
 
+/** Legacy asset schema retained so DA_BrPickupTable still loads; crates do not use this table. */
 UCLASS(BlueprintType)
 class BRGAME_API UBrPickupTable : public UPrimaryDataAsset
 {

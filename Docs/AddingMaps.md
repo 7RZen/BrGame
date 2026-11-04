@@ -7,11 +7,10 @@
    Navigation can also supply starts; the safe-zone spawn path has a bounded
    downward-ground-trace spiral fallback. Check actual playable collision, not
    just a visible floor.
-3. Add `BrPickupSpawnPoint` actors at floor height, or usable runtime navigation.
-   Pickup placement does **not** have the player's grounded spiral fallback.
-   Allow a 42 × 96 cm pawn capsule 100 cm above each pickup floor and sufficient
-   spacing for the configured pickup count. Town uses authored points; Test
-   Arena uses navigation.
+3. Provide walkable runtime navigation and clear ground inside the zone/playable
+   bounds for airdrop crates. No pickup spawn points are used. Allow an 85 × 96 cm
+   clearance capsule 100 cm above crate floors (42 × 96 cm for scattered items),
+   plus room for 5–10 m scatter. Bounded searches skip/log impossible drops.
 4. Prefer `BrZoneBounds` for explicit playable bounds. The safe zone is spawned
    by GameMode, not placed. Its fallback bounds are navmesh volume bounds, then
    PlayerStarts/colliding static geometry; emergency 100 m bounds are not valid
@@ -37,8 +36,9 @@
    If recreating Town with `create_br_map.py`, regenerate previews afterwards
    to reapply explicit ground tags.
 8. Run `BrGame.Maps` automation. `Validate.<Id>` loads every configured map in
-   PIE, builds/waits for navigation, checks ground tags, usable spawn/pickup
-   sources and non-emergency zone bounds. `CookSettings` checks MapsToCook.
+   PIE, builds/waits for navigation, checks ground tags, usable spawns, clear
+   navigable crate landing ground inside initial zone/playable bounds, and
+   non-emergency zone bounds. `CookSettings` checks MapsToCook.
    Then run full regression and manually playtest the new map with multiple
    players; the validator cannot prove every reachable floor or passage safe.
 

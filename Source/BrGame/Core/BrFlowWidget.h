@@ -63,7 +63,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UEditableTextBox> MaximumField;
 	UPROPERTY(Transient)
-	TObjectPtr<UEditableTextBox> RespawnField;
+	TObjectPtr<UEditableTextBox> CrateIntervalField;
 	UPROPERTY(Transient)
 	TObjectPtr<UEditableTextBox> PasswordField;
 	UPROPERTY(Transient)

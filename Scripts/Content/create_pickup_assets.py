@@ -94,25 +94,12 @@ def main():
                      (0.25, 0.25, 0.6), {"Weapon": weapon})
         if obj.get_editor_property("Weapon") != weapon:
             raise RuntimeError("Weapon reference validation failed")
-    table = data("DA_BrPickupTable", "BrPickupTable")
-    entries = []
-    for key, weight in [("Ammo", 30), ("Health20", 18), ("Health50", 9), ("Health100", 3),
-                        ("Grenade", 12), ("Weapon_AssaultRifle", 8), ("Weapon_MachineGun", 5), ("Weapon_Pistol", 0)]:
-        entry = unreal.BrPickupTableEntry()
-        entry.set_editor_property("Definition", definitions[key])
-        entry.set_editor_property("Weight", weight)
-        entries.append(entry)
-    table.set_editor_property("Entries", entries)
-    save(table)
-    stored = table.get_editor_property("Entries")
-    if len(stored) != 8 or sum(e.get_editor_property("Weight") for e in stored) != 85:
-        raise RuntimeError("Pickup table validation failed")
     settings = unreal.get_default_object(unreal.load_class(None, "/Script/BrGame.BrDeveloperSettings"))
-    if not settings.get_editor_property("PickupTable") or not settings.get_editor_property("DroppedWeaponPickup"):
+    if len(settings.get_editor_property("CrateDefinitions")) != 8 or not settings.get_editor_property("DroppedWeaponPickup"):
         raise RuntimeError("DefaultGame.ini pickup references are missing")
     if len(settings.get_editor_property("PickupRegistry")) != 8:
         raise RuntimeError("Expected eight registered pickup cheat names")
-    unreal.log("Br pickup assets verified: 8 definitions, weighted table (total=85), unlit color material; registry=8")
+    unreal.log("Br pickup assets verified: 8 crate definitions, unlit color material; registry=8")
 
 
 main()

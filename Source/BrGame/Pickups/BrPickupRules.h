@@ -24,11 +24,6 @@ struct FBrPickupRules
 		return FMath::Min(FMath::Max(0, Rounds), FMath::Max(0, Limit - FMath::Max(0, Reserve)));
 	}
 	static int32 GrenadeGrant(int32 Count, int32 Cap) { return Count < FMath::Max(0, Cap) ? 1 : 0; }
-	static int32 Count(int32 Base, int32 PerPlayer, int32 Players)
-	{
-		return static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(FMath::Max(0, Base)) +
-			static_cast<int64>(FMath::Max(0, PerPlayer)) * FMath::Max(0, Players)));
-	}
 	static FBrWeaponPickupPlan WeaponPlan(bool bHasOld, bool bSame, int32 OldLoaded,
 		int32 PickupSize, int32 StartingMagazines, bool bDropped, int32 PickupLoaded)
 	{

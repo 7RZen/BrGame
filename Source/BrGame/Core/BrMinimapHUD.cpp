@@ -4,6 +4,7 @@
 #include "BrVisibilitySubsystem.h"
 #include "BrZoneBounds.h"
 #include "BrSafeZone.h"
+#include "BrSupplyCrate.h"
 #include "BrCharacter.h"
 #include "BrPlayerController.h"
 #include "BrPlayerState.h"
@@ -216,6 +217,14 @@ void ABrHUD::DrawMinimap()
 			const FVector2D Direction(CameraForward.Y, -CameraForward.X);
 			DrawLine(P.X, P.Y, P.X + Direction.X * Marker * 5, P.Y + Direction.Y * Marker * 5, FLinearColor::Yellow, Scale);
 		}
+	}
+	// Public objective markers, deliberately drawn after fog on both map modes.
+	for (TActorIterator<ABrSupplyCrate> It(GetWorld()); It; ++It)
+	{
+		const FVector2D Offset = FBrMinimapRules::Offset(It->GetActorLocation(), Origin, Yaw, Radius);
+		if (!FBrMinimapRules::Inside(Offset, !bFull)) continue;
+		const FVector2D P = Center + Offset * (Size / 2);
+		DrawRect(FLinearColor::Yellow, P.X - Marker, P.Y - Marker, Marker * 2, Marker * 2);
 	}
 	if (Zone && !bFull)
 	{

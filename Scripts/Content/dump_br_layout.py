@@ -29,7 +29,7 @@ def main():
     util = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     if not levels.load_level(MAP_PATH):
         raise RuntimeError("Could not load " + MAP_PATH)
-    starts, field, entrances, pickups, counts = [], [], [], [], {}
+    starts, field, entrances, counts = [], [], [], {}
     for a in util.get_all_level_actors():
         label = a.get_actor_label()
         if not label.startswith("BR_"):
@@ -38,8 +38,6 @@ def main():
         scale = a.get_actor_scale3d()
         if label.startswith("BR_PlayerStart"):
             starts.append((r(loc.x), r(loc.y), r(loc.z)))
-        elif label.startswith("BR_PickupSpawn"):
-            pickups.append((r(loc.x), r(loc.y)))
         elif label.startswith("BR_Entrance"):
             entrances.append((r(loc.x), r(loc.y)))
         elif label.startswith(FIELD_PREFIXES) and "_D" not in label:
@@ -50,7 +48,6 @@ def main():
     unreal.log("BRDUMP starts=%d sig=%s" % (len(starts), sig(starts)))
     unreal.log("BRDUMP field=%d sig=%s" % (len(field), sig(field)))
     unreal.log("BRDUMP entrances=%d sig=%s" % (len(entrances), sig(entrances)))
-    unreal.log("BRDUMP pickups=%d" % len(pickups))
     unreal.log("BRDUMP counts " + ", ".join("%s=%d" % kv for kv in sorted(counts.items())))
 
 

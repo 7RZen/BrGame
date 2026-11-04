@@ -77,8 +77,7 @@ Require-LogMatch $Client2Log "Flow client state: L_Lobby Phase=1" "second client
 Require-LogMatch $HostLog "LoadCompleted: /Game/BrGame/Input/DA_BrInputConfig" "input configuration loaded"
 Require-LogMatch $HostLog "LoadCompleted: /Game/BrGame/Fog/M_Fog" "fog material loaded"
 Require-LogMatch $HostLog "Fog rendering ready:.*Texture=2048" "fog render targets initialized"
-Require-LogMatch $HostLog "LoadCompleted: /Game/BrGame/Pickups/DA_BrPickupTable" "pickup table loaded"
-Require-LogMatch $HostLog "Pickups spawned: Count=" "pickup manager spawned items"
+Require-LogMatch $HostLog "Crate initial wave:" "crate loot definitions loaded and initial wave scheduled"
 Require-LogMatch $HostLog "LoadCompleted: /Game/BrGame/Zone/M_ZoneRing" "zone ring material loaded"
 $RuntimeErrors = 'LogBr: Error|LogStreaming: Error|LogUObjectGlobals: Error|LogScript: Warning|LogLinker: Warning.*(Failed|missing|not found)|LogStreaming: Warning.*(Failed|missing|not found)|Failed to load.*(/Game/|/Engine/)|Failed to find object|Could not find object|Fatal error|Assertion failed|Ensure condition failed'
 foreach ($Log in @($MenuLog, $HostLog, $Client1Log, $Client2Log)) {

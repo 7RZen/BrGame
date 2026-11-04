@@ -93,7 +93,7 @@ void UBrFlowWidget::Build(int32 NewPhase)
 	Browser = PasswordPrompt = nullptr;
 	PasswordField = PromptField = nullptr;
 	BrowserRevision = -1;
-	NameField = AddressField = GroupsField = MaximumField = RespawnField = nullptr;
+	NameField = AddressField = GroupsField = MaximumField = CrateIntervalField = nullptr;
 	SetRenderOpacity(1);
 	AnnouncementStartedTime = -1;
 	if (Phase == 2)
@@ -202,9 +202,9 @@ void UBrFlowWidget::Build(int32 NewPhase)
 		Setting(TEXT("Friendly fire"), TEXT("Fire"), FireLabel);
 		Setting(TEXT("Revive rule"), TEXT("Revive"), ReviveLabel);
 		MaximumField = Field(TEXT("Max players (0 = unlimited)"), FString::FromInt(Settings.MaxPlayers));
-		RespawnField = Field(TEXT("Pickup respawn seconds"), FString::SanitizeFloat(Settings.PickupRespawnTime));
+		CrateIntervalField = Field(TEXT("Crate drop interval (s)"), FString::SanitizeFloat(Settings.CrateDropInterval));
 		HostControls.Add(MaximumField);
-		HostControls.Add(RespawnField);
+		HostControls.Add(CrateIntervalField);
 		HostControls.Add(Button(Root, TEXT("Apply numeric settings"), TEXT("Apply")));
 		HostControls.Add(Button(Root, TEXT("Start match"), TEXT("Start")));
 		Teams = WidgetTree->ConstructWidget<UVerticalBox>();
@@ -293,7 +293,7 @@ void UBrFlowWidget::Refresh()
 	{
 		GroupsField->SetText(FText::AsNumber(Settings.NumGroups));
 		MaximumField->SetText(FText::AsNumber(Settings.MaxPlayers));
-		RespawnField->SetText(FText::AsNumber(Settings.PickupRespawnTime));
+		CrateIntervalField->SetText(FText::AsNumber(Settings.CrateDropInterval));
 	}
 	FString List = TEXT("Players:\n");
 	TArray<int32> Sizes;
@@ -396,7 +396,7 @@ void UBrFlowWidget::Act(FName Action, int32 Index)
 	{
 		if (!LexTryParseString(Settings.NumGroups, *GroupsField->GetText().ToString()) ||
 			!LexTryParseString(Settings.MaxPlayers, *MaximumField->GetText().ToString()) ||
-			!LexTryParseString(Settings.PickupRespawnTime, *RespawnField->GetText().ToString()))
+			!LexTryParseString(Settings.CrateDropInterval, *CrateIntervalField->GetText().ToString()))
 		{
 			GI->FlowError = TEXT("Numeric settings are invalid.");
 			return;

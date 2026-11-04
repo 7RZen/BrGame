@@ -12,7 +12,7 @@ The full agreed design, including the implementation status per step, is in [Gam
 - **Combat:** weapons, grenades, shared ammo, developer-configurable hit chance and damage, and directional hit feedback.
 - **Life cycle:** players can be downed, revived or respawned. A death limit leads to elimination, which leaves a corpse/skeleton. Players can spectate after elimination.
 - **Movement:** tactical sprint with stamina, slide, crouch and prone (procedural posture visuals), and relative-mouse aiming.
-- **World:** shrinking safe zone, server-side fog of war with shared team vision, pickups that respawn, minimap and full map.
+- **World:** shrinking safe zone, shared-team fog of war, airdrop loot crates with public minimap/full-map markers and host-configurable interval.
 - **Maps:** Town (`L_Town`, 200 m) and Test Arena, picked by the host in the lobby (or Random).
 - **UI/audio:** ESC menu (the game is not paused), rebindable keyboard/mouse controls, and audio and mouse-sensitivity settings.
 
@@ -38,7 +38,7 @@ Tuning values are developer-only (*Project Settings → BrGame*, `UBrDeveloperSe
 | `Source/BrGame/Core` | Game mode/state, player controller/state, character and movement, sessions (`BrSessionSubsystem`), fog, safe zone, HUD/menus, audio, developer settings |
 | `Source/BrGame/Combat` | Weapon/damage definitions, combat math, health, inventory/ammo, grenades |
 | `Source/BrGame/Life` | Downed/revive/respawn/elimination rules, corpses, round records |
-| `Source/BrGame/Pickups` | Pickup definitions, spawn points, respawn manager |
+| `Source/BrGame/Pickups` | Pickup definitions, crate loot rules, airdrop actor and round drop manager |
 | `Source/BrGame/Tests` | Automation tests (`BrGame.*`) |
 | `Source/BrGame/Variant_*`, root `BrGame*` classes | Original UE Top-Down template code (TwinStick and Strategy variants), kept for reference |
 | `Content/BrGame` | Game content; maps in `Content/BrGame/Maps` (`L_MainMenu`, `L_Town`, ...) |

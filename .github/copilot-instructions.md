@@ -42,7 +42,7 @@ The BR game lives in four folders under `Source/BrGame/`:
   - `UBrDeveloperSettings`, the developer tuning shown in *Project Settings → BrGame* and stored in `DefaultGame.ini`
 - `Combat/` holds `BrCombatDefinitions` (weapon/grenade data), `BrCombatMath`, `BrHealthComponent`, `BrInventoryComponent` (shared ammo), `BrGrenade` and the damage types.
 - `Life/` holds the downed, revive, respawn, death-limit and elimination flow (`BrLifeComponent`), along with `BrCorpse`, `BrSupinePose` and `BrRoundRecord`.
-- `Pickups/` holds the pickup definitions, spawn points and `BrPickupManager`, which handles respawn timing.
+- `Pickups/` holds pickup definitions, pure `FBrCrateRules`, the always-relevant `BrSupplyCrate` and server-only `BrPickupManager` (initial/periodic airdrops, scatter and round cleanup). No pickup spawn-point actors or per-slot respawns remain. Host `CrateDropInterval` replaces `PickupRespawnTime`; session protocol is 13. Developer crate tuning/soft definition references live in `DefaultGame.ini`.
 - `Tests/` holds the automation tests (`Br*Test.cpp`), roughly one per feature.
 
 Other code and content:

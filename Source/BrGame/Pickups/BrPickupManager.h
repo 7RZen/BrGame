@@ -1,57 +1,43 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "BrPickupManager.generated.h"
 
 class ABrPickup;
-class UBrPickupTable;
+class ABrSupplyCrate;
+class UBrPickupDefinition;
 
-USTRUCT()
-struct FBrPickupSlot
-{
-	GENERATED_BODY()
-	FTransform Transform;
-	UPROPERTY()
-	TObjectPtr<ABrPickup> Pickup;
-	float ReadyTime = 0;
-};
-
-/** Server-only slot ownership. One deadline timer, no actor tick or per-frame replication. */
+/** Server-only crate scheduler and round drop ownership. No Tick. */
 UCLASS()
 class BRGAME_API ABrPickupManager : public AActor
 {
 	GENERATED_BODY()
-
 public:
 	ABrPickupManager();
 	void Initialize(int32 PlayersAtStart);
 	void RespawnAllPickups();
 	void RegisterRoundDrop(ABrPickup* Pickup);
-	/** Step-6 round reset hook: clears slots, pending timers and all registered drops, including lifetime=0. */
 	void ClearRoundPickups();
-
+	bool LandCrate(ABrSupplyCrate* Crate);
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
-
 private:
 	UPROPERTY()
-	TObjectPtr<UBrPickupTable> Table;
-	UPROPERTY()
-	TArray<FBrPickupSlot> Slots;
+	TArray<TObjectPtr<UBrPickupDefinition>> Definitions;
 	FRandomStream Stream;
-	FTimerHandle RespawnTimer;
-	FTimerHandle PlacementTimer;
-	int32 InitialPlayers = 0;
+	FTimerHandle DropTimer;
 	int32 NavigationWaits = 0;
 	bool bInitialized = false;
 	TSet<TWeakObjectPtr<ABrPickup>> RoundDrops;
+	TSet<TWeakObjectPtr<ABrSupplyCrate>> Crates;
 	UFUNCTION()
 	void RoundDropDestroyed(AActor* DestroyedActor);
-	void PlaceSlots();
-	void Consumed(ABrPickup* Pickup);
-	bool Reroll(FBrPickupSlot& Slot);
-	void ServiceRespawns();
+	UFUNCTION()
+	void CrateDestroyed(AActor* DestroyedActor);
+	void InitialWave();
+	void DropOne();
+	void ServiceDrop();
 	void ScheduleNext();
-	float RespawnDelay() const;
+	bool ClearGround(const FVector& Candidate, FVector& Floor, bool bCrate, const AActor* Ignore = nullptr) const;
+	bool InsideZone(const FVector& Point) const;
 };

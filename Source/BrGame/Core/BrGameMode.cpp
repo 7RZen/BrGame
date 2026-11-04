@@ -47,17 +47,17 @@ void ABrGameMode::InitGame(const FString& MapName, const FString& Options, FStri
 			InitialMatchSettings = GI->HostSettings;
 		}
 	}
-	const FString Value = UGameplayStatics::ParseOption(Options, TEXT("PickupRespawnTime"));
+	const FString Value = UGameplayStatics::ParseOption(Options, TEXT("CrateDropInterval"));
 	if (!Value.IsEmpty())
 	{
 		float Seconds = 30;
 		if (LexTryParseString(Seconds, *Value) && FMath::IsFinite(Seconds))
 		{
-			InitialMatchSettings.PickupRespawnTime = FBrMatchSettings::ClampPickupRespawnTime(Seconds);
+			InitialMatchSettings.CrateDropInterval = FBrMatchSettings::ClampCrateDropInterval(Seconds);
 		}
 		else
 		{
-			UE_LOG(LogBr, Warning, TEXT("Invalid host PickupRespawnTime '%s'; using 30 seconds."), *Value);
+			UE_LOG(LogBr, Warning, TEXT("Invalid host CrateDropInterval '%s'; using 30 seconds."), *Value);
 		}
 	}
 	auto ReadInt = [&](const TCHAR* Key, int32& Target)

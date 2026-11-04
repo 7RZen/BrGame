@@ -16,7 +16,6 @@ class USkeletalMesh;
 class UBrInputConfig;
 class UBrWeaponDefinition;
 class UBrThrowableDefinition;
-class UBrPickupTable;
 class UBrPickupDefinition;
 class UMaterialInterface;
 class USoundBase;
@@ -267,20 +266,53 @@ public:
 	static const UBrDeveloperSettings* Get();
 
 	UPROPERTY(Config, EditAnywhere, Category="Pickups")
-	TSoftObjectPtr<UBrPickupTable> PickupTable;
-	UPROPERTY(Config, EditAnywhere, Category="Pickups")
 	TMap<FName, TSoftObjectPtr<UBrPickupDefinition>> PickupRegistry;
 	/** Weapon pickup template; payload supplies the actual weapon and loaded rounds. */
 	UPROPERTY(Config, EditAnywhere, Category="Pickups")
 	TSoftObjectPtr<UBrPickupDefinition> DroppedWeaponPickup;
-	UPROPERTY(Config, EditAnywhere, Category="Pickups", meta=(ClampMin="0"))
-	int32 PickupCountBase = 24;
-	UPROPERTY(Config, EditAnywhere, Category="Pickups", meta=(ClampMin="0"))
-	int32 PickupCountPerPlayer = 4;
-	UPROPERTY(Config, EditAnywhere, Category="Pickups", meta=(ClampMin="0", Units="cm"))
-	float MinPickupSpacing = 200;
-	UPROPERTY(Config, EditAnywhere, Category="Pickups", meta=(ClampMin="1", Units="cm"))
-	float PickupSearchRadius = 10000;
+	/** Ordered: Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100. */
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
+	TArray<TSoftObjectPtr<UBrPickupDefinition>> CrateDefinitions;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0", ClampMax="100"))
+	int32 InitialCrates = 4;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="1", ClampMax="2"))
+	int32 CrateARMin = 1;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="1", ClampMax="2"))
+	int32 CrateARMax = 2;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="1"))
+	float CrateMGChance = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateHealthMin = 3;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateHealthMax = 8;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
+	TArray<float> CrateHealthWeights = {60, 30, 10};
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateAmmoMin = 3;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateAmmoMax = 8;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateGrenadeMin = 2;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateGrenadeMax = 4;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="1", ClampMax="256"))
+	int32 CratePlacementAttempts = 64;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="300", Units="cm"))
+	float CratePawnClearance = 300;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="100", Units="cm"))
+	float CrateDropHeight = 3000;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0.1", Units="s"))
+	float CrateFallDuration = 4;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0.1", Units="s"))
+	float CrateCoverLifetime = 20;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="1", Units="s"))
+	float CrateItemLifetime = 120;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0", Units="cm"))
+	float CrateScatterMin = 500;
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0", Units="cm"))
+	float CrateScatterMax = 1000;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Assets")
+	TSoftObjectPtr<USoundBase> CrateLandingSound;
 	UPROPERTY(Config, EditAnywhere, Category="Pickups", meta=(ClampMin="1", Units="cm"))
 	float InteractRadius = 150;
 	/** Uncollected dropped weapon lifetime; zero persists until round cleanup. */

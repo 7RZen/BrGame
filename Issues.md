@@ -79,3 +79,12 @@ Status: Implemented; both P2 review findings fixed. Native procedural crouch-wal
 ## 15 (I) Moving sounds are louder than shootings sounds
 My player character is making louder running and sprinting sounds than my gun does. Could this be a developer setting for all sounds?
 Status: Unresolved
+
+## 16 (FR) Dropbox
+Instead of pickup spawn points for one item, there should be crates dropping from the sky (airdrop) with all items.
+When the crate lands content are scattered around the create in a radius of 5 to 10 meters. 
+In a crate there are random amount of items but there are always at least one Pistol and 1 or two AR's. MG should be random if it is in the crate or not. 
+For other items like health and ammo there are at least three items each up to max 8 items.
+Handgrenades are at least 2 and max 4.
+Crates are always dropped within safe zone. A crate drops every 30 seconds (the timer should be a setting for host to set for each game).
+Status: Implemented; server-authoritative airdrops replace pickup spawn points/slot respawns. Developer loot, fall/scatter/clearance/lifetime tuning; host crate interval, protocol 13; public minimap/full-map markers and safe round cleanup. Full UBT editor build zero compiler warnings, 98/98 automation and 14/14 regression steps PASS (Saved/Logs/RunAll/20261104-151630/). Map migration removed 339 Town / 330 Battlefield points; Test Arena had none. Validation results and remaining manual visual/audio checks: Scripts/Issue16CrateValidation.md.

@@ -69,18 +69,13 @@ bool FBrPickupWeaponTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrPickupCountTest, "BrGame.Pickups.CountAndHostBounds",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrPickupCountTest, "BrGame.Pickups.HostBounds",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FBrPickupCountTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("No players retains base"), FBrPickupRules::Count(7, 3, 0), 7);
-	TestEqual(TEXT("Count scales without imposing player cap"), FBrPickupRules::Count(7, 3, 1000), 3007);
-	TestEqual(TEXT("Disabled generation"), FBrPickupRules::Count(0, 0, 1000), 0);
-	TestEqual(TEXT("Bad negative config doesn't subtract"), FBrPickupRules::Count(-5, 3, 2), 6);
-	TestEqual(TEXT("Large values saturate safely"), FBrPickupRules::Count(1, MAX_int32, 2), MAX_int32);
-	TestEqual(TEXT("Host cannot select immediate respawn"), FBrMatchSettings::ClampPickupRespawnTime(-9), 1.0f);
-	TestEqual(TEXT("Host upper duration bound"), FBrMatchSettings::ClampPickupRespawnTime(10000), 3600.0f);
-	TestEqual(TEXT("Valid host value preserved"), FBrMatchSettings::ClampPickupRespawnTime(12.5f), 12.5f);
+	TestEqual(TEXT("Host cannot select immediate drop"), FBrMatchSettings::ClampCrateDropInterval(-9), 1.0f);
+	TestEqual(TEXT("Host upper duration bound"), FBrMatchSettings::ClampCrateDropInterval(10000), 3600.0f);
+	TestEqual(TEXT("Valid host value preserved"), FBrMatchSettings::ClampCrateDropInterval(12.5f), 12.5f);
 	return true;
 }
 #endif

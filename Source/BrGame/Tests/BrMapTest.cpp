@@ -1,6 +1,5 @@
 #include "BrVisibilitySubsystem.h"
 #include "BrZoneBounds.h"
-#include "BrPickupSpawnPoint.h"
 #include "BrDeveloperSettings.h"
 #include "NavigationSystem.h"
 #include "NavigationData.h"
@@ -28,9 +27,6 @@ namespace BrMapTestDetail
 	// Sweep runs from 150 cm outside the wall line to 150 cm on the other side.
 	constexpr float EntranceHalfSpan = 150.0f;
 	constexpr float EntranceZ = 100.0f;      // capsule centre (half-height 96 clears ground at Z=0)
-	// Sphere used to keep pickups out of blocking geometry (pickup mesh is small).
-	constexpr float PickupRadius = 30.0f;
-	constexpr float PickupLift = 40.0f;
 	// Probe distance beyond the surface on each side for the vision probes.
 	constexpr float ProbeOffset = 300.0f;
 	constexpr float ProbeZ = 50.0f;
@@ -218,12 +214,6 @@ private:
 		Test->AddInfo(FString::Printf(TEXT("Navigation checked: world=%s (PIE) navdata=%s build=%.2fs"),
 			*World->GetName(), NavData ? *NavData->GetName() : TEXT("none"), NavBuildSec));
 
-		auto NavProjects = [&](const FVector& Point) -> bool
-		{
-			FNavLocation Anchor;
-			return Nav->ProjectPointToNavigation(Point, Anchor, FVector(100, 100, 300));
-		};
-
 		// Playable bounds from the zone actor (2D containment; zone circles are 2D).
 		const FBox Playable = ABrZoneBounds::FindPlayableBounds(World);
 		Test->TestTrue(TEXT("Zone playable bounds are valid"), Playable.IsValid != 0);
@@ -250,36 +240,19 @@ private:
 		Test->TestEqual(TEXT("PlayerStarts overlapping blocking geometry"), StartBlocked, 0);
 		Test->TestEqual(TEXT("PlayerStarts outside playable bounds"), StartOutside, 0);
 
-		// Pickup spawn points: inside zone bounds, not in blocking geometry, on ground and navmesh.
-		int32 PickupCount = 0, PickupBlocked = 0, PickupOutside = 0, PickupNoGround = 0, PickupNoNav = 0;
-		const ABrPickupSpawnPoint* PickupMinX = nullptr;
-		const ABrPickupSpawnPoint* PickupMaxX = nullptr;
-		for (TActorIterator<ABrPickupSpawnPoint> It(World); It; ++It)
+		// Navigation proof now uses clear PlayerStarts, independent of removed pickup sources.
+		const APlayerStart* MinX = nullptr;
+		const APlayerStart* MaxX = nullptr;
+		for (TActorIterator<APlayerStart> It(World); It; ++It)
 		{
-			++PickupCount;
-			const FVector Loc = It->GetActorLocation();
-			if (!PickupMinX || Loc.X < PickupMinX->GetActorLocation().X) PickupMinX = *It;
-			if (!PickupMaxX || Loc.X > PickupMaxX->GetActorLocation().X) PickupMaxX = *It;
-			if (!InsidePlayable2D(Loc)) ++PickupOutside;
-			if (World->OverlapBlockingTestByChannel(Loc + FVector(0, 0, BrMapTestDetail::PickupLift), FQuat::Identity,
-				ECC_WorldStatic, FCollisionShape::MakeSphere(BrMapTestDetail::PickupRadius), Params)) ++PickupBlocked;
-			if (!World->LineTraceTestByChannel(Loc + FVector(0, 0, 500), Loc - FVector(0, 0, 500), ECC_WorldStatic, Params)) ++PickupNoGround;
-			if (!NavProjects(Loc)) ++PickupNoNav;
+			if (!MinX || It->GetActorLocation().X < MinX->GetActorLocation().X) MinX = *It;
+			if (!MaxX || It->GetActorLocation().X > MaxX->GetActorLocation().X) MaxX = *It;
 		}
-		Test->TestTrue(TEXT("L_Town has at least 144 pickup spawn points"), PickupCount >= 144);
-		Test->TestEqual(TEXT("Pickup spawn points outside zone bounds"), PickupOutside, 0);
-		Test->TestEqual(TEXT("Pickup spawn points inside blocking geometry"), PickupBlocked, 0);
-		Test->TestEqual(TEXT("Pickup spawn points without ground"), PickupNoGround, 0);
-		Test->TestEqual(TEXT("Pickup spawn points without navmesh projection"), PickupNoNav, 0);
-		Test->AddInfo(FString::Printf(TEXT("Town layout: PlayerStarts=%d Pickups=%d NavProjectedPickups=%d"),
-			StartCount, PickupCount, PickupCount - PickupNoNav));
-
-		// Navigation proof: a path must exist between the two pickup spawns at the extremes of X.
-		if (NavData && PickupMinX && PickupMaxX)
+		if (NavData && MinX && MaxX)
 		{
-			const FPathFindingQuery Query(World, *NavData, PickupMinX->GetActorLocation(), PickupMaxX->GetActorLocation());
+			const FPathFindingQuery Query(World, *NavData, MinX->GetActorLocation(), MaxX->GetActorLocation());
 			const FPathFindingResult PathResult = Nav->FindPathSync(Query);
-			Test->TestTrue(TEXT("Runtime navmesh path exists across the map (pickup min-X to max-X)"), PathResult.IsSuccessful());
+			Test->TestTrue(TEXT("Runtime navmesh path exists across the map (start min-X to max-X)"), PathResult.IsSuccessful());
 			if (PathResult.IsSuccessful() && PathResult.Path.IsValid())
 			{
 				Test->AddInfo(FString::Printf(TEXT("Nav path points=%d"), PathResult.Path->GetPathPoints().Num()));
