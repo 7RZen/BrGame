@@ -20,6 +20,7 @@ $UE = "C:\Program Files\Epic Games\UE_5.8"
 
 - `Scripts\Run*Smoke.ps1` each cover one area: Flow, Match, Shot, Fog, Menu, Audio, Session and Packaged. `RunSteamHostCheck.ps1` covers Steam.
 - `Scripts\Content\*.py` scripts create or update assets headlessly. Run them with `UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script=<path> -unattended -nullrhi -nosound -nosteam`. Because they write binary assets, run them serially and never in parallel with builds or tests.
+- Crate landing/scatter use shared `FBrPlayableGround` trace/slope/capsule checks independently of navigation readiness. Tagged `BrFogGround` support must block WorldStatic traces, be non-physical/at rest, and span the scatter footprint + 85 cm clearance on both surface axes; small fog-tagged caps are rejected. Zone fallback keeps its legacy policy. Save completed navigation tiles for standalone maps: Dynamic alone does not rebuild an empty loaded Recast actor in UE 5.8. `rebuild_crate_map_navigation.py` repairs Town/Battlefield navigation only; `BrGame.Editor.BuildNavigation` is an editor-only pipeline bridge. `RunCratePlacementCheck.ps1` checks Town/Battlefield/TestArena waves, full loot and TestArena floor heights (repeat with `-Windowed`).
 - `Scripts\*Validation.md` files record the decisions, changed paths, commands, results and remaining manual checks for each feature. Add or update one when you implement a feature or issue.
 - `Docs\PlaytestChecklist.md` lists the manual checks, and `Docs\AddingMaps.md` explains how to add a map.
 - Steam needs a logged-in Steam client and standalone or packaged play, not PIE. Use `-nosteam` to force the Null/LAN subsystem and IP transport.
@@ -42,7 +43,7 @@ The BR game lives in four folders under `Source/BrGame/`:
   - `UBrDeveloperSettings`, the developer tuning shown in *Project Settings → BrGame* and stored in `DefaultGame.ini`
 - `Combat/` holds `BrCombatDefinitions` (weapon/grenade data), `BrCombatMath`, `BrHealthComponent`, `BrInventoryComponent` (shared ammo), `BrGrenade` and the damage types.
 - `Life/` holds the downed, revive, respawn, death-limit and elimination flow (`BrLifeComponent`), along with `BrCorpse`, `BrSupinePose` and `BrRoundRecord`.
-- `Pickups/` holds pickup definitions, pure `FBrCrateRules`, the always-relevant `BrSupplyCrate` and server-only `BrPickupManager` (initial/periodic airdrops, scatter and round cleanup). No pickup spawn-point actors or per-slot respawns remain. Host `CrateDropInterval` replaces `PickupRespawnTime`; session protocol is 13. Developer crate tuning/soft definition references live in `DefaultGame.ini`.
+- `Pickups/` holds pickup definitions, pure `FBrCrateRules`, the always-relevant `BrSupplyCrate` and server-only `BrPickupManager` (initial/periodic airdrop waves, scatter and round cleanup). No pickup spawn-point actors or per-slot respawns remain. Host `CrateDropInterval` replaces `PickupRespawnTime`; session protocol is 13. Developer crate tuning/soft definition references live in `DefaultGame.ini`; counts are per `FBrMapEntry` (`InitialCrates` / `CratesPerDrop`, defaults 4 / 2), not global. Same-wave landing centers are spaced by twice the scatter max radius.
 - `Tests/` holds the automation tests (`Br*Test.cpp`), roughly one per feature.
 
 Other code and content:

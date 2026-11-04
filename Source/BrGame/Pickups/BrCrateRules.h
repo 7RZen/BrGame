@@ -47,6 +47,27 @@ struct FBrCrateRules
 			Point.Y >= Bounds.Min.Y && Point.Y <= Bounds.Max.Y;
 	}
 	static int32 InitialWave(int32 Base) { return FMath::Clamp(Base, 0, 100); }
+	static int32 IntervalWave(int32 Count) { return FMath::Clamp(Count, 1, 100); }
+	/** Supporting floor must span the scatter disc plus the crate clearance radius. */
+	static float FloorHalfWidth(float ScatterMin, float ScatterMax)
+	{
+		return 85.f + FMath::Max(0.f, FMath::Max(
+			FMath::IsFinite(ScatterMin) ? ScatterMin : 0.f,
+			FMath::IsFinite(ScatterMax) ? ScatterMax : 0.f));
+	}
+	/** Keep scatter discs apart within a wave; even zero scatter must separate crate bodies. */
+	static float WaveSpacing(float ScatterMin, float ScatterMax)
+	{
+		return FMath::Max(170.f, 2 * FMath::Max(
+			FMath::IsFinite(ScatterMin) ? ScatterMin : 0.f,
+			FMath::IsFinite(ScatterMax) ? ScatterMax : 0.f));
+	}
+	static bool IsWaveSpaced(const FVector& Candidate, const TArray<FVector>& Previous, float Spacing)
+	{
+		for (const FVector& Point : Previous)
+			if (FVector::DistSquared2D(Candidate, Point) < FMath::Square(Spacing)) return false;
+		return true;
+	}
 	static double NextDrop(double Now, float Interval)
 	{
 		return Now + (FMath::IsFinite(Interval) ? FMath::Clamp(Interval, 1.f, 3600.f) : 30.f);

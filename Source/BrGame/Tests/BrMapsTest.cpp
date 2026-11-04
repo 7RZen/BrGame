@@ -24,6 +24,13 @@ bool FBrMapsListTest::RunTest(const FString&)
 	S->Maps = UBrDeveloperSettings::Get()->Maps;
 	const int32 ValidCount = S->ValidMaps().Num();
 	TestTrue(TEXT("Developer list contains valid maps"), ValidCount >= 2);
+	for (const FBrMapEntry& Entry : S->Maps)
+	{
+		TestTrue(*(Entry.Id.ToString() + TEXT(": valid initial crate count")),
+			Entry.InitialCrates == FBrCrateRules::InitialWave(Entry.InitialCrates));
+		TestTrue(*(Entry.Id.ToString() + TEXT(": valid interval crate count")),
+			Entry.CratesPerDrop == FBrCrateRules::IntervalWave(Entry.CratesPerDrop));
+	}
 	const FBrMapEntry Duplicate = S->Maps[0];
 	S->Maps.Add(Duplicate);
 	FBrMapEntry Invalid;

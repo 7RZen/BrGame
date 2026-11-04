@@ -7,13 +7,18 @@
 #include "BrGameState.h"
 #include "BrSafeZone.h"
 #include "BrZoneBounds.h"
+#include "BrPlayableGround.h"
 #include "BrLog.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "TimerManager.h"
+#include "UObject/Package.h"
 
 ABrPickupManager::ABrPickupManager()
 {
@@ -27,6 +32,14 @@ void ABrPickupManager::Initialize(int32 PlayersAtStart)
 	bInitialized = true;
 	Stream.Initialize(FMath::Rand());
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	if (!ResolveMapCounts()) return;
+	PlayableBounds = ABrZoneBounds::FindPlayableBounds(GetWorld());
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrCrateNavProbe")))
+	{
+		NavigationProbeStarted = FPlatformTime::Seconds();
+		ProbeNavigation();
+		GetWorldTimerManager().SetTimer(NavigationProbeTimer, this, &ThisClass::ProbeNavigation, 1.f, true);
+	}
 	if (S->CrateDefinitions.Num() != FBrCrateRules::TypeCount ||
 		S->CrateHealthWeights.Num() != 3 ||
 		FBrPickupRules::WeightedIndex(S->CrateHealthWeights, Stream) == INDEX_NONE)
@@ -50,21 +63,57 @@ void ABrPickupManager::Initialize(int32 PlayersAtStart)
 
 void ABrPickupManager::InitialWave()
 {
-	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	FNavLocation Probe;
-	if (!Nav || UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(GetWorld()) || !Nav->GetRandomPoint(Probe))
-	{
-		if (++NavigationWaits < 40)
-		{
-			GetWorld()->GetTimerManager().SetTimer(DropTimer, this, &ThisClass::InitialWave, 0.25f, false);
-			return;
-		}
-		UE_LOG(LogBr, Warning, TEXT("Crate initial wave: navigation unavailable after 10 seconds; bounded searches may skip drops"));
-	}
-	const int32 N = FBrCrateRules::InitialWave(UBrDeveloperSettings::Get()->InitialCrates);
-	UE_LOG(LogBr, Display, TEXT("Crate initial wave: Requested=%d"), N);
-	for (int32 I = 0; I < N; ++I) DropOne();
+	// Collision-verified ground is available without waiting for navigation generation.
+	UE_LOG(LogBr, Display, TEXT("Crate initial wave: Map=%s Count=%d PerDrop=%d"),
+		*MapId.ToString(), InitialCrateCount, IntervalCrateCount);
+	DropWave(true);
 	ScheduleNext();
+}
+
+bool ABrPickupManager::ResolveMapCounts()
+{
+	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
+	const FString Package = UWorld::RemovePIEPrefix(GetWorld()->GetPackage()->GetName());
+	const FBrMapEntry* Entry = GS ? S->FindMap(GS->MatchSettings.ResolvedMapId) : nullptr;
+	if (!Entry || Entry->Map.ToSoftObjectPath().GetLongPackageName() != Package)
+	{
+		if (GS && !GS->MatchSettings.ResolvedMapId.IsNone())
+			UE_LOG(LogBr, Warning, TEXT("Crate map outcome '%s' does not match server world '%s'; resolving from current world"),
+				*GS->MatchSettings.ResolvedMapId.ToString(), *Package);
+		Entry = nullptr;
+		for (const FBrMapEntry& Candidate : S->ValidMaps())
+			if (Candidate.Map.ToSoftObjectPath().GetLongPackageName() == Package)
+			{
+				Entry = S->FindMap(Candidate.Id);
+				break;
+			}
+	}
+	if (!Entry)
+	{
+		UE_LOG(LogBr, Error, TEXT("Crates disabled: server world '%s' has no allowlisted map entry"), *Package);
+		return false;
+	}
+	MapId = Entry->Id;
+	InitialCrateCount = FBrCrateRules::InitialWave(Entry->InitialCrates);
+	IntervalCrateCount = FBrCrateRules::IntervalWave(Entry->CratesPerDrop);
+	if (InitialCrateCount != Entry->InitialCrates || IntervalCrateCount != Entry->CratesPerDrop)
+		UE_LOG(LogBr, Warning, TEXT("Clamped invalid crate counts for map %s: Initial=%d PerDrop=%d"),
+			*MapId.ToString(), InitialCrateCount, IntervalCrateCount);
+	return true;
+}
+
+void ABrPickupManager::DropWave(bool bInitial)
+{
+	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
+	if (!HasAuthority() || !bInitialized || !GS || GS->bResults) return;
+	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	const float Spacing = FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax);
+	const int32 Count = bInitial ? InitialCrateCount : IntervalCrateCount;
+	TArray<FVector> Landings;
+	for (int32 I = 0; I < Count; ++I) DropOne(Landings, Spacing);
+	UE_LOG(LogBr, Display, TEXT("Crate %s wave placed: Map=%s Count=%d Spawned=%d Spacing=%.0f"),
+		bInitial ? TEXT("initial") : TEXT("interval"), *MapId.ToString(), Count, Landings.Num(), Spacing);
 }
 
 bool ABrPickupManager::InsideZone(const FVector& Point) const
@@ -72,61 +121,86 @@ bool ABrPickupManager::InsideZone(const FVector& Point) const
 	for (TActorIterator<ABrSafeZone> It(GetWorld()); It; ++It)
 	{
 		const FBrZoneCircle Circle = It->Circle();
-		return FBrCrateRules::Contains(Point, Circle.Center, Circle.Radius, ABrZoneBounds::FindPlayableBounds(GetWorld()));
+		return FBrCrateRules::Contains(Point, Circle.Center, Circle.Radius, PlayableBounds);
 	}
 	return false;
 }
 
-bool ABrPickupManager::ClearGround(const FVector& Candidate, FVector& Floor, bool bCrate, const AActor* Ignore) const
+bool ABrPickupManager::ClearGround(const FVector& Candidate, FVector& Floor, bool bCrate, const AActor* Ignore,
+	bool* bUsedNavigation) const
 {
+	if (bUsedNavigation) *bUsedNavigation = false;
+	FBrGroundQuery GroundQuery;
+	GroundQuery.Radius = bCrate ? 85.f : 42.f;
+	GroundQuery.bRequireTaggedStaticFloor = true;
+	GroundQuery.bUsePawnProfile = true;
+	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	GroundQuery.MinFloorHalfWidth = FBrCrateRules::FloorHalfWidth(S->CrateScatterMin, S->CrateScatterMax);
+	// Full-height trace rejects roof/cover tops even if nav projects onto them.
+	GroundQuery.TraceUp = FMath::Max(1000.f, static_cast<float>(PlayableBounds.Max.Z - Candidate.Z + 100));
+	GroundQuery.TraceDown = FMath::Max(2000.f, static_cast<float>(Candidate.Z - PlayableBounds.Min.Z + 100));
+	const auto Verify = [&](const FVector& Point)
+	{
+		if (!FBrPlayableGround::Find(GetWorld(), Point, Floor, GroundQuery, Ignore)) return false;
+		if (bCrate)
+		{
+			const float Clearance = FMath::Max(300.f, UBrDeveloperSettings::Get()->CratePawnClearance);
+			for (TActorIterator<APawn> It(GetWorld()); It; ++It)
+				if (FVector::DistSquared2D(It->GetActorLocation(), Floor) < FMath::Square(Clearance)) return false;
+		}
+		return true;
+	};
 	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 	FNavLocation Projected;
-	if (!Nav || !Nav->ProjectPointToNavigation(Candidate, Projected, FVector(100, 100, 500))) return false;
-	FCollisionQueryParams Query(SCENE_QUERY_STAT(BrCrateGround), false, Ignore);
-	FHitResult Hit;
-	if (!GetWorld()->LineTraceSingleByChannel(Hit, Projected.Location + FVector(0, 0, 100),
-		Projected.Location - FVector(0, 0, 200), ECC_WorldStatic, Query) || Hit.ImpactNormal.Z < 0.7) return false;
-	Floor = Hit.ImpactPoint;
-	// Tall capsule also rejects overhangs/walls beside a 120cm-wide cover crate.
-	if (GetWorld()->OverlapBlockingTestByProfile(Floor + FVector(0, 0, 100), FQuat::Identity, TEXT("Pawn"),
-		FCollisionShape::MakeCapsule(bCrate ? 85.f : 42.f, 96), Query)) return false;
-	if (bCrate)
+	const bool bProjected = Nav && Nav->ProjectPointToNavigation(Candidate, Projected, FVector(100, 100, 500)) &&
+		Projected.HasNodeRef() && Verify(Projected.Location);
+	if (bProjected)
 	{
-		const float Clearance = FMath::Max(300.f, UBrDeveloperSettings::Get()->CratePawnClearance);
-		for (TActorIterator<APawn> It(GetWorld()); It; ++It)
-			if (FVector::DistSquared2D(It->GetActorLocation(), Floor) < FMath::Square(Clearance)) return false;
+		if (bUsedNavigation) *bUsedNavigation = true;
 	}
+	else if (!Verify(Candidate)) return false;
 	return true;
 }
 
-void ABrPickupManager::DropOne()
+bool ABrPickupManager::DropOne(TArray<FVector>& WaveLandings, float Spacing)
 {
 	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
-	if (!GS || GS->bResults || Definitions.Num() != FBrCrateRules::TypeCount) return;
+	if (!GS || GS->bResults || Definitions.Num() != FBrCrateRules::TypeCount) return false;
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	FVector SearchCenter = FVector::ZeroVector;
 	for (TActorIterator<ABrSafeZone> It(GetWorld()); It; ++It)
 	{
 		const FBrZoneCircle Circle = It->Circle();
+		SearchCenter = Circle.Center;
 		for (int32 I = 0; I < FMath::Clamp(S->CratePlacementAttempts, 1, 256); ++I)
 		{
 			FVector Floor;
+			bool bUsedNav = false;
 			const FVector Candidate = FBrCrateRules::LandingCandidate(Stream, Circle.Center, Circle.Radius);
-			if (!ClearGround(Candidate, Floor, true) || !InsideZone(Floor)) continue;
+			if (!FBrCrateRules::Contains(Candidate, Circle.Center, Circle.Radius, PlayableBounds) ||
+				!ClearGround(Candidate, Floor, true, nullptr, &bUsedNav) || !InsideZone(Floor) ||
+				!FBrCrateRules::IsWaveSpaced(Floor, WaveLandings, Spacing)) continue;
 			const FTransform Transform(Floor + FVector(0, 0, 60));
 			ABrSupplyCrate* Crate = GetWorld()->SpawnActorDeferred<ABrSupplyCrate>(ABrSupplyCrate::StaticClass(),
 				Transform, this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-			if (!Crate) { UE_LOG(LogBr, Error, TEXT("Crate actor allocation failed")); return; }
+			if (!Crate) { UE_LOG(LogBr, Error, TEXT("Crate actor allocation failed")); return false; }
 			Crate->Initialize(this);
 			Crates.Add(Crate);
 			Crate->OnDestroyed.AddUniqueDynamic(this, &ThisClass::CrateDestroyed);
 			UGameplayStatics::FinishSpawningActor(Crate, Transform);
-			UE_LOG(LogBr, Display, TEXT("Crate falling: Landing=%s ZoneCenter=%s ZoneRadius=%.0f Inside=1"),
-				*Floor.ToString(), *Circle.Center.ToString(), Circle.Radius);
-			return;
+			WaveLandings.Add(Floor);
+			UE_LOG(LogBr, Display, TEXT("Crate falling: Landing=%s ZoneCenter=%s ZoneRadius=%.0f Inside=1 Attempts=%d Ground=%s TaggedStatic=1 CapsuleClear=1 PawnClear=1 WaveClear=1"),
+				*Floor.ToString(), *Circle.Center.ToString(), Circle.Radius, I + 1, bUsedNav ? TEXT("Navigation") : TEXT("Trace"));
+			return true;
 		}
 		break;
 	}
-	UE_LOG(LogBr, Warning, TEXT("Crate drop skipped: no clear walkable candidate inside current zone/playable bounds away from pawns"));
+	FNavLocation Probe;
+	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	const bool bNavProbe = Nav && Nav->GetRandomPoint(Probe) && Probe.HasNodeRef();
+	UE_LOG(LogBr, Warning, TEXT("Crate drop skipped: Map=%s no clear walkable candidate inside current zone/playable bounds away from pawns and wave mates (Attempts=%d Spacing=%.0f Center=%s NavProbe=%s)"),
+		*MapId.ToString(), FMath::Clamp(S->CratePlacementAttempts, 1, 256), Spacing, *SearchCenter.ToString(), bNavProbe ? *Probe.Location.ToString() : TEXT("Unavailable"));
+	return false;
 }
 
 bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
@@ -147,12 +221,15 @@ bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
 	{
 		FVector Floor;
 		bool bFound = false, bCloser = false;
+		int32 Attempts = 0;
+		bool bUsedNav = false;
 		for (int32 I = 0; I < 64; ++I)
 		{
+			Attempts = I + 1;
 			bCloser = I >= 48;
 			const FVector Offset = FBrCrateRules::Scatter(Stream, bCloser ? 150.f : S->CrateScatterMin,
 				bCloser ? FMath::Max(150.f, S->CrateScatterMin) : S->CrateScatterMax);
-			if (!ClearGround(Landing + Offset, Floor, false, Crate)) continue;
+			if (!ClearGround(Landing + Offset, Floor, false, Crate, &bUsedNav)) continue;
 			const double Radius = FVector::Dist2D(Floor, Landing);
 			if (Radius < (bCloser ? 140.f : FMath::Max(0.f, S->CrateScatterMin)) ||
 				Radius > (bCloser ? FMath::Max(150.f, S->CrateScatterMin) : FMath::Max(S->CrateScatterMin, S->CrateScatterMax))) continue;
@@ -160,7 +237,7 @@ bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
 			bFound = true;
 			break;
 		}
-		if (!bFound) { UE_LOG(LogBr, Warning, TEXT("Crate loot item skipped: no capsule-clear scatter/fallback position")); continue; }
+		if (!bFound) { UE_LOG(LogBr, Warning, TEXT("Crate loot item skipped: no capsule-clear scatter/fallback position Attempts=%d"), Attempts); continue; }
 		if (ABrPickup* Pickup = ABrPickup::Spawn(GetWorld(), FTransform(Floor + FVector(0, 0, 35)),
 			Definitions[Type], FBrPickupPayload()))
 		{
@@ -169,8 +246,8 @@ bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
 			Used.Add(Floor);
 			++Spawned;
 			if (bCloser) ++Closer;
-			UE_LOG(LogBr, Display, TEXT("Crate item: Type=%d Radius=%.0f Lifetime=%.1f Fallback=%d"),
-				Type, FVector::Dist2D(Floor, Landing), S->CrateItemLifetime, bCloser);
+			UE_LOG(LogBr, Display, TEXT("Crate item: Type=%d Radius=%.0f Lifetime=%.1f Fallback=%d Attempts=%d Ground=%s"),
+				Type, FVector::Dist2D(Floor, Landing), S->CrateItemLifetime, bCloser, Attempts, bUsedNav ? TEXT("Navigation") : TEXT("Trace"));
 		}
 	}
 	UE_LOG(LogBr, Display, TEXT("Crate landed: Location=%s Inside=1 Items=%d/%d Closer=%d"),
@@ -189,8 +266,25 @@ void ABrPickupManager::ScheduleNext()
 
 void ABrPickupManager::ServiceDrop()
 {
-	DropOne();
+	DropWave(false);
 	ScheduleNext(); // No final-stage gate: current circle remains the only zone policy.
+}
+
+void ABrPickupManager::ProbeNavigation()
+{
+	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	const ARecastNavMesh* Mesh = Nav ? Cast<ARecastNavMesh>(Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate)) : nullptr;
+	FNavLocation Point;
+	const bool bReady = Nav && Nav->GetRandomPoint(Point) && Point.HasNodeRef();
+	const double Elapsed = FPlatformTime::Seconds() - NavigationProbeStarted;
+	// Opt-in diagnostics only; never rebuild, unlock or otherwise affect nav/zone/respawn.
+	UE_LOG(LogBr, Display, TEXT("Crate nav probe: Map=%s RealSeconds=%.2f WorldSeconds=%.2f Ready=%d Generation=%d ActiveTiles=%d Locked=%d Building=%d NeedsRebuild=%d InitialRebuild=%d"),
+		*MapId.ToString(), Elapsed, GetWorld()->GetTimeSeconds(), bReady,
+		Mesh ? static_cast<int32>(Mesh->GetRuntimeGenerationMode()) : -1,
+		Mesh ? Mesh->GetNumActiveTiles() : 0, Nav && Nav->IsNavigationBuildingLocked(),
+		Nav && Nav->IsNavigationBuildInProgress(), Mesh && Mesh->NeedsRebuildOnLoad(),
+		Mesh && Mesh->RequiresInitialRebuild());
+	if (++NavigationProbes >= 120 || bReady) GetWorldTimerManager().ClearTimer(NavigationProbeTimer);
 }
 
 void ABrPickupManager::RespawnAllPickups()
@@ -221,6 +315,7 @@ void ABrPickupManager::ClearRoundPickups()
 {
 	if (!HasAuthority()) return;
 	GetWorld()->GetTimerManager().ClearTimer(DropTimer);
+	GetWorldTimerManager().ClearTimer(NavigationProbeTimer);
 	const auto Drops = MoveTemp(RoundDrops);
 	for (const auto& Entry : Drops)
 		if (ABrPickup* Pickup = Entry.Get())
@@ -237,7 +332,11 @@ void ABrPickupManager::ClearRoundPickups()
 		}
 	Definitions.Reset();
 	bInitialized = false;
-	NavigationWaits = 0;
+	NavigationProbes = 0;
+	PlayableBounds = FBox(ForceInit);
+	MapId = NAME_None;
+	InitialCrateCount = 0;
+	IntervalCrateCount = 1;
 }
 
 void ABrPickupManager::EndPlay(const EEndPlayReason::Type Reason)

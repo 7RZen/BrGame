@@ -15,6 +15,8 @@
 #include "BrGameState.h"
 #include "BrSafeZone.h"
 #include "BrZoneBounds.h"
+#include "BrPlayableGround.h"
+#include "Components/BoxComponent.h"
 #include "NavigationSystem.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -101,12 +103,183 @@ bool FBrCrateScheduleTest::RunTest(const FString&)
 	TestEqual(TEXT("Disabled initial wave"), FBrCrateRules::InitialWave(-1), 0);
 	double Time = 123.5;
 	for (int32 I = 0; I < 100; ++I) Time = FBrCrateRules::NextDrop(Time, 12.5f);
-	TestEqual(TEXT("One periodic drop after each interval, independent of initial wave"), Time, 1373.5);
+	TestEqual(TEXT("Periodic wave deadline is independent of initial wave count"), Time, 1373.5);
 	TestEqual(TEXT("Network layout requires protocol 13"), FBrSessionRules::Protocol, 13);
 	return true;
 }
 
-/** Real nav, timers, collision and round ownership, not a second model of the manager. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrCrateWaveTest, "BrGame.Crate.MapCountsAndWaveSpacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrCrateWaveTest::RunTest(const FString&)
+{
+	const FBrMapEntry Defaults;
+	TestEqual(TEXT("Entry default initial crates"), Defaults.InitialCrates, 4);
+	TestEqual(TEXT("Entry default interval crates"), Defaults.CratesPerDrop, 2);
+	TestEqual(TEXT("Negative initial count disables initial wave"), FBrCrateRules::InitialWave(-2), 0);
+	TestEqual(TEXT("Interval cannot be disabled by invalid config"), FBrCrateRules::IntervalWave(-2), 1);
+	TestEqual(TEXT("Initial work bounded"), FBrCrateRules::InitialWave(MAX_int32), 100);
+	TestEqual(TEXT("Interval work bounded"), FBrCrateRules::IntervalWave(MAX_int32), 100);
+	struct FExpected { const TCHAR* Id; int32 Initial; int32 PerDrop; };
+	for (const FExpected Expected : {FExpected{TEXT("Town"),6,3}, FExpected{TEXT("Battlefield"),2,1}, FExpected{TEXT("TestArena"),2,1}})
+	{
+		const FBrMapEntry* Entry = UBrDeveloperSettings::Get()->FindMap(Expected.Id);
+		if (!TestNotNull(Expected.Id, Entry)) return false;
+		TestEqual(*(Entry->Id.ToString() + TEXT(" initial")), Entry->InitialCrates, Expected.Initial);
+		TestEqual(*(Entry->Id.ToString() + TEXT(" per interval")), Entry->CratesPerDrop, Expected.PerDrop);
+	}
+	const float Spacing = FBrCrateRules::WaveSpacing(500, 1000);
+	TestEqual(TEXT("Spacing separates scatter discs"), Spacing, 2000.f);
+	TestEqual(TEXT("Reversed scatter tuning still separates discs"), FBrCrateRules::WaveSpacing(1000, 500), Spacing);
+	TestTrue(TEXT("Zero scatter still separates physical crates"), FBrCrateRules::WaveSpacing(0, 0) >= 170);
+	TestFalse(TEXT("Vertical separation cannot bypass XY spacing"),
+		FBrCrateRules::IsWaveSpaced(FVector(100,0,5000), {FVector::ZeroVector}, Spacing));
+	TestTrue(TEXT("Exact spacing boundary allowed"),
+		FBrCrateRules::IsWaveSpaced(FVector(2000,0,0), {FVector::ZeroVector}, Spacing));
+	FRandomStream Random(1602);
+	TArray<FVector> Accepted;
+	int32 Rejected = 0;
+	for (int32 I = 0; I < 1000; ++I)
+	{
+		const FVector Candidate = FBrCrateRules::LandingCandidate(Random, FVector::ZeroVector, 10000);
+		if (FBrCrateRules::IsWaveSpaced(Candidate, Accepted, Spacing)) Accepted.Add(Candidate);
+		else ++Rejected;
+	}
+	TestTrue(TEXT("Bounded candidate search accepts a wave and rejects crowding"), Accepted.Num() > 6 && Rejected > 100);
+	for (int32 I = 0; I < Accepted.Num(); ++I)
+		for (int32 J = I + 1; J < Accepted.Num(); ++J)
+			if (FVector::Dist2D(Accepted[I], Accepted[J]) < Spacing)
+			{ AddError(TEXT("Accepted wave contains overlapping scatter discs")); return false; }
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrCrateGroundRulesTest, "BrGame.Crate.GroundSurfacePolicy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrCrateGroundRulesTest::RunTest(const FString&)
+{
+	for (int32 Degrees = 0; Degrees <= 90; ++Degrees)
+	{
+		const float NormalZ = FMath::Cos(FMath::DegreesToRadians(static_cast<float>(Degrees)));
+		TestEqual(TEXT("Only walkable slopes on tagged static ground"),
+			FBrPlayableGroundRules::AcceptSurface(NormalZ, true, true, true), NormalZ >= 0.7f);
+		TestFalse(TEXT("Untagged roof/cover is never a floor"),
+			FBrPlayableGroundRules::AcceptSurface(NormalZ, true, false, true));
+		TestFalse(TEXT("Dynamic objects cannot supply ground, even if tagged"),
+			FBrPlayableGroundRules::AcceptSurface(NormalZ, false, true, true));
+	}
+	TestFalse(TEXT("Invalid normals rejected"), FBrPlayableGroundRules::AcceptSurface(
+		std::numeric_limits<float>::quiet_NaN(), true, true, true));
+	TestTrue(TEXT("Legacy zone fallback keeps accepting untagged static floor"),
+		FBrPlayableGroundRules::AcceptSurface(1, true, false, false));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrCrateGroundTest, "BrGame.Crate.GroundWithoutNavigation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrCrateGroundTest::RunTest(const FString&)
+{
+	const UWorld::InitializationValues Values = UWorld::InitializationValues()
+		.AllowAudioPlayback(false).CreatePhysicsScene(true).CreateNavigation(false)
+		.CreateAISystem(false).ShouldSimulatePhysics(false);
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::SM5, &Values);
+	if (!TestNotNull(TEXT("Collision-only world"), World)) return false;
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	World->InitializeActorsForPlay(FURL());
+	auto Box = [World](const FVector& Center, const FVector& Extent, bool bGround)
+	{
+		AActor* Actor = World->SpawnActor<AActor>();
+		UBoxComponent* Component = NewObject<UBoxComponent>(Actor);
+		Actor->SetRootComponent(Component);
+		Actor->AddInstanceComponent(Component);
+		Component->SetBoxExtent(Extent);
+		Component->SetCollisionProfileName(TEXT("BlockAll"));
+		if (bGround) Component->ComponentTags.Add(TEXT("BrFogGround"));
+		Component->RegisterComponent();
+		Actor->SetActorLocation(Center);
+		return Actor;
+	};
+	AActor* GroundActor = Box(FVector(0,0,-10), FVector(2000,2000,10), true);
+	// Actual TestArena Floor is at rest but authored Movable/BlockAllDynamic.
+	UBoxComponent* GroundComponent = CastChecked<UBoxComponent>(GroundActor->GetRootComponent());
+	GroundComponent->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	Box(FVector(0,0,100), FVector(100,100,100), false); // cover
+	Box(FVector(500,0,150), FVector(30,300,150), false); // wall
+	Box(FVector(1000,0,400), FVector(200,200,20), false); // high roof
+	// Match TestArena's fog-tagged SM_Cylinder: radius 350, cap at Z=210.
+	Box(FVector(-500,1000,205), FVector(350,350,5), true);
+	FBrGroundQuery Query;
+	Query.Radius = 85;
+	Query.bRequireTaggedStaticFloor = Query.bUsePawnProfile = true;
+	Query.MinFloorHalfWidth = FBrCrateRules::FloorHalfWidth(500, 1000);
+	FVector Floor;
+	TestNull(TEXT("No nav required"), FNavigationSystem::GetCurrent<UNavigationSystemV1>(World));
+	TestTrue(TEXT("Clear floor succeeds without navigation"),
+		FBrPlayableGround::Find(World, FVector(-1000,0,0), Floor, Query));
+	TestTrue(TEXT("Ground height from physics, not candidate Z"), FMath::Abs(Floor.Z) < 0.1);
+	TestFalse(TEXT("Cover top rejected rather than tracing through to floor"),
+		FBrPlayableGround::Find(World, FVector::ZeroVector, Floor, Query));
+	TestFalse(TEXT("Roof rejected even with capsule space above it"),
+		FBrPlayableGround::Find(World, FVector(1000,0,0), Floor, Query));
+	TestFalse(TEXT("Capsule beside wall rejected"),
+		FBrPlayableGround::Find(World, FVector(450,0,0), Floor, Query));
+	TestFalse(TEXT("Missing ground rejected"),
+		FBrPlayableGround::Find(World, FVector(3000,0,0), Floor, Query));
+	TestFalse(TEXT("TestArena-sized tagged raised cap cannot supply crate/scatter ground"),
+		FBrPlayableGround::Find(World, FVector(-500,1000,0), Floor, Query));
+	FBrGroundQuery ZoneQuery;
+	TestTrue(TEXT("Legacy zone fallback behavior remains unchanged on a walkable raised cap"),
+		FBrPlayableGround::Find(World, FVector(-500,1000,0), Floor, ZoneQuery));
+	TestTrue(TEXT("Legacy query really hit the raised cap"), FMath::Abs(Floor.Z - 210) < 0.1);
+	AActor* ThinTaggedCap = Box(FVector(-500,-1000,205), FVector(2000,20,5), true);
+	ThinTaggedCap->SetActorRotation(FRotator(0,45,0));
+	TestFalse(TEXT("Rotated thin tagged prop cannot inflate world AABB into a broad floor"),
+		FBrPlayableGround::Find(World, FVector(-500,-1000,0), Floor, Query));
+	AActor* SideAuthoredFloor = Box(FVector(6000,0,-10), FVector(10,2000,2000), true);
+	SideAuthoredFloor->SetActorRotation(FRotator(90,0,0));
+	TestTrue(TEXT("Broad floor authored on its side remains eligible"),
+		FBrPlayableGround::Find(World, FVector(6000,0,0), Floor, Query));
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrCrateFootprintTest, "BrGame.Crate.RaisedTaggedFloorFootprint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrCrateFootprintTest::RunTest(const FString&)
+{
+	const float Width = FBrCrateRules::FloorHalfWidth(500, 1000);
+	TestEqual(TEXT("Scatter plus clearance radius determines floor width"), Width, 1085.f);
+	TestEqual(TEXT("Reversed tuning still uses the maximum"), FBrCrateRules::FloorHalfWidth(1000, 500), Width);
+	TestFalse(TEXT("Actual TestArena cylinder horizontal half extent is insufficient"),
+		FBrPlayableGroundRules::SupportsFootprint(FVector2D(350,350), Width));
+	for (float HalfWidth : {2000.f, 5000.f, 10000.f})
+		TestTrue(TEXT("TestArena/Battlefield/Town broad floors remain eligible"),
+			FBrPlayableGroundRules::SupportsFootprint(FVector2D(HalfWidth,HalfWidth), Width));
+	TestFalse(TEXT("Large area but narrow width cannot support footprint"),
+		FBrPlayableGroundRules::SupportsFootprint(FVector2D(10000, 50), Width));
+	TestTrue(TEXT("Exact footprint boundary accepted"),
+		FBrPlayableGroundRules::SupportsFootprint(FVector2D(Width, Width), Width));
+	TestFalse(TEXT("One deficient axis rejected"),
+		FBrPlayableGroundRules::SupportsFootprint(FVector2D(Width, Width - 1), Width));
+	TestFalse(TEXT("Nonfinite dimensions cannot qualify"), FBrPlayableGroundRules::SupportsFootprint(
+		FVector2D(std::numeric_limits<double>::quiet_NaN(), 2000), Width));
+	TestFalse(TEXT("Nonfinite required size cannot qualify"), FBrPlayableGroundRules::SupportsFootprint(
+		FVector2D(2000, 2000), std::numeric_limits<float>::infinity()));
+	TestEqual(TEXT("Zero scatter still requires the crate clearance footprint"), FBrCrateRules::FloorHalfWidth(0,0), 85.f);
+	TestTrue(TEXT("Local X can be the floor normal"),
+		FBrPlayableGroundRules::SupportsSurfaceFootprint(FVector(2000,2000,10), FVector(10,2000,2000),
+			FVector::ForwardVector, Width));
+	TestFalse(TEXT("A tall thin prop cannot use its height as support width"),
+		FBrPlayableGroundRules::SupportsSurfaceFootprint(FVector(1500,1500,2000), FVector(2000,20,2000),
+			FVector::UpVector, Width));
+	TestTrue(TEXT("At-rest template BlockAllDynamic floor can support ground"),
+		FBrPlayableGroundRules::StableSupport(true, false, 0));
+	TestFalse(TEXT("Moving support cannot supply crate ground"), FBrPlayableGroundRules::StableSupport(true, false, 100));
+	TestFalse(TEXT("Physics objects cannot supply ground even at rest"), FBrPlayableGroundRules::StableSupport(true, true, 0));
+	TestFalse(TEXT("Pawn collision type cannot supply ground"), FBrPlayableGroundRules::StableSupport(false, false, 0));
+	return true;
+}
+
+/** Real collision, timers and round ownership, without a test-only nav rebuild. */
 class FBrCrateLifecycle : public IAutomationLatentCommand
 {
 public:
@@ -122,37 +295,57 @@ public:
 		ABrGameMode* Mode = World->GetAuthGameMode<ABrGameMode>();
 		ABrPickupManager* Manager = Mode ? Mode->GetPickupManager() : nullptr;
 		ABrGameState* GS = World->GetGameState<ABrGameState>();
-		UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
-		if (!GS || !Manager || !Nav) return false;
-		if (!bNavRequested)
+		if (!GS || !Manager) return false;
+		if (!bReset)
 		{
 			Manager->ClearRoundPickups();
-			Nav->RemoveNavigationBuildLock(ENavigationBuildLock::NoUpdateInPIE, UNavigationSystemV1::ELockRemovalRebuildAction::Rebuild);
-			Nav->Build(); bNavRequested = true;
+			bReset = true;
 			return false;
 		}
-		if (UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(World)) return false;
 		const float Now = World->GetTimeSeconds();
 		const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 		if (Phase == 0)
 		{
 			SavedInterval = GS->MatchSettings.CrateDropInterval;
-			GS->MatchSettings.CrateDropInterval = 1;
+			GS->MatchSettings.CrateDropInterval = 6;
 			Manager->RespawnAllPickups();
 			Phase = 1; PhaseTime = Now;
 			return false;
 		}
 		if (Phase == 1)
 		{
+			const FBrMapEntry* Town = S->FindMap(TEXT("Town"));
+			if (!Town) { Test->AddError(TEXT("Town entry missing")); return true; }
+			if (!bCheckedInitial && Now - PhaseTime >= 0.5f)
+			{
+				TArray<FVector> Landings;
+				for (TActorIterator<ABrSupplyCrate> It(World); It; ++It)
+					if (!It->IsActorBeingDestroyed())
+					{
+						Test->TestTrue(TEXT("Initial wave has spaced real landing positions"),
+							FBrCrateRules::IsWaveSpaced(It->GetActorLocation(), Landings,
+								FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax)));
+						Landings.Add(It->GetActorLocation());
+					}
+				Test->TestEqual(TEXT("Town initial wave uses per-map count"), Landings.Num(), Town->InitialCrates);
+				bCheckedInitial = true;
+			}
 			int32 Landed = 0, Falling = 0, Items = 0;
+			TArray<FVector> FallingLandings;
 			for (TActorIterator<ABrSupplyCrate> It(World); It; ++It)
 			{
 				if (It->IsActorBeingDestroyed()) continue;
-				if (It->IsLanded()) ++Landed; else ++Falling;
+				if (It->IsLanded()) ++Landed;
+				else { ++Falling; FallingLandings.Add(It->GetActorLocation()); }
 			}
 			for (TActorIterator<ABrPickup> It(World); It; ++It) if (!It->IsActorBeingDestroyed()) ++Items;
-			if (!Landed || !Items || Now - PhaseTime < S->CrateFallDuration + 1.5f) return false;
-			Test->TestTrue(TEXT("Periodic crates keep falling after initial wave lands"), Falling > 0);
+			if (!Landed || !Items || Now - PhaseTime < 6.75f) return false;
+			Test->TestEqual(TEXT("Town interval wave uses per-map count"), Falling, Town->CratesPerDrop);
+			for (int32 I = 0; I < FallingLandings.Num(); ++I)
+				for (int32 J = I + 1; J < FallingLandings.Num(); ++J)
+					Test->TestTrue(TEXT("Real periodic wave has spaced landing positions"),
+						FVector::Dist2D(FallingLandings[I], FallingLandings[J]) >=
+							FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax));
 			Test->TestTrue(TEXT("Landing scatters real pickup actors"), Items >= 10);
 			for (TActorIterator<ABrSupplyCrate> It(World); It; ++It)
 			{
@@ -187,7 +380,7 @@ public:
 			Phase = 3; PhaseTime = Now;
 			return false;
 		}
-		if (Phase == 3 && Now - PhaseTime > S->CrateFallDuration + 1.5f)
+		if (Phase == 3 && Now - PhaseTime > FMath::Max(6.f, S->CrateFallDuration) + 1.5f)
 		{
 			int32 Remaining = 0;
 			for (TActorIterator<ABrSupplyCrate> It(World); It; ++It) if (!It->IsActorBeingDestroyed()) ++Remaining;
@@ -203,7 +396,8 @@ private:
 	double Started = FPlatformTime::Seconds();
 	float PhaseTime = 0, SavedInterval = 30;
 	int32 Phase = 0;
-	bool bNavRequested = false;
+	bool bReset = false;
+	bool bCheckedInitial = false;
 	TWeakObjectPtr<ABrPickup> ExpiringItem;
 	TWeakObjectPtr<ABrSupplyCrate> ExpiringCrate;
 };

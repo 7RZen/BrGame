@@ -26,7 +26,14 @@ private:
 	TArray<TObjectPtr<UBrPickupDefinition>> Definitions;
 	FRandomStream Stream;
 	FTimerHandle DropTimer;
-	int32 NavigationWaits = 0;
+	FBox PlayableBounds = FBox(ForceInit);
+	FTimerHandle NavigationProbeTimer;
+	double NavigationProbeStarted = 0;
+	int32 NavigationProbes = 0;
+	void ProbeNavigation();
+	FName MapId;
+	int32 InitialCrateCount = 0;
+	int32 IntervalCrateCount = 1;
 	bool bInitialized = false;
 	TSet<TWeakObjectPtr<ABrPickup>> RoundDrops;
 	TSet<TWeakObjectPtr<ABrSupplyCrate>> Crates;
@@ -35,9 +42,12 @@ private:
 	UFUNCTION()
 	void CrateDestroyed(AActor* DestroyedActor);
 	void InitialWave();
-	void DropOne();
+	bool ResolveMapCounts();
+	void DropWave(bool bInitial);
+	bool DropOne(TArray<FVector>& WaveLandings, float Spacing);
 	void ServiceDrop();
 	void ScheduleNext();
-	bool ClearGround(const FVector& Candidate, FVector& Floor, bool bCrate, const AActor* Ignore = nullptr) const;
+	bool ClearGround(const FVector& Candidate, FVector& Floor, bool bCrate, const AActor* Ignore = nullptr,
+		bool* bUsedNavigation = nullptr) const;
 	bool InsideZone(const FVector& Point) const;
 };

@@ -99,14 +99,18 @@ try {
         # state above cannot accidentally be satisfied by a match snapshot.
         Launch "Client2" "127.0.0.1:$Port`?Name=SmokeClient2"
         for ($Round = 1; $Round -le 2; $Round++) {
-            $Outcome = if ($RandomMap) { "(Town|TestArena)" } else { "TestArena" }
+            # Valid=1 is emitted only after the server checks its resolved
+            # developer entry AND actual world package. Do not hardcode the
+            # old two-map list: Random can also choose Battlefield/new maps.
+            $Outcome = if ($RandomMap) { '(?!None\b|Random\b)\S+' } else { "TestArena" }
+            $MatchWorld = if ($RandomMap) { '\S+' } else { "Lvl_TopDown" }
             WaitLog "Host" "Map selector smoke match: Round=$Round Selection=$Selection Resolved=$Outcome Valid=1"
-            WaitLog "Client1" "Flow client state: (L_Town|Lvl_TopDown) Phase=2 Pawn=BrCharacter" $Round
+            WaitLog "Client1" "Flow client state: $MatchWorld Phase=2 Pawn=BrCharacter" $Round
             WaitLog "Client1" "Map settings: Selection=$Selection Resolved=$Outcome"
-            WaitLog "Client1" "Flow client state: (L_Town|Lvl_TopDown) Phase=3" $Round
+            WaitLog "Client1" "Flow client state: $MatchWorld Phase=3" $Round
             WaitLog "Host" "Map selector smoke carried: Round=$Round Selection=$Selection Resolved=None"
             WaitLog "Client1" "Flow client state: L_Lobby Phase=1" ($Round + 1)
-            WaitLog "Client1" "Map settings: Selection=$Selection Resolved=None" 1 "Flow client state: (L_Town|Lvl_TopDown) Phase=3"
+            WaitLog "Client1" "Map settings: Selection=$Selection Resolved=None" 1 "Flow client state: $MatchWorld Phase=3"
         }
         WaitLog "Host" "MAP SELECTOR SMOKE PASS"
         foreach ($File in Get-ChildItem $Logs -Filter *.log) {

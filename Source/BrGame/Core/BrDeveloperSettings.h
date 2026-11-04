@@ -273,8 +273,6 @@ public:
 	/** Ordered: Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100. */
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
 	TArray<TSoftObjectPtr<UBrPickupDefinition>> CrateDefinitions;
-	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0", ClampMax="100"))
-	int32 InitialCrates = 4;
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="1", ClampMax="2"))
 	int32 CrateARMin = 1;
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="1", ClampMax="2"))

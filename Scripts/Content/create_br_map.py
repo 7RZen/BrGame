@@ -207,9 +207,12 @@ def spawn_static(tag, mesh_key, loc, scale, mat, profile):
 def spawn_box(tag, rect, z0, z1, mat, profile="BlockAll"):
     x0, y0, x1, y1 = rect
     w, d, h = x1 - x0, y1 - y0, z1 - z0
-    return spawn_static(tag, "cube",
+    actor = spawn_static(tag, "cube",
                         unreal.Vector((x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0),
                         unreal.Vector(w / 100.0, d / 100.0, h / 100.0), mat, profile)
+    if tag.startswith(("Ground", "Road")) or tag.endswith("_Floor"):
+        actor.set_editor_property("tags", list(actor.tags) + [unreal.Name("BrFogGround")])
+    return actor
 
 
 def rect_gap(a, b):
@@ -876,6 +879,16 @@ def main():
     build_lights()
     verify_profiles()
 
+    # Save real tiles, not an empty serialized Recast actor. UE 5.8 standalone
+    # does not request the initial rebuild for a loaded (rather than spawned) mesh.
+    unreal.SystemLibrary.execute_console_command(world, "BrGame.Editor.BuildNavigation")
+    if unreal.NavigationSystemV1.is_navigation_being_built_or_locked(world):
+        raise RuntimeError("Navigation did not complete; refusing to save empty Town nav data")
+    x, y = start_points[0]
+    if unreal.NavigationSystemV1.project_point_to_navigation(
+            world, unreal.Vector(x, y, PLAYER_START_Z), None, None,
+            unreal.Vector(150, 150, 500)) is None:
+        raise RuntimeError("Navigation has no usable start anchor; refusing save")
     if not LEVELS.save_current_level():
         # A level created with new_level has no file yet; save it to its package path.
         if not unreal.EditorLoadingAndSavingUtils.save_map(world, MAP_PATH):

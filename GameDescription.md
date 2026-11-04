@@ -22,7 +22,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
 | Issue 9 | Slide | Predicted authoritative crouch-capsule slide, pose/audio/input/HUD; validation: Scripts/SlideValidation.md |
-| Issue 16 | Airdrop crates | Implemented; server landing/scatter, public map markers, developer loot tuning; validation: Scripts/Issue16CrateValidation.md |
+| Issue 16 | Airdrop crates | Implemented; navigation-independent ground checks, per-map waves and public markers; standalone nav data repaired; evidence: Scripts/Issue16CrateValidation.md |
 
 ### Posture presentation
 - Crouch lowers the pelvis, bends hips/knees with grounded sampled feet and leans the torso forward. Prone lies face-down along facing, with forward arms/weapon and alternating speed-scaled crawl limbs.
@@ -77,7 +77,7 @@ Joining a different session leaves the previous session first. Browser joins and
 - All vs all: players spawn randomly around the map, spread apart.
 - Grouped: one random start location per group, far apart; group members start together.
 - Everyone starts with a pistol (one loaded magazine plus one spare) and 100% health.
-- An initial wave of 4 airdrop crates *(dev)* falls inside the current safe zone and playable bounds.
+- A map-tuned initial wave of airdrop crates *(dev)* falls inside the current safe zone and playable bounds: Town 6, Battlefield/Test Arena 2.
 
 ## Winning
 - The last player (all vs all) or group (grouped) still in the game wins. A downed player who can still respawn or be revived counts as still in.
@@ -261,10 +261,11 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 - **Health:** restores 100%, 50% or 20% of max health (very few, a few and several, in a 1 : 3 : 6 ratio). Collected on overlap while not sprinting, but not at full health.
 - **Hand grenade:** +1, up to 2. Collected on overlap while not sprinting.
 - **Weapons:** pistol, assault rifle and machine gun. Press E to pick up.
-- **Airdrops:** 4 initial crates *(dev)*, then one every 30 s *(host)*, including during the final zone stage while safe landing area exists. No authored pickup spawn points or individual slot respawns.
+- **Airdrops:** each map entry has `InitialCrates` / `CratesPerDrop` *(dev)*: Town **6 / 3**, Battlefield and Test Arena **2 / 1**. New entries default to **4 / 2**; there is no global initial count. The interval stays host-controlled (30 s default), including during the final zone stage while safe landing area exists. No authored pickup spawn points or individual slot respawns.
+- Every crate in a wave has an independent bounded landing search. Same-wave landing centers are at least twice the maximum scatter radius apart (20 m by default; at least 170 cm for crate-body clearance). Crowded or tiny zones may place fewer crates, with skipped drops and actual placed counts logged.
 - Each crate contains exactly 1 pistol, 1–2 ARs, a 50% MG chance, 3–8 health pickups (20/50/100 weighted 60/30/10), 3–8 ammo pickups (not rounds), and 2–4 grenades. Counts, weights, chance and definition references are developer settings.
-- Crates fall 3000 cm over 4 s with a yellow ground marker, then provide cover for 20 s *(dev)*. Server navigation, ground trace, capsule clearance and 300 cm pawn clearance select landing sites; bounded failures skip/log the drop. Landing rechecks the current zone/clearance and cancels safely if conditions changed. Crates never deal damage.
-- Contents scatter 500–1000 cm *(dev)* onto clear ground. Bounded retries may use a closer clear position; impossible items are logged/skipped, never placed inside walls. Uncollected contents expire after 120 s *(dev)*.
+- Crates fall 3000 cm over 4 s with a yellow ground marker, then provide cover for 20 s *(dev)*. Server navigation is an optional placement preference, never an initial-wave readiness gate. Shared zone-fallback ground tracing verifies a walkable tagged `BrFogGround` floor blocking WorldStatic traces, capsule clearance and 300 cm pawn clearance. Crate/scatter ground must also be non-simulating, at rest and broad enough for the scatter footprint plus 85 cm clearance (21.7 m minimum component span at defaults); fog-tagged small raised caps are not floors. Bounded failures log attempts/skip the drop. Landing rechecks the current zone/clearance and cancels safely if conditions changed. Crates never deal damage.
+- Contents scatter 500–1000 cm *(dev)* onto clear ground using the same navigation-independent floor/capsule checks. Bounded retries may use a closer clear position; impossible items are logged/skipped, never placed inside walls. Uncollected contents expire after 120 s *(dev)*.
 - Falling and landed crates have public yellow markers on minimap and full map, independent of fog. Contents retain existing pickup fog presentation. Round reset clears crates, their landing timers, periodic drops and contents; dropped weapon payload/lifetime behaviour is unchanged.
 - Planned for later (not now): radar that reveals nearby enemies, and teleport to a safe location. Pickup types are data assets, so these can be added without changing the spawn system.
 
@@ -296,7 +297,7 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 ## Map *(step 10)*
 The default match map is `/Game/BrGame/Maps/L_Town` (about 200 x 200 m) with a town of roofless, enterable buildings, open fields with low cover, and dense clusters. Walls are 280 cm tall, low cover is 110 cm and does not block vision, and invisible boundary walls enclose the map. It has 48 player starts and a navmesh bounds volume; crate landings use clear navigable ground, not spawn points. Built by `Scripts\Content\create_br_map.py` (re-runnable). `/Game/TopDown/Lvl_TopDown` is selectable in the lobby as **Test Arena**; `-MatchLevel Lvl_TopDown` still works in flow/fog smokes by selecting its allowlisted ID. Battlefield is also in the developer map allowlist.
 
-Maps are developer-managed in Project Settings → BrGame → **Maps** (`Maps`, `DefaultMapId`), replacing the old `MatchMap` path setting. Each entry has a stable ID, localized name/description, soft world/preview references and recommended min/max players. Invalid/missing/duplicate entries are skipped with a warning. A missing preview shows a text placeholder; no valid maps means Start reports an error instead of travelling to an arbitrary destination.
+Maps are developer-managed in Project Settings → BrGame → **Maps** (`Maps`, `DefaultMapId`), replacing the old `MatchMap` path setting. Each entry has a stable ID, localized name/description, soft world/preview references, recommended min/max players and `InitialCrates` / `CratesPerDrop` (defaults 4 / 2; runtime/editor bounds 0–100 / 1–100). The server uses the resolved match map verified against its current world, not a client map choice, for crate counts. Invalid/missing/duplicate entries are skipped with a warning. A missing preview shows a text placeholder; no valid maps means Start reports an error instead of travelling to an arbitrary destination.
 
 Only IDs are accepted from the lobby; the authoritative server resolves the destination from its own list. **Random** draws uniformly from valid entries at Start. The chosen map is announced at match entry. The selection survives results → lobby → next round; Random stays Random and **re-rolls each round**. Session keys `BRMAP`/`BRMAPNAME` advertise the selection, not the last Random outcome. Protocol 11 prevents older wire layouts joining; Steam/Null password and engine-version checks are unchanged.
 

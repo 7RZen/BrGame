@@ -1,5 +1,6 @@
 #include "BrSafeZone.h"
 #include "BrZoneBounds.h"
+#include "BrPlayableGround.h"
 #include "BrZoneDamageType.h"
 #include "BrDeveloperSettings.h"
 #include "BrCharacter.h"
@@ -167,14 +168,14 @@ bool ABrSafeZone::SelectPlayableTarget(const FBrZoneCircle& Current, float Radiu
 	}
 	// No usable nav result: only use a concentric fallback after verifying walkable
 	// ground and static capsule clearance. Retry nav later, never bless a random point.
-	FHitResult Floor;
+	FVector Floor;
 	const UCapsuleComponent* Capsule = GetDefault<ABrCharacter>()->GetCapsuleComponent();
-	if (GetWorld()->LineTraceSingleByChannel(Floor, Current.Center + FVector(0, 0, 1000),
-		Current.Center - FVector(0, 0, 2000), ECC_WorldStatic) && Floor.ImpactNormal.Z >= 0.7 &&
-		!GetWorld()->OverlapBlockingTestByChannel(Floor.ImpactPoint + FVector(0, 0, Capsule->GetScaledCapsuleHalfHeight() + 4),
-			FQuat::Identity, ECC_WorldStatic, FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight())))
+	FBrGroundQuery GroundQuery;
+	GroundQuery.Radius = Capsule->GetScaledCapsuleRadius();
+	GroundQuery.HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
+	if (FBrPlayableGround::Find(GetWorld(), Current.Center, Floor, GroundQuery))
 	{
-		const FBrZoneCircle Fallback {Floor.ImpactPoint, Radius};
+		const FBrZoneCircle Fallback {Floor, Radius};
 		if (FBrZoneRules::IsPlayableTarget(Current, Fallback, PlayableBounds)) { Target = Fallback; return true; }
 	}
 	return false;
