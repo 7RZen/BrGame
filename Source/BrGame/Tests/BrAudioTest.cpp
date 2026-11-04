@@ -8,53 +8,80 @@
 #include "Sound/SoundBase.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioRangesTest, "BrGame.Audio.HearingRanges",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioRangesTest::RunTest(const FString& Parameters)
 {
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	TestEqual(TEXT("Run"), FBrAudioRules::StepRange(EBrPosture::Standing, false,
-		S->RunStepHearingRange, S->SprintStepHearingRange, S->CrouchStepHearingRange), 1500.f);
+	                                                S->RunStepHearingRange, S->SprintStepHearingRange,
+	                                                S->CrouchStepHearingRange), 1500.f);
 	TestEqual(TEXT("Sprint"), FBrAudioRules::StepRange(EBrPosture::Standing, true, 1500, 2000, 300), 2000.f);
 	TestEqual(TEXT("Crouch"), FBrAudioRules::StepRange(EBrPosture::Crouching, true, 1500, 600, 300), 300.f);
 	TestEqual(TEXT("Prone silent"), FBrAudioRules::StepRange(EBrPosture::Prone, false, 1500, 600, 300), 0.f);
 	for (float Range : {S->GunshotHearingRange, S->ExplosionHearingRange, S->DownedHearingRange, 1500.f, 600.f, 300.f})
 	{
 		TestTrue(TEXT("Inside hearing"), FBrAudioRules::InRange(FVector::ZeroVector, FVector(Range - 1, 0, 80), Range));
-		TestFalse(TEXT("At/beyond zero-volume boundary"), FBrAudioRules::InRange(FVector::ZeroVector, FVector(Range, 0, 0), Range));
+		TestFalse(TEXT("At/beyond zero-volume boundary"), FBrAudioRules::InRange(
+			          FVector::ZeroVector, FVector(Range, 0, 0), Range));
 	}
 	TestFalse(TEXT("Disabled range"), FBrAudioRules::InRange(FVector::ZeroVector, FVector::ZeroVector, 0));
 	return true;
 }
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioTargetTest, "BrGame.Audio.ChannelIndependentRouting",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioTargetTest::RunTest(const FString& Parameters)
 {
 	for (bool Ready : {false, true})
+	{
 		for (bool Range : {false, true})
+		{
 			for (bool Own : {false, true})
+			{
 				for (const TCHAR* State : {TEXT("Withheld"), TEXT("Opening"), TEXT("Open"), TEXT("Closing")})
+				{
 					TestEqual(FString::Printf(TEXT("%s: exactly one non-owner path, including host"), State),
-						FBrAudioRules::SendOther(Ready, Range, Own), Ready && Range && !Own);
+					          FBrAudioRules::SendOther(Ready, Range, Own), Ready && Range && !Own);
+				}
+			}
+		}
+	}
 	return true;
 }
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioListenerTest, "BrGame.Audio.ListenerEligibility",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioListenerTest::RunTest(const FString& Parameters)
 {
 	for (bool Ready : {false, true})
+	{
 		for (bool Admitted : {false, true})
+		{
 			for (bool Pawn : {false, true})
+			{
 				for (bool Spectating : {false, true})
+				{
 					for (bool Selected : {false, true})
+					{
 						TestEqual(TEXT("No controller/stale view-target fallback"),
-							FBrAudioRules::ListenerEligible(Ready, Admitted, Pawn, Spectating, Selected),
-							Ready && Admitted && (Spectating ? Selected : Pawn));
+						          FBrAudioRules::ListenerEligible(Ready, Admitted, Pawn, Spectating, Selected),
+						          Ready && Admitted && (Spectating ? Selected : Pawn));
+					}
+				}
+			}
+		}
+	}
 	TestFalse(TEXT("Eliminated spectator without selection ignores stale pawn"),
-		FBrAudioRules::ListenerEligible(true, true, true, true, false));
+	          FBrAudioRules::ListenerEligible(true, true, true, true, false));
 	return true;
 }
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioCadenceTest, "BrGame.Audio.FootstepCadence",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioCadenceTest::RunTest(const FString& Parameters)
 {
 	TestEqual(TEXT("Run 600cm/s"), FBrAudioRules::StepInterval(600, 180, 10), 0.3f);
@@ -64,8 +91,10 @@ bool FBrAudioCadenceTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Jitter"), FBrAudioRules::StepInterval(9, 180, 10), 0.f);
 	return true;
 }
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioVolumeTest, "BrGame.Audio.VolumePersistence",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioVolumeTest::RunTest(const FString& Parameters)
 {
 	TestEqual(TEXT("Lower clamp"), FBrAudioRules::Volume(-1), 0.f);
@@ -74,7 +103,9 @@ bool FBrAudioVolumeTest::RunTest(const FString& Parameters)
 	Profile->Master = FBrAudioRules::Volume(0.37f);
 	Profile->Effects = FBrAudioRules::Volume(0.62f);
 	TArray<uint8> Bytes;
-	TestTrue(TEXT("Serialize audio profile without touching user's save"), UGameplayStatics::SaveGameToMemory(Profile, Bytes));
+	TestTrue(
+		TEXT("Serialize audio profile without touching user's save"),
+		UGameplayStatics::SaveGameToMemory(Profile, Bytes));
 	const UBrAudioProfile* Loaded = Cast<UBrAudioProfile>(UGameplayStatics::LoadGameFromMemory(Bytes));
 	TestNotNull(TEXT("Profile round trip"), Loaded);
 	if (Loaded)
@@ -85,14 +116,19 @@ bool FBrAudioVolumeTest::RunTest(const FString& Parameters)
 	}
 	return true;
 }
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioVoiceTest, "BrGame.Audio.VoiceProtection",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioVoiceTest::RunTest(const FString& Parameters)
 {
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	TestTrue(TEXT("Screams outrank sustained fire"), S->DownedVoice.Priority > S->FireVoice.Priority);
 	TestTrue(TEXT("Footsteps outrank sustained fire"), S->FootstepVoice.Priority > S->FireVoice.Priority);
-	for (EBrSoundKind Kind : {EBrSoundKind::Fire, EBrSoundKind::Explosion, EBrSoundKind::Downed, EBrSoundKind::RunStep, EBrSoundKind::Pickup})
+	for (EBrSoundKind Kind : {
+		     EBrSoundKind::Fire, EBrSoundKind::Explosion, EBrSoundKind::Downed, EBrSoundKind::RunStep,
+		     EBrSoundKind::Pickup
+	     })
 	{
 		const FBrAudioVoicePolicy& Policy = S->VoicePolicy(Kind);
 		USoundConcurrency* Asset = Policy.Concurrency.LoadSynchronous();
@@ -121,12 +157,15 @@ bool FBrAudioVoiceTest::RunTest(const FString& Parameters)
 	}
 	return true;
 }
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioWireTest, "BrGame.Audio.BatchWireFormat",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrAudioWireTest::RunTest(const FString& Parameters)
 {
 	FBrSoundType Type;
-	Type.Sound = TSoftObjectPtr<USoundBase>(FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_Fire_MachineGun.SW_Fire_MachineGun")));
+	Type.Sound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_Fire_MachineGun.SW_Fire_MachineGun")));
 	FNetBitWriter TypeWriter(nullptr, 4096);
 	bool bSuccess = false;
 	Type.NetSerialize(TypeWriter, nullptr, bSuccess);
@@ -146,7 +185,7 @@ bool FBrAudioWireTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Batch-local type index"), Loaded.TypeIndex, Event.TypeIndex);
 	TestTrue(TEXT("Quantized location round trip"), FVector(Loaded.Location).Equals(Event.Location, 1));
 	AddInfo(FString::Printf(TEXT("Audio wire payload: Event=%lld bits Type=%lld bits (excludes RPC/array/UDP headers)"),
-		Writer.GetNumBits(), TypeWriter.GetNumBits()));
+	                        Writer.GetNumBits(), TypeWriter.GetNumBits()));
 	return true;
 }
 #endif

@@ -12,9 +12,13 @@ ABrCombatVisual::ABrCombatVisual()
 	Mesh->SetCollisionProfileName(TEXT("NoCollision"));
 	Mesh->SetCastShadow(false);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(TEXT("/Engine/EngineDebugMaterials/VertexColorMaterial.VertexColorMaterial"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(
+		TEXT("/Engine/EngineDebugMaterials/VertexColorMaterial.VertexColorMaterial"));
 	Mesh->SetStaticMesh(Sphere.Object);
-	if (Material.Succeeded()) Mesh->SetMaterial(0, Material.Object);
+	if (Material.Succeeded())
+	{
+		Mesh->SetMaterial(0, Material.Object);
+	}
 	SetActorScale3D(FVector(0.07f));
 }
 

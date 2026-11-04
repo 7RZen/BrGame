@@ -7,7 +7,8 @@
 #include <limits>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneInterpolationTest, "BrGame.Zone.Interpolation",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneInterpolationTest::RunTest(const FString& Parameters)
 {
 	FBrZoneState State;
@@ -25,24 +26,31 @@ bool FBrZoneInterpolationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Paused radius does not move"), State.At(500).Radius, State.At(25).Radius);
 	State.bPaused = false;
 	TestTrue(TEXT("Inside ignores height"), State.At(10).IsInside(FVector(10, 20, 100000)));
-	TestTrue(TEXT("Boundary inclusive"), State.At(10).IsInside(State.Current.Center + FVector(State.Current.Radius, 0, 0)));
+	TestTrue(TEXT("Boundary inclusive"), State.At(10).IsInside(
+		         State.Current.Center + FVector(State.Current.Radius, 0, 0)));
 	TestFalse(TEXT("Outside"), State.At(10).IsInside(State.Current.Center + FVector(State.Current.Radius + 1, 0, 0)));
 	TestFalse(TEXT("Collapsed circle never safe"), FBrZoneCircle().IsInside(FVector::ZeroVector));
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneContainmentTest, "BrGame.Zone.Containment",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneContainmentTest::RunTest(const FString& Parameters)
 {
 	FRandomStream Stream(1731);
 	for (int32 I = 0; I < 2000; ++I)
 	{
-		const FBrZoneCircle Initial { FVector(Stream.FRandRange(-5000, 5000), Stream.FRandRange(-5000, 5000), 17),
-			Stream.FRandRange(10, 10000) };
+		const FBrZoneCircle Initial{
+			FVector(Stream.FRandRange(-5000, 5000), Stream.FRandRange(-5000, 5000), 17),
+			Stream.FRandRange(10, 10000)
+		};
 		const float Fraction = Stream.FRand();
 		const FBrZoneCircle Next = FBrZoneRules::NextCircle(Initial, Fraction, Stream);
-		if (!TestTrue(TEXT("Entire next circle is contained"), FBrZoneRules::Contains(Initial, Next))) return false;
+		if (!TestTrue(TEXT("Entire next circle is contained"), FBrZoneRules::Contains(Initial, Next)))
+		{
+			return false;
+		}
 		TestEqual(TEXT("Fraction controls target radius"), Next.Radius, Initial.Radius * Fraction);
 		TestEqual(TEXT("Center stays on same plane"), Next.Center.Z, Initial.Center.Z);
 	}
@@ -50,7 +58,8 @@ bool FBrZoneContainmentTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneProgressionTest, "BrGame.Zone.ProgressionAndDamage",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneProgressionTest::RunTest(const FString& Parameters)
 {
 	FBrZoneState State;
@@ -58,7 +67,8 @@ bool FBrZoneProgressionTest::RunTest(const FString& Parameters)
 	State.WaitEnd = 18;
 	State.ShrinkEnd = 27;
 	State.DamagePerSecond = 13;
-	TestEqual(TEXT("Damage is DPS times interval"), FBrZoneRules::DamagePerTick(State.DamagePerSecond, 0.3f), State.DamagePerSecond * 0.3f);
+	TestEqual(TEXT("Damage is DPS times interval"), FBrZoneRules::DamagePerTick(State.DamagePerSecond, 0.3f),
+	          State.DamagePerSecond * 0.3f);
 	TestEqual(TEXT("Negative interval safe"), FBrZoneRules::DamagePerTick(State.DamagePerSecond, -1), 0.0f);
 	TestFalse(TEXT("No advance while waiting"), FBrZoneRules::CanAdvance(1, 3, State, 17));
 	TestFalse(TEXT("No advance while shrinking"), FBrZoneRules::CanAdvance(1, 3, State, 26));
@@ -68,11 +78,16 @@ bool FBrZoneProgressionTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Final wait still permits respawn"), State.IsSuddenDeath(17));
 	TestTrue(TEXT("Final shrink disables respawn"), State.IsSuddenDeath(18));
 	TestTrue(TEXT("Final collapse still sudden death"), State.IsSuddenDeath(100));
-	TestTrue(TEXT("Timeout eliminates without respawns"), FBrLifeRules::Outcome(false, 0, State.IsSuddenDeath(18) ? 0 : 10) == EBrDownedOutcome::Eliminated);
-	TestTrue(TEXT("Voluntary denied without eliminating"), FBrLifeRules::Outcome(true, 0, 0) == EBrDownedOutcome::Refused);
+	TestTrue(
+		TEXT("Timeout eliminates without respawns"),
+		FBrLifeRules::Outcome(false, 0, State.IsSuddenDeath(18) ? 0 : 10) == EBrDownedOutcome::Eliminated);
+	TestTrue(
+		TEXT("Voluntary denied without eliminating"), FBrLifeRules::Outcome(true, 0, 0) == EBrDownedOutcome::Refused);
 	FBrLifeBookkeeping Life;
 	EBrLifeState LifeState = EBrLifeState::Downed;
-	TestTrue(TEXT("Offline downed episode resolves"), FBrReconnectRules::ResolveOfflineTimeout(Life, LifeState, 20, 21, 0, true));
+	TestTrue(
+		TEXT("Offline downed episode resolves"),
+		FBrReconnectRules::ResolveOfflineTimeout(Life, LifeState, 20, 21, 0, true));
 	TestTrue(TEXT("Offline timeout cannot bypass sudden death"), Life.bEliminated);
 	State.bDisableRespawns = false;
 	TestFalse(TEXT("Developer opt out"), State.IsSuddenDeath(100));
@@ -80,11 +95,12 @@ bool FBrZoneProgressionTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneSpawnTest, "BrGame.Zone.SpawnFiltering",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneSpawnTest::RunTest(const FString& Parameters)
 {
-	const FBrZoneCircle Current {FVector::ZeroVector, 100};
-	const FBrZoneCircle Target {FVector(25, 0, 0), 30};
+	const FBrZoneCircle Current{FVector::ZeroVector, 100};
+	const FBrZoneCircle Target{FVector(25, 0, 0), 30};
 	TestEqual(TEXT("Next circle preferred"), FBrZoneRules::SpawnRank(FVector(25, 0, 0), Current, Target), 0);
 	TestEqual(TEXT("Current circle eligible"), FBrZoneRules::SpawnRank(FVector(-80, 0, 0), Current, Target), 1);
 	TestEqual(TEXT("Unsafe candidates filtered"), FBrZoneRules::SpawnRank(FVector(101, 0, 0), Current, Target), 2);
@@ -93,7 +109,8 @@ bool FBrZoneSpawnTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneResnapshotTest, "BrGame.Zone.TimeScaleMonotonic",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneResnapshotTest::RunTest(const FString& Parameters)
 {
 	for (const double Duration : {20.0, 0.0001})
@@ -141,12 +158,15 @@ bool FBrZoneResnapshotTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneConfigRepairTest, "BrGame.Zone.UnusableConfigRepair",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneConfigRepairTest::RunTest(const FString& Parameters)
 {
 	TArray<FBrZoneStage> Stages;
 	TestTrue(TEXT("Empty stages repaired"), FBrZoneRules::RepairStages(Stages));
-	TestTrue(TEXT("Repair creates a terminating stage"), Stages.Num() > 0 && Stages.Last().DamagePerSecond > 0 && Stages.Last().TargetRadiusFraction == 0);
+	TestTrue(
+		TEXT("Repair creates a terminating stage"),
+		Stages.Num() > 0 && Stages.Last().DamagePerSecond > 0 && Stages.Last().TargetRadiusFraction == 0);
 	Stages[0].WaitTime = std::numeric_limits<float>::quiet_NaN();
 	Stages[0].ShrinkTime = -1;
 	Stages.Last().DamagePerSecond = 0;
@@ -161,21 +181,29 @@ bool FBrZoneConfigRepairTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneTargetValidationTest, "BrGame.Zone.PlayableTargetValidation",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneTargetValidationTest::RunTest(const FString& Parameters)
 {
-	const FBrZoneCircle Current {FVector::ZeroVector, 100};
+	const FBrZoneCircle Current{FVector::ZeroVector, 100};
 	const FBox Bounds(FVector(-80, -80, -100), FVector(80, 80, 100));
-	TestTrue(TEXT("Concentric playable fallback"), FBrZoneRules::IsPlayableTarget(Current, {FVector::ZeroVector, 70}, Bounds));
-	TestFalse(TEXT("Outside playable rectangle rejected"), FBrZoneRules::IsPlayableTarget(Current, {FVector(75, 0, 0), 10}, Bounds));
-	TestFalse(TEXT("Outside current circle rejected"), FBrZoneRules::IsPlayableTarget(Current, {FVector(70, 70, 0), 10}, Bounds));
+	TestTrue(TEXT("Concentric playable fallback"), FBrZoneRules::IsPlayableTarget(
+		         Current, {FVector::ZeroVector, 70}, Bounds));
+	TestFalse(
+		TEXT("Outside playable rectangle rejected"),
+		FBrZoneRules::IsPlayableTarget(Current, {FVector(75, 0, 0), 10}, Bounds));
+	TestFalse(TEXT("Outside current circle rejected"), FBrZoneRules::IsPlayableTarget(
+		          Current, {FVector(70, 70, 0), 10}, Bounds));
 	// A nav projection is not permission to bypass the spawn zone check.
-	TestEqual(TEXT("Unsafe projected center is ineligible"), FBrZoneRules::SpawnRank(FVector(120, 0, 0), Current, Current), 2);
+	TestEqual(
+		TEXT("Unsafe projected center is ineligible"), FBrZoneRules::SpawnRank(FVector(120, 0, 0), Current, Current),
+		2);
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrZoneSpawnRetryTest, "BrGame.Zone.BoundedSpawnRetries",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FBrZoneSpawnRetryTest::RunTest(const FString& Parameters)
 {
 	FBrSpawnRetryBudget Budget;

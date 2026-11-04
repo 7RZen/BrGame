@@ -17,6 +17,7 @@ public:
 	virtual void DrawHUD() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	bool ExportMapPreview();
+
 private:
 	void DrawMinimap();
 	bool InitializeMap();

@@ -22,13 +22,26 @@ struct FBrAmmoAccounting
 {
 	static int32 Reserve(const TArray<FBrAmmoPool>& Pools, const UBrAmmoDefinition* Type)
 	{
-		if (!Type) return 0;
-		for (const FBrAmmoPool& Pool : Pools) if (Pool.AmmoType == Type) return Pool.Count;
+		if (!Type)
+		{
+			return 0;
+		}
+		for (const FBrAmmoPool& Pool : Pools)
+		{
+			if (Pool.AmmoType == Type)
+			{
+				return Pool.Count;
+			}
+		}
 		return 0;
 	}
+
 	static void Add(TArray<FBrAmmoPool>& Pools, UBrAmmoDefinition* Type, int32 Count)
 	{
-		if (!Type || Count <= 0) return;
+		if (!Type || Count <= 0)
+		{
+			return;
+		}
 		for (FBrAmmoPool& Pool : Pools)
 		{
 			if (Pool.AmmoType == Type)
@@ -80,6 +93,7 @@ UCLASS(ClassGroup=(BrGame), meta=(BlueprintSpawnableComponent))
 class BRGAME_API UBrInventoryComponent : public UActorComponent
 {
 	GENERATED_BODY()
+
 public:
 	UBrInventoryComponent();
 	UPROPERTY(ReplicatedUsing=OnRep_Weapon, BlueprintReadOnly, Category="Inventory")
@@ -107,19 +121,27 @@ public:
 	void StartFire();
 	void StopFire();
 	void CancelCombat();
-	bool IsCombatHeld() const { return GetOwner()->HasAuthority() ?
-		(bServerCombatHeld || PendingServerFire.IsSet() || PendingServerGrenade.IsSet()) :
-		(bFireHeld || bPendingFire || bPendingGrenade); }
+
+	bool IsCombatHeld() const
+	{
+		return GetOwner()->HasAuthority()
+			       ? (bServerCombatHeld || PendingServerFire.IsSet() || PendingServerGrenade.IsSet())
+			       : (bFireHeld || bPendingFire || bPendingGrenade);
+	}
+
 	void RequestReload();
 	void RequestGrenade();
 #if !UE_BUILD_SHIPPING
 	double GetLastSprintFireRecovery() const { return LastSprintFireRecovery; }
 #endif
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
+	                           FActorComponentTickFunction* ThisTickFunction) override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
 private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBrServerAimTest;
@@ -133,12 +155,14 @@ private:
 	FTimerHandle ReloadTimer;
 	FTimerHandle SprintFireTimer;
 	FTimerHandle SprintGrenadeTimer;
+
 	struct FPendingSprintAction
 	{
 		FVector Aim = FVector::ForwardVector;
 		float MoveTimeStamp = 0;
 		TWeakObjectPtr<UObject> Definition;
 	};
+
 	// Bounded first-request-wins slots: retransmission/bursts cannot create an
 	// unbounded queue or bank a catch-up burst beyond the normal fire-rate gate.
 	TOptional<FPendingSprintAction> PendingServerFire;

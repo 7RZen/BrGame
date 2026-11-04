@@ -48,29 +48,46 @@ void ABrGameMode::PreLogin(const FString& Options, const FString& Address, const
 	}
 	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
 	if (ErrorMessage.IsEmpty() && (!Sessions || !Sessions->ApprovePassword(UGameplayStatics::ParseOption(Options, TEXT("BrProof")))))
+	{
 		ErrorMessage = TEXT("Incorrect or missing server password.");
+	}
 	const ABrGameState* GS = GetGameState<ABrGameState>();
 	if (ErrorMessage.IsEmpty() && GS && !FBrFlowRules::Admit(GS->PlayerArray.Num(), GS->MatchSettings.MaxPlayers))
+	{
 		ErrorMessage = TEXT("Server is full.");
+	}
 	if (ErrorMessage.IsEmpty() && GS && UniqueId.IsValid())
+	{
 		for (const TWeakObjectPtr<AController>& Admitted : AdmittedControllers)
+		{
 			if (const ABrPlayerState* PS = Admitted.IsValid() ? Admitted->GetPlayerState<ABrPlayerState>() : nullptr)
+			{
 				if (PS->GetUniqueId() == UniqueId) { ErrorMessage = TEXT("Identity already connected."); break; }
+			}
+		}
+	}
 }
 UNetConnection* ABrGameMode::FindLoginConnection(const FString& Address) const
 {
 	const UNetDriver* Driver = GetWorld()->GetNetDriver();
 	UNetConnection* Found = nullptr;
 	if (Driver)
+	{
 		for (UNetConnection* Connection : Driver->ClientConnections)
+		{
 			if (Connection && Connection->GetConnectionState() != USOCK_Closed &&
 				Connection->LowLevelGetRemoteAddress() == Address)
 			{
 				// PreLoginAsync receives an engine-supplied transport address, not a
 				// connection pointer. Ambiguity must fail closed, not pick by claimed ID.
-				if (Found) return nullptr;
+				if (Found)
+				{
+					return nullptr;
+				}
 				Found = Connection;
 			}
+		}
+	}
 	return Found;
 }
 void ABrGameMode::PreLoginAsync(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, const FOnPreLoginCompleteDelegate& OnComplete)
@@ -99,7 +116,9 @@ void ABrGameMode::PreLoginAsync(const FString& Options, const FString& Address, 
 	Pending.Started = FPlatformTime::Seconds();
 	PendingSteamLogins.Add(MoveTemp(Pending));
 	if (!GetWorldTimerManager().IsTimerActive(SteamLoginTimer))
+	{
 		GetWorldTimerManager().SetTimer(SteamLoginTimer, this, &ABrGameMode::ServiceSteamLogins, 0.1f, true);
+	}
 }
 void ABrGameMode::ServiceSteamLogins()
 {
@@ -114,14 +133,26 @@ void ABrGameMode::ServiceSteamLogins()
 			Connection->PlayerId == Pending.Id && FindLoginConnection(Pending.Address) == Connection;
 		const auto Decision = FBrSessionRules::LobbyAdmission(true, GS ? GS->MatchSettings.Visibility : EBrSessionVisibility::InviteOnly,
 			bVerified, bVerified && Sessions->IsSteamLobbyMember(Connection, Pending.Id), FPlatformTime::Seconds() - Pending.Started);
-		if (Decision == FBrSessionRules::EAdmission::Wait) continue;
-		if (Decision == FBrSessionRules::EAdmission::Reject) Error = TEXT("Steam lobby membership required or identity no longer valid. Join through Steam and retry.");
-		else PreLogin(Pending.Options, Pending.Address, Pending.Id, Error); // Recheck password, cap and duplicates after the wait.
+		if (Decision == FBrSessionRules::EAdmission::Wait)
+		{
+			continue;
+		}
+		if (Decision == FBrSessionRules::EAdmission::Reject)
+		{
+			Error = TEXT("Steam lobby membership required or identity no longer valid. Join through Steam and retry.");
+		}
+		else
+		{
+			PreLogin(Pending.Options, Pending.Address, Pending.Id, Error); // Recheck password, cap and duplicates after the wait.
+		}
 		FOnPreLoginCompleteDelegate Complete = Pending.Complete;
 		PendingSteamLogins.RemoveAtSwap(I);
 		Complete.ExecuteIfBound(Error);
 	}
-	if (PendingSteamLogins.IsEmpty()) GetWorldTimerManager().ClearTimer(SteamLoginTimer);
+	if (PendingSteamLogins.IsEmpty())
+	{
+		GetWorldTimerManager().ClearTimer(SteamLoginTimer);
+	}
 }
 void ABrMenuGameMode::ChangeName(AController* Controller, const FString& NewName, bool bNameChange)
 {
@@ -129,30 +160,60 @@ void ABrMenuGameMode::ChangeName(AController* Controller, const FString& NewName
 }
 void ABrGameMode::ChangeName(AController* Controller, const FString& NewName, bool bNameChange)
 {
-	if (!HasAuthority() || !Controller) return;
-	if (!IsLobbyMode() && (IsAdmitted(Controller) || RoundRecords.Contains(RoundKey(Controller)))) return;
+	if (!HasAuthority() || !Controller)
+	{
+		return;
+	}
+	if (!IsLobbyMode() && (IsAdmitted(Controller) || RoundRecords.Contains(RoundKey(Controller))))
+	{
+		return;
+	}
 	Super::ChangeName(Controller, FBrFlowRules::SanitizeName(NewName), bNameChange);
 }
 bool ABrGameMode::IsAdmitted(const AController* Controller) const
 {
 	for (const TWeakObjectPtr<AController>& Admitted : AdmittedControllers)
-		if (Admitted.IsValid() && Admitted.Get() == Controller) return true;
+	{
+		if (Admitted.IsValid() && Admitted.Get() == Controller)
+		{
+			return true;
+		}
+	}
 	return false;
 }
 bool ABrGameMode::AdmitController(APlayerController* Player)
 {
-	if (!Player || !Player->GetPlayerState<ABrPlayerState>()) return false;
-	if (IsAdmitted(Player)) return true;
+	if (!Player || !Player->GetPlayerState<ABrPlayerState>())
+	{
+		return false;
+	}
+	if (IsAdmitted(Player))
+	{
+		return true;
+	}
 	const FString Key = RoundKey(Player);
 	bool bDuplicate = Key.IsEmpty();
 	for (const TWeakObjectPtr<AController>& Admitted : AdmittedControllers)
-		if (Admitted.IsValid() && Admitted.Get() != Player && RoundKey(Admitted.Get()) == Key) bDuplicate = true;
+	{
+		if (Admitted.IsValid() && Admitted.Get() != Player && RoundKey(Admitted.Get()) == Key)
+		{
+			bDuplicate = true;
+		}
+	}
 	if (const FBrRoundRecord* Record = RoundRecords.Find(Key))
-		if (Record->ActiveController.IsValid() && Record->ActiveController.Get() != Player) bDuplicate = true;
+	{
+		if (Record->ActiveController.IsValid() && Record->ActiveController.Get() != Player)
+		{
+			bDuplicate = true;
+		}
+	}
 	if (bDuplicate)
 	{
 		UE_LOG(LogBr, Warning, TEXT("Flow admission rejected: invalid/duplicate identity for %s"), *GetNameSafe(Player));
-		if (GameSession) GameSession->KickPlayer(Player, FText::FromString(TEXT("Invalid or already connected identity.")));
+		if (GameSession)
+		{
+			GameSession->KickPlayer(Player, FText::FromString(TEXT("Invalid or already connected identity.")));
+		}
 		return false;
 	}
 	AdmittedControllers.Add(Player);
@@ -169,7 +230,10 @@ void ABrGameMode::PostSeamlessTravel()
 			APlayerController* PC = It->Get();
 			const ABrPlayerState* PS = PC ? PC->GetPlayerState<ABrPlayerState>() : nullptr;
 			const FString Key = RoundKey(PC);
-			if (!PS || Key.IsEmpty() || RoundRecords.Contains(Key)) continue;
+			if (!PS || Key.IsEmpty() || RoundRecords.Contains(Key))
+			{
+				continue;
+			}
 			FBrRoundRecord Pending;
 			Pending.Team = PS->Team;
 			Pending.TeamColor = PS->TeamColor;
@@ -204,7 +268,10 @@ void ABrGameMode::InitSeamlessTravelPlayer(AController* Controller)
 	if (!Sessions || !Sessions->VerifyPlayerIdentity(Controller))
 	{
 		UE_LOG(LogBr, Warning, TEXT("Seamless player rejected: no authenticated identity binding."));
-		if (GameSession) GameSession->KickPlayer(Cast<APlayerController>(Controller), FText::FromString(TEXT("Steam identity binding lost. Rejoin.")));
+		if (GameSession)
+		{
+			GameSession->KickPlayer(Cast<APlayerController>(Controller), FText::FromString(TEXT("Steam identity binding lost. Rejoin.")));
+		}
 		return;
 	}
 	if (ABrPlayerState* PS = Controller->GetPlayerState<ABrPlayerState>())
@@ -245,14 +312,21 @@ FString ABrGameMode::InitNewPlayer(APlayerController* Player, const FUniqueNetId
 	const ULocalPlayer* Local = Cast<ULocalPlayer>(LoginSource.Get());
 	const bool bLocalHost = Local && Local->GetGameInstance() == GetGameInstance();
 	if (!Player || !Sessions || !Sessions->BindPlayerIdentity(Player, Cast<UNetConnection>(LoginSource.Get()), UniqueId, bLocalHost))
+	{
 		return TEXT("Steam login identity does not match the authenticated connection.");
+	}
 	if (UGameplayStatics::GetIntOption(Options, TEXT("SpectatorOnly"), 0) != 0)
+	{
 		return TEXT("Players may only spectate after elimination or during results.");
+	}
 	const FString Error = Super::InitNewPlayer(Player, UniqueId, Options, Portal);
 	if (Error.IsEmpty() && Player && Player->PlayerState)
 	{
 		const FString Name = UGameplayStatics::ParseOption(Options, TEXT("Name"));
-		if (!Name.IsEmpty()) ChangeName(Player, Name, true);
+		if (!Name.IsEmpty())
+		{
+			ChangeName(Player, Name, true);
+		}
 	}
 	return Error;
 }
@@ -260,25 +334,43 @@ TArray<int32> ABrGameMode::GroupSizes(const ABrPlayerState* Ignore) const
 {
 	TArray<int32> Sizes;
 	const ABrGameState* GS = GetGameState<ABrGameState>();
-	if (!GS) return Sizes;
+	if (!GS)
+	{
+		return Sizes;
+	}
 	Sizes.Init(0, GS->MatchSettings.NumGroups);
 	for (APlayerState* Entry : GS->PlayerArray)
+	{
 		if (const ABrPlayerState* PS = Cast<ABrPlayerState>(Entry))
-			if (PS != Ignore && Sizes.IsValidIndex(PS->Team)) ++Sizes[PS->Team];
+		{
+			if (PS != Ignore && Sizes.IsValidIndex(PS->Team))
+			{
+				++Sizes[PS->Team];
+			}
+		}
+	}
 	return Sizes;
 }
 void ABrGameMode::AssignPlayer(APlayerController* Player)
 {
 	ABrGameState* GS = GetGameState<ABrGameState>();
 	ABrPlayerState* PS = Player ? Player->GetPlayerState<ABrPlayerState>() : nullptr;
-	if (!GS || !PS) return;
+	if (!GS || !PS)
+	{
+		return;
+	}
 	PS->bHost = Player->IsLocalController();
-	if (GS->MatchSettings.Mode == EBrMode::AllVsAll) PS->SetTeam(INDEX_NONE, FBrFlowRules::MilitaryGreen());
+	if (GS->MatchSettings.Mode == EBrMode::AllVsAll)
+	{
+		PS->SetTeam(INDEX_NONE, FBrFlowRules::MilitaryGreen());
+	}
 	else
 	{
 		ColorChoosers.SetNum(GS->MatchSettings.NumGroups);
 		if (PS->Team < 0 || PS->Team >= GS->MatchSettings.NumGroups)
+		{
 			PS->Team = FBrFlowRules::Smallest(GroupSizes(PS));
+		}
 		if (GS->GroupColors[PS->Team] == INDEX_NONE)
 		{
 			GS->GroupColors[PS->Team] = FBrFlowRules::AllocateColor(GS->GroupColors);
@@ -292,18 +384,23 @@ void ABrGameMode::AssignPlayer(APlayerController* Player)
 void ABrGameMode::UpdateLobby()
 {
 	ABrGameState* GS = GetGameState<ABrGameState>();
-	if (!GS || !IsLobbyMode() || bTravelling || NumTravellingPlayers > 0) return;
+	if (!GS || !IsLobbyMode() || bTravelling || NumTravellingPlayers > 0)
+	{
+		return;
+	}
 	const FBrMatchSettings& Settings = GS->MatchSettings;
 	if (Settings.Mode == EBrMode::AllVsAll)
 	{
 		GS->GroupColors.Init(INDEX_NONE, Settings.NumGroups);
 		ColorChoosers.Empty();
 		for (APlayerState* Entry : GS->PlayerArray)
+		{
 			if (ABrPlayerState* PS = Cast<ABrPlayerState>(Entry))
 			{
 				PS->bCanChooseColor = false;
 				PS->SetTeam(INDEX_NONE, FBrFlowRules::MilitaryGreen());
 			}
+		}
 	}
 	else
 	{
@@ -320,18 +417,32 @@ void ABrGameMode::UpdateLobby()
 		{
 			if (ABrPlayerState* PS = Cast<ABrPlayerState>(GS->PlayerArray[I]))
 			{
-				if (Settings.TeamSelection == EBrTeamSelection::AutoEven) PS->Team = Assignments[I];
+				if (Settings.TeamSelection == EBrTeamSelection::AutoEven)
+				{
+					PS->Team = Assignments[I];
+				}
 				if (!Sizes.IsValidIndex(PS->Team) || !FBrFlowRules::HasRoom(Sizes[PS->Team], Settings.MaxPlayers, Settings.NumGroups))
+				{
 					PS->Team = FBrFlowRules::Smallest(Sizes);
+				}
 				++Sizes[PS->Team];
 			}
 		}
 		const int32 OldCount = GS->GroupColors.Num();
 		GS->GroupColors.SetNum(Settings.NumGroups);
-		for (int32 I = OldCount; I < GS->GroupColors.Num(); ++I) GS->GroupColors[I] = INDEX_NONE;
+		for (int32 I = OldCount; I < GS->GroupColors.Num(); ++I)
+		{
+			GS->GroupColors[I] = INDEX_NONE;
+		}
 		ColorChoosers.SetNum(Settings.NumGroups);
 		FBrFlowRules::ReleaseEmpty(GS->GroupColors, Sizes);
-		for (int32 I = 0; I < Sizes.Num(); ++I) if (!Sizes[I]) ColorChoosers[I].Reset();
+		for (int32 I = 0; I < Sizes.Num(); ++I)
+		{
+			if (!Sizes[I])
+			{
+				ColorChoosers[I].Reset();
+			}
+		}
 		for (APlayerState* Entry : GS->PlayerArray)
 		{
 			if (ABrPlayerState* PS = Cast<ABrPlayerState>(Entry))
@@ -352,7 +463,10 @@ void ABrGameMode::UpdateLobby()
 }
 void ABrGameMode::ChangeSettings(APlayerController* Requester, FBrMatchSettings Settings)
 {
-	if (!Requester || !Requester->IsLocalController() || !HasAuthority() || !IsLobbyMode() || bTravelling) return;
+	if (!Requester || !Requester->IsLocalController() || !HasAuthority() || !IsLobbyMode() || bTravelling)
+	{
+		return;
+	}
 	if (!UBrDeveloperSettings::Get()->IsMapSelectionValid(Settings.MapId) ||
 		Settings.NumGroups < 2 || Settings.NumGroups > 1024 || Settings.MaxPlayers < 0 ||
 		(Settings.MaxPlayers > 0 && Settings.MaxPlayers < GetGameState<ABrGameState>()->PlayerArray.Num()) ||
@@ -367,7 +481,10 @@ void ABrGameMode::ChangeSettings(APlayerController* Requester, FBrMatchSettings 
 	Settings.Sanitize();
 	Settings.ResolvedMapId = NAME_None; // Client requests cannot choose a Random outcome.
 	if (Settings.Visibility != EBrSessionVisibility::Public && Settings.Visibility != EBrSessionVisibility::FriendsOnly &&
-		Settings.Visibility != EBrSessionVisibility::InviteOnly) return;
+		Settings.Visibility != EBrSessionVisibility::InviteOnly)
+	{
+		return;
+	}
 	// Protection state comes only from the server's private credential, never an RPC flag.
 	Settings.bPasswordProtected = !GetGameInstance()->GetSubsystem<UBrSessionSubsystem>()->ApprovePassword(FString());
 	GetGameState<ABrGameState>()->SetMatchSettings(Settings);
@@ -378,11 +495,17 @@ void ABrGameMode::ChooseTeam(APlayerController* Requester, int32 Team, int32 Col
 	ABrGameState* GS = GetGameState<ABrGameState>();
 	ABrPlayerState* PS = Requester ? Requester->GetPlayerState<ABrPlayerState>() : nullptr;
 	if (!HasAuthority() || !IsLobbyMode() || !IsAdmitted(Requester) || bTravelling || !GS || !PS ||
-		GS->MatchSettings.Mode != EBrMode::Grouped || !GS->GroupColors.IsValidIndex(Team)) return;
+		GS->MatchSettings.Mode != EBrMode::Grouped || !GS->GroupColors.IsValidIndex(Team))
+	{
+		return;
+	}
 	if (PS->Team != Team)
 	{
 		if (GS->MatchSettings.TeamSelection != EBrTeamSelection::PlayerChoice ||
-			!FBrFlowRules::HasRoom(GroupSizes(PS)[Team], GS->MatchSettings.MaxPlayers, GS->MatchSettings.NumGroups)) return;
+			!FBrFlowRules::HasRoom(GroupSizes(PS)[Team], GS->MatchSettings.MaxPlayers, GS->MatchSettings.NumGroups))
+		{
+			return;
+		}
 		PS->Team = Team;
 		UpdateLobby();
 	}
@@ -397,7 +520,10 @@ void ABrGameMode::ChooseTeam(APlayerController* Requester, int32 Team, int32 Col
 }
 bool ABrGameMode::TravelFlow(const FString& Map)
 {
-	if (bTravelling) return false;
+	if (bTravelling)
+	{
+		return false;
+	}
 	if (Map.IsEmpty() || !FPackageName::DoesPackageExist(Map))
 	{
 		UE_LOG(LogBr, Error, TEXT("Flow destination missing: %s"), *Map);
@@ -417,7 +543,10 @@ bool ABrGameMode::TravelFlow(const FString& Map)
 void ABrGameMode::StartRound(APlayerController* Requester)
 {
 	if (!HasAuthority() || !Requester || !Requester->IsLocalController() || !IsLobbyMode() || bTravelling || NumTravellingPlayers > 0 ||
-		GetGameState<ABrGameState>()->PlayerArray.IsEmpty()) return;
+		GetGameState<ABrGameState>()->PlayerArray.IsEmpty())
+	{
+		return;
+	}
 	UpdateLobby();
 	ABrGameState* GS = GetGameState<ABrGameState>();
 	FBrMapEntry Chosen;
@@ -425,7 +554,10 @@ void ABrGameMode::StartRound(APlayerController* Requester)
 	if (!UBrDeveloperSettings::Get()->ResolveMap(GS->MatchSettings.MapId, Random, Chosen))
 	{
 		UE_LOG(LogBr, Error, TEXT("Cannot start round: selected map '%s' is unavailable"), *GS->MatchSettings.MapId.ToString());
-		if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>()) GI->FlowError = TEXT("Selected map is unavailable. Check Project Settings > BrGame > Maps.");
+		if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>())
+		{
+			GI->FlowError = TEXT("Selected map is unavailable. Check Project Settings > BrGame > Maps.");
+		}
 		return;
 	}
 	FBrMatchSettings Settings = GS->MatchSettings;
@@ -442,29 +574,58 @@ void ABrGameMode::ReturnToLobby()
 void ABrGameMode::EliminatePlayer(APlayerController* Requester, int32 Index)
 {
 #if !UE_BUILD_SHIPPING
-	if (!Requester || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Requester->IsLocalController(), GetNetMode()) || IsLobbyMode()) return;
+	if (!Requester || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Requester->IsLocalController(), GetNetMode()) || IsLobbyMode())
+	{
+		return;
+	}
 	const ABrGameState* GS = GetGameState<ABrGameState>();
 	if (GS && GS->PlayerArray.IsValidIndex(Index))
-		if (ABrCharacter* Pawn = Cast<ABrCharacter>(GS->PlayerArray[Index]->GetPawn())) Pawn->GetLife()->Eliminate();
+	{
+		if (ABrCharacter* Pawn = Cast<ABrCharacter>(GS->PlayerArray[Index]->GetPawn()))
+		{
+			Pawn->GetLife()->Eliminate();
+		}
+	}
 #endif
 }
 void ABrGameMode::CheckWinner()
 {
 	ABrGameState* GS = GetGameState<ABrGameState>();
-	if (!GS || GS->bResults || IsLobbyMode() || bTravelling) return;
+	if (!GS || GS->bResults || IsLobbyMode() || bTravelling)
+	{
+		return;
+	}
 	for (const auto& Pair : RoundRecords)
-		if (Pair.Value.bAwaitingInitialization && !Pair.Value.bForfeited) return;
+	{
+		if (Pair.Value.bAwaitingInitialization && !Pair.Value.bForfeited)
+		{
+			return;
+		}
+	}
 	TArray<int32> StillIn;
 	for (const auto& Pair : RoundRecords)
-		if (!Pair.Value.Life.bEliminated) StillIn.Add(GS->MatchSettings.Mode == EBrMode::Grouped ? Pair.Value.Team : Pair.Value.PlayerId);
+	{
+		if (!Pair.Value.Life.bEliminated)
+		{
+			StillIn.Add(GS->MatchSettings.Mode == EBrMode::Grouped ? Pair.Value.Team : Pair.Value.PlayerId);
+		}
+	}
 	int32 Winner;
-	if (!FBrFlowRules::Evaluate(StillIn, Participants.Num(), UBrDeveloperSettings::Get()->bAllowSoloTesting, Winner)) return;
+	if (!FBrFlowRules::Evaluate(StillIn, Participants.Num(), UBrDeveloperSettings::Get()->bAllowSoloTesting, Winner))
+	{
+		return;
+	}
 	GS->bResults = true;
 	if (IsValid(SafeZone)) { SafeZone->Stop(); SafeZone->Destroy(); SafeZone = nullptr; }
-	if (IsValid(PickupManager)) PickupManager->ClearRoundPickups();
+	if (IsValid(PickupManager))
+	{
+		PickupManager->ClearRoundPickups();
+	}
 	GS->WinnerText = Winner == INDEX_NONE ? TEXT("Draw") : FString::Printf(TEXT("Group %d wins"), Winner + 1);
 	if (Winner != INDEX_NONE && GS->MatchSettings.Mode == EBrMode::Grouped)
+	{
 		GS->WinnerColor = FBrFlowRules::Palette(GS->GroupColors[Winner]);
+	}
 	GS->ResultsTable = TEXT("Player | Group | Downs | Deaths | Result\n");
 	for (const auto& Pair : RoundRecords)
 	{
@@ -487,7 +648,10 @@ void ABrGameMode::CheckWinner()
 }
 void ABrGameMode::FlowService()
 {
-	if (IsLobbyMode()) UpdateLobby();
+	if (IsLobbyMode())
+	{
+		UpdateLobby();
+	}
 	else
 	{
 		ABrGameState* State = GetGameState<ABrGameState>();
@@ -498,13 +662,23 @@ void ABrGameMode::FlowService()
 			{
 				AController* Controller = Entry.Get();
 				const ABrPlayerState* PS = Controller ? Controller->GetPlayerState<ABrPlayerState>() : nullptr;
-				if (PS && !PS->bEliminated && !PS->GetPawn() && CanRestart(Controller)) RestartPlayer(Controller);
+				if (PS && !PS->bEliminated && !PS->GetPawn() && CanRestart(Controller))
+				{
+					RestartPlayer(Controller);
+				}
 			}
 		}
 		CheckWinner();
 		if (State && !bTravelling)
+		{
 			for (const TWeakObjectPtr<AController>& Entry : AdmittedControllers)
-				if (ABrPlayerController* PC = Cast<ABrPlayerController>(Entry.Get())) PC->ServiceSpectator();
+			{
+				if (ABrPlayerController* PC = Cast<ABrPlayerController>(Entry.Get()))
+				{
+					PC->ServiceSpectator();
+				}
+			}
+		}
 	}
 #if !UE_BUILD_SHIPPING
 	if (FParse::Param(FCommandLine::Get(), TEXT("BrMapSelectorSmoke")))
@@ -513,9 +687,15 @@ void ABrGameMode::FlowService()
 		return;
 	}
 	UBrGameInstance* GI = GetGameInstance<UBrGameInstance>();
-	if (!GI || GI->bSmokeFinished || !FParse::Param(FCommandLine::Get(), TEXT("BrFlowSmoke"))) return;
+	if (!GI || GI->bSmokeFinished || !FParse::Param(FCommandLine::Get(), TEXT("BrFlowSmoke")))
+	{
+		return;
+	}
 	APlayerController* Host = GetWorld()->GetFirstPlayerController();
-	if (!Host || !Host->IsLocalController()) return;
+	if (!Host || !Host->IsLocalController())
+	{
+		return;
+	}
 	ABrGameState* GS = GetGameState<ABrGameState>();
 	if (IsLobbyMode())
 	{
@@ -554,7 +734,10 @@ void ABrGameMode::FlowService()
 	}
 	const int32 SmokePlayers = FParse::Param(FCommandLine::Get(), TEXT("BrFogSpectatorSmoke")) ||
 		(FParse::Param(FCommandLine::Get(), TEXT("BrFogSmoke")) && GS->MatchSettings.Mode == EBrMode::Grouped) ? 3 : 2;
-	if (IsLobbyMode() && GS->PlayerArray.Num() >= SmokePlayers) StartRound(Host);
+	if (IsLobbyMode() && GS->PlayerArray.Num() >= SmokePlayers)
+	{
+		StartRound(Host);
+	}
 	if (!IsLobbyMode() && FParse::Param(FCommandLine::Get(), TEXT("BrFogSpectatorSmoke")))
 	{
 		ServiceFogSpectatorSmoke();
@@ -572,28 +755,44 @@ void ABrGameMode::FlowService()
 	}
 	if (!IsLobbyMode() && FParse::Param(FCommandLine::Get(), TEXT("BrZoneSmoke")))
 	{
-		if (GS->bResults) GI->bSmokeFinished = true;
+		if (GS->bResults)
+		{
+			GI->bSmokeFinished = true;
+		}
 		return; // Zone smoke must finish through damage/timeouts, never the flow elimination shortcut.
 	}
 	if (!IsLobbyMode() && FParse::Param(FCommandLine::Get(), TEXT("BrFlowDisconnectSmoke")) &&
 		GS->PlayerArray.Num() >= 2 && GetWorld()->GetTimeSeconds() - MatchBeganTime > 2)
 	{
 		for (APlayerState* Entry : GS->PlayerArray)
+		{
 			if (const ABrPlayerState* PS = Cast<ABrPlayerState>(Entry))
+			{
 				if (!PS->bHost)
+				{
 					if (ABrCharacter* Character = Cast<ABrCharacter>(PS->GetPawn()))
 					{
 						GI->bSmokeFinished = true;
 						Character->GetLife()->Down(); // Client leaves when this replicated downed state arrives.
 					}
+				}
+			}
+		}
 		return;
 	}
 	if (!IsLobbyMode() && GS->PlayerArray.Num() >= 3 && GetWorld()->GetTimeSeconds() - MatchBeganTime > 20)
 	{
 		GI->bSmokeFinished = true;
 		for (int32 I = GS->PlayerArray.Num() - 1; I >= 0; --I)
+		{
 			if (const ABrPlayerState* PS = Cast<ABrPlayerState>(GS->PlayerArray[I]))
-				if (!PS->bHost) EliminatePlayer(Host, I);
+			{
+				if (!PS->bHost)
+				{
+					EliminatePlayer(Host, I);
+				}
+			}
+		}
 	}
 #endif
 }
@@ -603,10 +802,16 @@ void ABrGameMode::ServiceMapSelectorSmoke()
 	UBrGameInstance* GI = GetGameInstance<UBrGameInstance>();
 	ABrPlayerController* Host = Cast<ABrPlayerController>(GetWorld()->GetFirstPlayerController());
 	ABrGameState* GS = GetGameState<ABrGameState>();
-	if (!GI || !GS || !Host || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Host->IsLocalController(), GetNetMode())) return;
+	if (!GI || !GS || !Host || !FBrDevCheatPolicy::CanExecute(HasAuthority(), Host->IsLocalController(), GetNetMode()))
+	{
+		return;
+	}
 	int32& Stage = GI->MapSelectorSmokeStage;
 	FString Requested;
-	if (!FParse::Value(FCommandLine::Get(), TEXT("BrSmokeMapId="), Requested)) Requested = TEXT("TestArena");
+	if (!FParse::Value(FCommandLine::Get(), TEXT("BrSmokeMapId="), Requested))
+	{
+		Requested = TEXT("TestArena");
+	}
 	const FName Expected(*Requested);
 	auto Fail = [&Stage](const TCHAR* Reason)
 	{
@@ -629,7 +834,10 @@ void ABrGameMode::ServiceMapSelectorSmoke()
 		// initial lobby replication. Round 2 never reapplies or repairs settings.
 		if (GS->MatchSettings.MapId != Expected) { Fail(TEXT("selection lost before Start")); return; }
 		StartRound(Host);
-		if (bTravelling) ++Stage;
+		if (bTravelling)
+		{
+			++Stage;
+		}
 	}
 	else if ((Stage == 2 || Stage == 5) && !IsLobbyMode() && !GS->bResults &&
 		NumTravellingPlayers == 0 && GetWorld()->GetTimeSeconds() - MatchBeganTime > 5)
@@ -644,8 +852,15 @@ void ABrGameMode::ServiceMapSelectorSmoke()
 		UE_LOG(LogBr, Display, TEXT("Map selector smoke match: Round=%d Selection=%s Resolved=%s Valid=1"),
 			Stage == 2 ? 1 : 2, *Expected.ToString(), *Resolved->Id.ToString());
 		for (int32 I = GS->PlayerArray.Num() - 1; I >= 0; --I)
+		{
 			if (const ABrPlayerState* PS = Cast<ABrPlayerState>(GS->PlayerArray[I]))
-				if (!PS->bHost) EliminatePlayer(Host, I);
+			{
+				if (!PS->bHost)
+				{
+					EliminatePlayer(Host, I);
+				}
+			}
+		}
 		++Stage;
 	}
 	else if ((Stage == 3 || Stage == 6) && IsLobbyMode())
@@ -666,7 +881,9 @@ void ABrGameMode::EndPlay(const EEndPlayReason::Type Reason)
 	GetWorldTimerManager().ClearTimer(SteamLoginTimer);
 	TArray<FPendingSteamLogin> Cancelled = MoveTemp(PendingSteamLogins);
 	for (const FPendingSteamLogin& Pending : Cancelled)
+	{
 		Pending.Complete.ExecuteIfBound(TEXT("Server is travelling or shutting down. Retry joining."));
+	}
 	if (IsValid(SafeZone)) { SafeZone->Stop(); SafeZone->Destroy(); SafeZone = nullptr; }
 	GetWorldTimerManager().ClearTimer(FlowTimer);
 	GetWorldTimerManager().ClearTimer(ResultsTimer);

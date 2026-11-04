@@ -22,6 +22,7 @@ UCLASS()
 class BRGAME_API ABrPickupManager : public AActor
 {
 	GENERATED_BODY()
+
 public:
 	ABrPickupManager();
 	void Initialize(int32 PlayersAtStart);
@@ -29,8 +30,10 @@ public:
 	void RegisterRoundDrop(ABrPickup* Pickup);
 	/** Step-6 round reset hook: clears slots, pending timers and all registered drops, including lifetime=0. */
 	void ClearRoundPickups();
+
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UBrPickupTable> Table;

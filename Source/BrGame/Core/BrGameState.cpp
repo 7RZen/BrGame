@@ -18,7 +18,10 @@ void ABrGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 
 void ABrGameState::SetMatchSettings(const FBrMatchSettings& Settings)
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority())
+	{
+		return;
+	}
 	MatchSettings = Settings;
 	OnRep_MatchSettings();
 	ForceNetUpdate();
@@ -27,7 +30,8 @@ void ABrGameState::SetMatchSettings(const FBrMatchSettings& Settings)
 void ABrGameState::OnRep_MatchSettings()
 {
 	UE_LOG(LogBr, Display, TEXT("Match settings: Mode=%s Groups=%d MaxPlayers=%d PickupRespawnTime=%.1fs"),
-		MatchSettings.Mode == EBrMode::Grouped ? TEXT("Grouped") : TEXT("AllVsAll"),
-		MatchSettings.NumGroups, MatchSettings.MaxPlayers, MatchSettings.PickupRespawnTime);
-	UE_LOG(LogBr, Display, TEXT("Map settings: Selection=%s Resolved=%s"), *MatchSettings.MapId.ToString(), *MatchSettings.ResolvedMapId.ToString());
+	       MatchSettings.Mode == EBrMode::Grouped ? TEXT("Grouped") : TEXT("AllVsAll"),
+	       MatchSettings.NumGroups, MatchSettings.MaxPlayers, MatchSettings.PickupRespawnTime);
+	UE_LOG(LogBr, Display, TEXT("Map settings: Selection=%s Resolved=%s"), *MatchSettings.MapId.ToString(),
+	       *MatchSettings.ResolvedMapId.ToString());
 }

@@ -12,13 +12,23 @@ UCLASS()
 class BRGAME_API ABrCorpse : public AActor
 {
 	GENERATED_BODY()
+
 public:
 	ABrCorpse();
 	/** Server-only gear snapshot, shared by normal elimination and intentional forfeit. */
-	void SetGear(const FBrInventoryState& State) { if (HasAuthority()) Gear = State; }
+	void SetGear(const FBrInventoryState& State)
+	{
+		if (HasAuthority())
+		{
+			Gear = State;
+		}
+	}
+
 	const FBrInventoryState& GetGear() const { return Gear; }
+
 protected:
 	virtual void BeginPlay() override;
+
 private:
 	UPROPERTY()
 	FBrInventoryState Gear;

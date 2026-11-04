@@ -19,28 +19,46 @@
 void ABrPlayerController::ClientHitSmokeProbe_Implementation(int32 Stage, bool bVictim, FVector_NetQuantize Origin)
 {
 #if !UE_BUILD_SHIPPING
-	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke"))) return;
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
+	{
+		return;
+	}
 	uint32 Count = 0;
 	ABrCharacter* OwnCharacter = Cast<ABrCharacter>(GetPawn());
-	if (bVictim && OwnCharacter) Count = OwnCharacter->GetHitFeedback()->OwnerEvents;
+	if (bVictim && OwnCharacter)
+	{
+		Count = OwnCharacter->GetHitFeedback()->OwnerEvents;
+	}
 	else
+	{
 		for (TActorIterator<ABrCharacter> It(GetWorld()); It; ++It)
+		{
 			Count += It->GetHitFeedback()->RemoteEvents;
-	if (Stage == 0) { HitSmokeBaseline = Count; return; }
+		}
+	}
+	if (Stage == 0)
+	{
+		HitSmokeBaseline = Count;
+		return;
+	}
 	const uint32 Expected = bVictim ? Stage : (Stage == 1 ? 0 : 1);
 	bool bGood = Count - HitSmokeBaseline == Expected;
 	if (bVictim)
 	{
-		const TArray<FBrHitIndicator>* Indicators = OwnCharacter ? &OwnCharacter->GetHitFeedback()->GetIndicators() : nullptr;
+		const TArray<FBrHitIndicator>* Indicators = OwnCharacter
+			                                            ? &OwnCharacter->GetHitFeedback()->GetIndicators()
+			                                            : nullptr;
 		bGood &= Indicators && Indicators->Num() == 1 && (*Indicators)[0].Origin.Equals(Origin, 2);
 	}
 	if (!bGood)
 	{
-		UE_LOG(LogBr, Error, TEXT("E2E HIT PROBE FAIL Stage=%d Victim=%d Count=%u Baseline=%u Expected=%u"), Stage, bVictim, Count, HitSmokeBaseline, Expected);
+		UE_LOG(LogBr, Error, TEXT("E2E HIT PROBE FAIL Stage=%d Victim=%d Count=%u Baseline=%u Expected=%u"), Stage,
+		       bVictim, Count, HitSmokeBaseline, Expected);
 	}
 	else
 	{
-		UE_LOG(LogBr, Display, TEXT("E2E HIT PROBE PASS Stage=%d Victim=%d Events=%u Origin=%s"), Stage, bVictim, Expected, *FVector(Origin).ToString());
+		UE_LOG(LogBr, Display, TEXT("E2E HIT PROBE PASS Stage=%d Victim=%d Events=%u Origin=%s"), Stage, bVictim,
+		       Expected, *FVector(Origin).ToString());
 	}
 #endif
 }
@@ -48,19 +66,36 @@ void ABrPlayerController::ClientHitSmokeProbe_Implementation(int32 Stage, bool b
 #if !UE_BUILD_SHIPPING
 bool ABrGameMode::ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController* Observer)
 {
-	if (HitSmokeStage == 5) return true;
+	if (HitSmokeStage == 5)
+	{
+		return true;
+	}
 	ABrCharacter* ObserverPawn = Observer ? Cast<ABrCharacter>(Observer->GetPawn()) : nullptr;
 	ABrCharacter* Source = Host ? Cast<ABrCharacter>(Host->GetPawn()) : nullptr;
 	UBrVisibilitySubsystem* Visibility = GetWorld()->GetSubsystem<UBrVisibilitySubsystem>();
-	if (!ObserverPawn || !Source || !Visibility) return false;
+	if (!ObserverPawn || !Source || !Visibility)
+	{
+		return false;
+	}
 	const float Now = GetWorld()->GetTimeSeconds();
 	if (HitSmokeStage == 0)
 	{
 		for (APlayerState* Entry : GetGameState<ABrGameState>()->PlayerArray)
+		{
 			if (Entry && Entry->GetOwner() != Host && Entry->GetOwner() != Observer)
-				if (ABrCharacter* C = Cast<ABrCharacter>(Entry->GetPawn())) { HitSmokeVictim = C; break; }
+			{
+				if (ABrCharacter* C = Cast<ABrCharacter>(Entry->GetPawn()))
+				{
+					HitSmokeVictim = C;
+					break;
+				}
+			}
+		}
 		ABrCharacter* Victim = HitSmokeVictim.Get();
-		if (!Victim) return false;
+		if (!Victim)
+		{
+			return false;
+		}
 		HitSmokeVictimLocation = Victim->GetActorLocation();
 		HitSmokeObserverLocation = ObserverPawn->GetActorLocation();
 		HitSmokeVictimTeam = Victim->GetPlayerState<ABrPlayerState>()->Team;
@@ -84,16 +119,23 @@ bool ABrGameMode::ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController
 		HitSmokeDeadline = Now + 2;
 		return false;
 	}
-	if (Now < HitSmokeDeadline) return false;
+	if (Now < HitSmokeDeadline)
+	{
+		return false;
+	}
 	ABrCharacter* Victim = HitSmokeVictim.Get();
-	if (!Victim) return false;
+	if (!Victim)
+	{
+		return false;
+	}
 	ABrPlayerController* VictimPC = CastChecked<ABrPlayerController>(Victim->GetController());
 	if (HitSmokeStage == 1 || HitSmokeStage == 3)
 	{
 		const bool bVisible = Visibility->Relevant(Victim, Observer);
 		if (bVisible != (HitSmokeStage == 3))
 		{
-			UE_LOG(LogBr, Error, TEXT("E2E HIT PROBE FAIL: server visibility Stage=%d Visible=%d"), HitSmokeStage, bVisible);
+			UE_LOG(LogBr, Error, TEXT("E2E HIT PROBE FAIL: server visibility Stage=%d Visible=%d"), HitSmokeStage,
+			       bVisible);
 			return false;
 		}
 		const FBrDamageEvent Event(CaptureDamageSource(Host), UBrBulletDamageType::StaticClass(), HitSmokeOrigin);
@@ -111,7 +153,8 @@ bool ABrGameMode::ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController
 	{
 		VictimPC->ClientHitSmokeProbe(1, true, HitSmokeOrigin);
 		Observer->ClientHitSmokeProbe(1, false, HitSmokeOrigin);
-		ObserverPawn->SetActorLocation(Victim->GetActorLocation() + FVector(200, 0, 0), false, nullptr, ETeleportType::TeleportPhysics);
+		ObserverPawn->SetActorLocation(Victim->GetActorLocation() + FVector(200, 0, 0), false, nullptr,
+		                               ETeleportType::TeleportPhysics);
 		ObserverPawn->ForceNetUpdate();
 		HitSmokeStage = 3;
 		HitSmokeDeadline = Now + 2;

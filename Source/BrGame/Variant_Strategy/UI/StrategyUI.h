@@ -14,14 +14,12 @@ UCLASS(abstract)
 class UStrategyUI : public UUserWidget
 {
 	GENERATED_BODY()
-	
-protected:
 
+protected:
 	/** Number of units currently selected */
 	int32 SelectedUnitCount = 0;
 
 public:
-
 	/** Sets the number of units selected */
 	void SetSelectedUnitsCount(int32 Count);
 
@@ -30,7 +28,6 @@ public:
 	void BP_UpdateUnitsCount();
 
 protected:
-
 	/** Returns the number of units selected */
 	UFUNCTION(BlueprintPure, Category="UI")
 	int32 GetSelectedUnitsCount() { return SelectedUnitCount; }

@@ -39,7 +39,8 @@ void UBrHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UBrHealthComponent, MaxHealth);
 }
 
-void UBrHealthComponent::ReceiveDamage(AActor* Actor, float Damage, const UDamageType* Type, AController* Instigator, AActor* Causer)
+void UBrHealthComponent::ReceiveDamage(AActor* Actor, float Damage, const UDamageType* Type, AController* Instigator,
+                                       AActor* Causer)
 {
 	if (FMath::IsFinite(Damage) && Damage > 0)
 	{
@@ -70,7 +71,10 @@ void UBrHealthComponent::SetHealth(float Amount)
 		OnRep_Health();
 		if (Health < PreviousHealth)
 		{
-			if (ABrCharacter* BrCharacter = Cast<ABrCharacter>(GetOwner())) BrCharacter->RequestAutoPickupRetry();
+			if (ABrCharacter* BrCharacter = Cast<ABrCharacter>(GetOwner()))
+			{
+				BrCharacter->RequestAutoPickupRetry();
+			}
 		}
 	}
 }
@@ -79,9 +83,15 @@ void UBrHealthComponent::Heal(float Amount)
 {
 	if (const ABrCharacter* BrCharacter = Cast<ABrCharacter>(GetOwner()))
 	{
-		if (!BrCharacter->GetLife()->IsAlive()) return; // Ordinary pickups are not revives.
+		if (!BrCharacter->GetLife()->IsAlive())
+		{
+			return; // Ordinary pickups are not revives.
+		}
 	}
-	if (FMath::IsFinite(Amount) && Amount > 0) SetHealth(Health + Amount);
+	if (FMath::IsFinite(Amount) && Amount > 0)
+	{
+		SetHealth(Health + Amount);
+	}
 }
 
 void UBrHealthComponent::SetMaxHealth(float Amount)

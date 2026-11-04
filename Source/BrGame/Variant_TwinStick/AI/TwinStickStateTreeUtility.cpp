@@ -22,7 +22,10 @@ EStateTreeRunStatus FStateTreeGetPlayerTask::Tick(FStateTreeExecutionContext& Co
 }
 
 #if WITH_EDITOR
-FText FStateTreeGetPlayerTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting /*= EStateTreeNodeFormatting::Text*/) const
+FText FStateTreeGetPlayerTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView,
+                                              const IStateTreeBindingLookup& BindingLookup,
+                                              EStateTreeNodeFormatting Formatting /*= EStateTreeNodeFormatting::Text*/)
+const
 {
 	return LOCTEXT("StateTreeTaskGetPlayerDescription", "<b>Get Player</b>");
 }

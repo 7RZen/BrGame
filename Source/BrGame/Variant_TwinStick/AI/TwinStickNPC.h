@@ -20,7 +20,6 @@ class ATwinStickNPC : public ACharacter
 	GENERATED_BODY()
 
 protected:
-
 	/** Score to award when this NPC is destroyed */
 	UPROPERTY(EditAnywhere, Category="Score", meta=(ClampMin = 0, ClampMax = 100))
 	int32 Score = 1;
@@ -45,18 +44,14 @@ protected:
 	FTimerHandle DestructionTimer;
 
 public:
-
 	/** If true, this NPC has already been hit by a projectile and is being destroyed. Exposed to BP so it can be read by StateTree */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="NPC")
 	bool bHit = false;
-
-public:
 
 	/** Constructor */
 	ATwinStickNPC();
 
 protected:
-
 	/** Gameplay Initialization */
 	virtual void BeginPlay() override;
 
@@ -67,15 +62,15 @@ protected:
 	virtual void Destroyed() override;
 
 	/** Collision handling */
-	virtual void NotifyHit(class UPrimitiveComponent* MyComp, AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
+	virtual void NotifyHit(class UPrimitiveComponent* MyComp, AActor* Other, class UPrimitiveComponent* OtherComp,
+	                       bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse,
+	                       const FHitResult& Hit) override;
 
 public:
-
 	/** Tells the NPC to process a projectile impact */
 	void ProjectileImpact(const FVector& ForwardVector);
 
 protected:
-
 	/** Called from timer to complete the destruction process for this NPC */
 	void DeferredDestroy();
 };

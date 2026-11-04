@@ -16,9 +16,8 @@ UCLASS(abstract)
 class ATwinStickGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
-	
-protected:
 
+protected:
 	/** Type of UI Widget to spawn */
 	UPROPERTY(EditAnywhere, Category="Twin Stick")
 	TSubclassOf<UTwinStickUI> UIWidgetClass;
@@ -60,14 +59,11 @@ protected:
 	int32 NPCCount = 0;
 
 public:
-
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
 	/** Cleanup */
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
-
-public:
 
 	/** Called when an item has been used */
 	void ItemUsed(int32 Value);
@@ -76,7 +72,6 @@ public:
 	void ScoreUpdate(int32 Value);
 
 protected:
-
 	/** Creates the UI widget if it hasn't been created already */
 	void CreateUI();
 
@@ -90,7 +85,6 @@ protected:
 	void ResetCombo();
 
 public:
-
 	/** Returns true if the number of NPCs is under the cap */
 	bool CanSpawnNPCs();
 

@@ -24,28 +24,22 @@ class AStrategyUnit : public ACharacter
 {
 	GENERATED_BODY()
 
-private:
-
 	/** Interaction range sphere */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	USphereComponent* InteractionRange;
 
 protected:
-
 	/** Cast reference to the AI Controlling this unit */
 	TObjectPtr<AAIController> AIController;
 
 public:
-
 	/** Constructor */
 	AStrategyUnit();
 
 protected:
-
 	virtual void NotifyControllerChanged() override;
 
 public:
-
 	/** Stops unit movement immediately */
 	void StopMoving();
 
@@ -65,7 +59,6 @@ public:
 	FVector GetMovementGoal() const;
 
 protected:
-
 	/** Called by EQS when the movement destination query has finished */
 	UFUNCTION()
 	void OnEQSFinished(UEnvQueryInstanceBlueprintWrapper* QueryInstance, EEnvQueryStatus::Type QueryStatus);
@@ -75,8 +68,6 @@ protected:
 
 	/** Wraps up movement logic */
 	void HandleMoveFinished();
-
-protected:
 
 	/** Blueprint handler for strategy game selection */
 	UFUNCTION(BlueprintImplementableEvent, Category="NPC", meta = (DisplayName="Unit Selected"))
@@ -93,8 +84,6 @@ protected:
 	/** Blueprint handler for strategy game interactions */
 	UFUNCTION(BlueprintImplementableEvent, Category="NPC", meta = (DisplayName="Interaction Behavior"))
 	void BP_InteractionBehavior(AStrategyUnit* Interactor);
-
-protected:
 
 	/** EnvQuery to use when this unit interacts after movement */
 	UPROPERTY(EditAnywhere, Category="NPC")
@@ -125,6 +114,5 @@ protected:
 	TArray<AStrategyUnit*> InteractIgnoreList;
 
 public:
-
 	FOnUnitMoveCompletedDelegate OnMoveCompleted;
 };

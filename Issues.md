@@ -75,3 +75,7 @@ Status: Unresolved
 ## 14 (I) Crouching or prone animation is wrong
 When crouching or in prone mode the character is still standing, should be visible when crouching the character is bent. When prone the character should be lying down.
 Status: Implemented; both P2 review findings fixed. Native procedural crouch-walk/crawl retains locomotion, developer blends and optional animation slots. Crouch now has developer-tunable deep pelvis drop/forward lean and exposed outward knees, with 65° projected silhouette regression checks; fog synchronously snaps/evaluates current posture BEFORE unhide, tested with production visibility/URO policies and hidden bone-finalization assertions. Template code/assets untouched. Full UBT editor build zero compiler warnings; 88/88 automation and 14/14 regression steps PASS (Saved/Logs/RunAll/20261104-091657/), including both non-owner match modes. Thirty gameplay/remote captures regenerated at default/min/max zoom; 22 frames inspected, including standing vs crouch idle/moving at all three zooms. Approach, evidence and remaining manual checks: Scripts/PostureVisualValidation.md.
+
+## 15 (I) Moving sounds are louder than shootings sounds
+My player character is making louder running and sprinting sounds than my gun does. Could this be a developer setting for all sounds?
+Status: Unresolved

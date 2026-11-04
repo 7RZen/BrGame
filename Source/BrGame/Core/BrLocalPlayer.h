@@ -8,6 +8,7 @@ UCLASS()
 class BRGAME_API UBrLocalPlayer : public ULocalPlayer
 {
 	GENERATED_BODY()
+
 public:
 	virtual FString GetNickname() const override { return FString(); }
 };

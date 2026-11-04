@@ -12,6 +12,7 @@ UCLASS(BlueprintType)
 class BRGAME_API UBrAmmoDefinition : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
+
 public:
 	UPROPERTY(EditAnywhere, Category="Ammo")
 	FText DisplayName;
@@ -24,6 +25,7 @@ UCLASS(BlueprintType)
 class BRGAME_API UBrWeaponDefinition : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
+
 public:
 	UPROPERTY(EditAnywhere, Category="Weapon")
 	FText DisplayName;
@@ -58,6 +60,7 @@ UCLASS(BlueprintType)
 class BRGAME_API UBrThrowableDefinition : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
+
 public:
 	UPROPERTY(EditAnywhere, Category="Throwable")
 	FText DisplayName;
@@ -78,7 +81,13 @@ public:
 };
 
 UCLASS()
-class BRGAME_API UBrBulletDamageType : public UDamageType { GENERATED_BODY() };
+class BRGAME_API UBrBulletDamageType : public UDamageType
+{
+	GENERATED_BODY()
+};
 
 UCLASS()
-class BRGAME_API UBrExplosionDamageType : public UDamageType { GENERATED_BODY() };
+class BRGAME_API UBrExplosionDamageType : public UDamageType
+{
+	GENERATED_BODY()
+};

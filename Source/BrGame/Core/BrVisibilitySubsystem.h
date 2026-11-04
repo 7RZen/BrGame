@@ -20,6 +20,7 @@ UCLASS()
 class BRGAME_API UBrVisibilitySubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
+
 public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void OnWorldBeginPlay(UWorld& World) override;
@@ -34,14 +35,17 @@ public:
 	static bool LOS(UWorld* World, const ABrCharacter* Source, const FVector& Position, const AActor* Target = nullptr);
 	static bool Source(const ABrCharacter* Character);
 	static constexpr ECollisionChannel VisionChannel = ECC_GameTraceChannel2;
+
 private:
 	void Update();
 	void RetryDiscoveryAfterNetFlush();
+
 	struct FPendingDiscovery
 	{
 		TWeakObjectPtr<AActor> Actor;
 		TWeakObjectPtr<UNetConnection> Connection;
 	};
+
 	TArray<FPendingDiscovery> PendingDiscoveries;
 	FDelegateHandle PostNetFlushHandle;
 	bool PositionVisible(const FBrVisionGroup& Vision, const FVector& Position, const AActor* Target = nullptr) const;

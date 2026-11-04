@@ -29,13 +29,19 @@ void UBrLifeComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	Character()->GetHealth()->OnHealthDepleted.AddDynamic(this, &UBrLifeComponent::HealthDepleted);
-	if ((IsInvulnerable() || State == EBrLifeState::Downed) && GetOwner()->HasAuthority()) EnsureServiceTimer();
+	if ((IsInvulnerable() || State == EBrLifeState::Downed) && GetOwner()->HasAuthority())
+	{
+		EnsureServiceTimer();
+	}
 	OnRep_State();
 }
 
 void UBrLifeComponent::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (GetOwner()->HasAuthority()) CancelRevive();
+	if (GetOwner()->HasAuthority())
+	{
+		CancelRevive();
+	}
 	GetWorld()->GetTimerManager().ClearTimer(ServiceTimer);
 	Character()->GetHealth()->OnHealthDepleted.RemoveDynamic(this, &UBrLifeComponent::HealthDepleted);
 	Super::EndPlay(Reason);
@@ -65,25 +71,38 @@ bool UBrLifeComponent::IsInvulnerable() const { return IsAlive() && ServerTime()
 void UBrLifeComponent::EnsureServiceTimer()
 {
 	if (!GetWorld()->GetTimerManager().IsTimerActive(ServiceTimer))
+	{
 		GetWorld()->GetTimerManager().SetTimer(ServiceTimer, this, &UBrLifeComponent::Service, 0.05f, true);
+	}
 }
 
 void UBrLifeComponent::HealthDepleted()
 {
-	if (GetOwner()->HasAuthority() && IsAlive()) Down();
+	if (GetOwner()->HasAuthority() && IsAlive())
+	{
+		Down();
+	}
 }
 
 void UBrLifeComponent::Down()
 {
-	if (!GetOwner()->HasAuthority() || !IsAlive()) return;
-	if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController())) PC->CancelUnstuck(TEXT("Unstuck cancelled: downed."));
+	if (!GetOwner()->HasAuthority() || !IsAlive())
+	{
+		return;
+	}
+	if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController()))
+	{
+		PC->CancelUnstuck(TEXT("Unstuck cancelled: downed."));
+	}
 	CancelRevive();
 	GearAtDown = Character()->GetInventory()->CaptureState();
 	State = EBrLifeState::Downed;
 	// Do not replay on initial OnRep_State, relevancy entry or restored downed saves.
 	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
+	{
 		Audio->Emit(Character(), EBrSoundKind::Downed, UBrDeveloperSettings::Get()->DownedScream,
-			Character()->GetActorLocation());
+		            Character()->GetActorLocation());
+	}
 	InvulnerabilityEndTime = 0;
 	DownedEndTime = ServerTime() + FMath::Max(0.1f, UBrDeveloperSettings::Get()->DownedDuration);
 	// Set state first to avoid recursive HealthDepleted transitions.
@@ -92,18 +111,28 @@ void UBrLifeComponent::Down()
 	EnsureServiceTimer();
 	GetOwner()->ForceNetUpdate();
 	UE_LOG(LogBr, Display, TEXT("Life Downed: %s End=%.2f"), *GetOwner()->GetName(), DownedEndTime);
-	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>()) Mode->RecordPlayer(Character()->GetController());
+	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
+	{
+		Mode->RecordPlayer(Character()->GetController());
+	}
 }
 
 void UBrLifeComponent::RestoreDowned(float Deadline)
 {
-	if (!GetOwner()->HasAuthority()) return;
+	if (!GetOwner()->HasAuthority())
+	{
+		return;
+	}
 	State = EBrLifeState::Downed;
 	DownedEndTime = Deadline;
 	InvulnerabilityEndTime = RespawnHoldEndTime = 0;
 	GearAtDown = Character()->GetInventory()->CaptureState();
 	Character()->GetHealth()->SetHealth(0);
-	if (HasBegunPlay()) { OnRep_State(); EnsureServiceTimer(); }
+	if (HasBegunPlay())
+	{
+		OnRep_State();
+		EnsureServiceTimer();
+	}
 }
 
 void UBrLifeComponent::OnRep_State()
@@ -111,27 +140,41 @@ void UBrLifeComponent::OnRep_State()
 	Character()->ApplyLifePresentation();
 	if (bAudioPresentationInitialized && State == EBrLifeState::Downed &&
 		AudioPresentedState != EBrLifeState::Downed && Character()->IsLocallyControlled())
+	{
 		if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
-			Audio->Play(EBrSoundKind::Downed, UBrDeveloperSettings::Get()->DownedScream, Character()->GetActorLocation());
+		{
+			Audio->Play(EBrSoundKind::Downed, UBrDeveloperSettings::Get()->DownedScream,
+			            Character()->GetActorLocation());
+		}
+	}
 	AudioPresentedState = State;
 	bAudioPresentationInitialized = HasBegunPlay();
 }
 
 bool UBrLifeComponent::CanRevive(const ABrCharacter* Target) const
 {
-	if (!IsValid(Target) || !Character()->GetController()) return false;
+	if (!IsValid(Target) || !Character()->GetController())
+	{
+		return false;
+	}
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
 	const ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>();
 	// Client-side prompt is provisional; only the authority calls the future team policy.
 	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
-	if (GS && GS->bResults) return false;
+	if (GS && GS->bResults)
+	{
+		return false;
+	}
 	const ABrPlayerState* A = Character()->GetPlayerState<ABrPlayerState>();
 	const ABrPlayerState* B = Target->GetPlayerState<ABrPlayerState>();
-	const bool bTeammates = Mode ? Mode->AreTeammates(Character(), Target) :
-		GS && GS->MatchSettings.Mode == EBrMode::Grouped && A && B && A->Team >= 0 && A->Team == B->Team;
+	const bool bTeammates = Mode
+		                        ? Mode->AreTeammates(Character(), Target)
+		                        : GS && GS->MatchSettings.Mode == EBrMode::Grouped && A && B && A->Team >= 0 && A->Team
+		                        == B->Team;
 	return FBrLifeRules::CanRevive(State, Target->GetLife()->State,
-		FVector::DistSquared(GetOwner()->GetActorLocation(), Target->GetActorLocation()),
-		Settings->ReviveRadius, GS ? GS->MatchSettings.ReviveRule : Settings->ReviveRule, bTeammates, Target == GetOwner());
+	                               FVector::DistSquared(GetOwner()->GetActorLocation(), Target->GetActorLocation()),
+	                               Settings->ReviveRadius, GS ? GS->MatchSettings.ReviveRule : Settings->ReviveRule,
+	                               bTeammates, Target == GetOwner());
 }
 
 ABrCharacter* UBrLifeComponent::FindReviveTarget() const
@@ -142,14 +185,26 @@ ABrCharacter* UBrLifeComponent::FindReviveTarget() const
 	{
 		ABrCharacter* Target = *It;
 		if (!CanRevive(Target) || ServerTime() >= Target->GetLife()->DownedEndTime ||
-			(Target->GetLife()->Reviver && Target->GetLife()->Reviver != GetOwner())) continue;
+			(Target->GetLife()->Reviver && Target->GetLife()->Reviver != GetOwner()))
+		{
+			continue;
+		}
 		const double Distance = FVector::DistSquared(GetOwner()->GetActorLocation(), Target->GetActorLocation());
-		if (Distance < BestDistance) { Best = Target; BestDistance = Distance; }
+		if (Distance < BestDistance)
+		{
+			Best = Target;
+			BestDistance = Distance;
+		}
 	}
 	return Best;
 }
 
-void UBrLifeComponent::StartInteract() { Character()->GetBrMovement()->SetSprinting(false); ServerStartRevive(); }
+void UBrLifeComponent::StartInteract()
+{
+	Character()->GetBrMovement()->SetSprinting(false);
+	ServerStartRevive();
+}
+
 void UBrLifeComponent::StopInteract() { ServerStopRevive(); }
 void UBrLifeComponent::StartRespawnHold() { ServerRespawnHold(true); }
 void UBrLifeComponent::StopRespawnHold() { ServerRespawnHold(false); }
@@ -157,16 +212,28 @@ void UBrLifeComponent::StopRespawnHold() { ServerRespawnHold(false); }
 void UBrLifeComponent::ServerStartRevive_Implementation()
 {
 	Character()->GetBrMovement()->SetSprinting(false);
-	if (!IsAlive() || ReviveTarget) return;
+	if (!IsAlive() || ReviveTarget)
+	{
+		return;
+	}
 	ABrCharacter* Target = FindReviveTarget(); // Intent only; never accept a client-selected target.
 	if (!Target)
 	{
-		if (ABrPickup* Pickup = ABrPickup::FindInteractPickup(Character())) Pickup->TryCollect(Character());
+		if (ABrPickup* Pickup = ABrPickup::FindInteractPickup(Character()))
+		{
+			Pickup->TryCollect(Character());
+		}
 		return;
 	}
-	if (!CanRevive(Target) || ServerTime() >= Target->GetLife()->DownedEndTime) return;
+	if (!CanRevive(Target) || ServerTime() >= Target->GetLife()->DownedEndTime)
+	{
+		return;
+	}
 	UBrLifeComponent* Other = Target->GetLife();
-	if (Other->Reviver || ReviveTarget) return; // Never restart a deadline or steal an occupied target.
+	if (Other->Reviver || ReviveTarget)
+	{
+		return; // Never restart a deadline or steal an occupied target.
+	}
 	const float Now = ServerTime();
 	ReviveTarget = Target;
 	ReviveStartTime = Other->ReviveStartTime = Now;
@@ -182,7 +249,10 @@ void UBrLifeComponent::ServerStopRevive_Implementation() { CancelRevive(); }
 
 void UBrLifeComponent::CancelRevive()
 {
-	if (!GetOwner()->HasAuthority()) return;
+	if (!GetOwner()->HasAuthority())
+	{
+		return;
+	}
 	ABrCharacter* OtherCharacter = ReviveTarget ? ReviveTarget.Get() : Reviver.Get();
 	if (IsValid(OtherCharacter))
 	{
@@ -203,18 +273,38 @@ void UBrLifeComponent::CancelRevive()
 void UBrLifeComponent::DamageReceived()
 {
 	if (GetOwner()->HasAuthority())
-		if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController())) PC->CancelUnstuck(TEXT("Unstuck cancelled: damage."));
-	if (GetOwner()->HasAuthority() && UBrDeveloperSettings::Get()->bCancelReviveOnDamage) CancelRevive();
+	{
+		if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController()))
+		{
+			PC->CancelUnstuck(TEXT("Unstuck cancelled: damage."));
+		}
+	}
+	if (GetOwner()->HasAuthority() && UBrDeveloperSettings::Get()->bCancelReviveOnDamage)
+	{
+		CancelRevive();
+	}
 }
 
 void UBrLifeComponent::ServerRespawnHold_Implementation(bool bHeld)
 {
-	if (!bHeld) { RespawnHoldEndTime = 0; GetOwner()->ForceNetUpdate(); return; }
+	if (!bHeld)
+	{
+		RespawnHoldEndTime = 0;
+		GetOwner()->ForceNetUpdate();
+		return;
+	}
 	const ABrPlayerState* PS = Character()->GetPlayerState<ABrPlayerState>();
 	const ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>();
-	if (!Mode || Mode->AreRespawnsDisabled()) return;
+	if (!Mode || Mode->AreRespawnsDisabled())
+	{
+		return;
+	}
 	if (State != EBrLifeState::Downed || !PS || RespawnHoldEndTime > 0 ||
-		FBrLifeRules::Outcome(true, PS->DeathCount, UBrDeveloperSettings::Get()->MaxDeaths) == EBrDownedOutcome::Refused) return;
+		FBrLifeRules::Outcome(true, PS->DeathCount, UBrDeveloperSettings::Get()->MaxDeaths) ==
+		EBrDownedOutcome::Refused)
+	{
+		return;
+	}
 	RespawnHoldEndTime = ServerTime() + FMath::Max(0.1f, UBrDeveloperSettings::Get()->RespawnHoldTime);
 	EnsureServiceTimer();
 	GetOwner()->ForceNetUpdate();
@@ -223,16 +313,37 @@ void UBrLifeComponent::ServerRespawnHold_Implementation(bool bHeld)
 void UBrLifeComponent::Service()
 {
 	if (const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>())
-		if (GS->bResults) { CancelRevive(); GetWorld()->GetTimerManager().ClearTimer(ServiceTimer); return; }
+	{
+		if (GS->bResults)
+		{
+			CancelRevive();
+			GetWorld()->GetTimerManager().ClearTimer(ServiceTimer);
+			return;
+		}
+	}
 	const float Now = ServerTime();
-	if (InvulnerabilityEndTime > 0 && Now >= InvulnerabilityEndTime) InvulnerabilityEndTime = 0;
+	if (InvulnerabilityEndTime > 0 && Now >= InvulnerabilityEndTime)
+	{
+		InvulnerabilityEndTime = 0;
+	}
 	if (State == EBrLifeState::Downed)
 	{
-		if (Reviver && (!IsValid(Reviver) || !Reviver->GetLife()->CanRevive(Character()))) CancelRevive();
+		if (Reviver && (!IsValid(Reviver) || !Reviver->GetLife()->CanRevive(Character())))
+		{
+			CancelRevive();
+		}
 		// A revive completed before the dying deadline wins even if this service frame was late.
-		if (Reviver && Now >= ReviveEndTime && ReviveEndTime <= DownedEndTime) { FinishRevive(); return; }
-		if (Now >= DownedEndTime) { ResolveDowned(false); return; }
-		if (RespawnHoldEndTime > 0 && Now >= RespawnHoldEndTime) { ResolveDowned(true); return; }
+		if (Reviver && Now >= ReviveEndTime && ReviveEndTime <= DownedEndTime)
+		{
+			FinishRevive();
+			return;
+		}
+		if (Now >= DownedEndTime)
+		{
+			ResolveDowned(false);
+			return;
+		}
+		if (RespawnHoldEndTime > 0 && Now >= RespawnHoldEndTime) { ResolveDowned(true); }
 	}
 	else if (InvulnerabilityEndTime <= 0)
 	{
@@ -242,7 +353,11 @@ void UBrLifeComponent::Service()
 
 void UBrLifeComponent::FinishRevive()
 {
-	if (State != EBrLifeState::Downed || !Reviver || !Reviver->GetLife()->CanRevive(Character())) { CancelRevive(); return; }
+	if (State != EBrLifeState::Downed || !Reviver || !Reviver->GetLife()->CanRevive(Character()))
+	{
+		CancelRevive();
+		return;
+	}
 	CancelRevive();
 	DownedEndTime = RespawnHoldEndTime = 0;
 	State = EBrLifeState::Alive;
@@ -251,8 +366,12 @@ void UBrLifeComponent::FinishRevive()
 	OnRep_State();
 	GetWorld()->GetTimerManager().ClearTimer(ServiceTimer);
 	GetOwner()->ForceNetUpdate();
-	UE_LOG(LogBr, Display, TEXT("Life Revived: %s Health=%.1f"), *GetOwner()->GetName(), Character()->GetHealth()->Health);
-	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>()) Mode->RecordPlayer(Character()->GetController());
+	UE_LOG(LogBr, Display, TEXT("Life Revived: %s Health=%.1f"), *GetOwner()->GetName(),
+	       Character()->GetHealth()->Health);
+	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
+	{
+		Mode->RecordPlayer(Character()->GetController());
+	}
 }
 
 void UBrLifeComponent::ResolveDowned(bool bVoluntary)
@@ -266,13 +385,26 @@ void UBrLifeComponent::ResolveDowned(bool bVoluntary)
 		return;
 	}
 	const EBrDownedOutcome Outcome = FBrLifeRules::Outcome(bVoluntary, PS->DeathCount,
-		Mode->AreRespawnsDisabled() ? 0 : UBrDeveloperSettings::Get()->MaxDeaths);
-	if (Outcome == EBrDownedOutcome::Refused) { RespawnHoldEndTime = 0; return; }
-	if (Outcome == EBrDownedOutcome::Eliminated) { Eliminate(); return; }
+	                                                       Mode->AreRespawnsDisabled()
+		                                                       ? 0
+		                                                       : UBrDeveloperSettings::Get()->MaxDeaths);
+	if (Outcome == EBrDownedOutcome::Refused)
+	{
+		RespawnHoldEndTime = 0;
+		return;
+	}
+	if (Outcome == EBrDownedOutcome::Eliminated)
+	{
+		Eliminate();
+		return;
+	}
 	CancelRevive();
 	if (!Mode->RespawnPlayer(Character(), GearAtDown, bVoluntary))
 	{
-		if (State != EBrLifeState::Downed) return; // Exhausted spawn budget may have eliminated us.
+		if (State != EBrLifeState::Downed)
+		{
+			return; // Exhausted spawn budget may have eliminated us.
+		}
 		// Bounded by the GameMode's round-local budget; never charge a failed respawn.
 		RespawnHoldEndTime = 0;
 		DownedEndTime = ServerTime() + 1;
@@ -281,11 +413,18 @@ void UBrLifeComponent::ResolveDowned(bool bVoluntary)
 
 void UBrLifeComponent::Eliminate()
 {
-	if (!GetOwner()->HasAuthority() || State == EBrLifeState::Eliminated) return;
+	if (!GetOwner()->HasAuthority() || State == EBrLifeState::Eliminated)
+	{
+		return;
+	}
 	CancelRevive();
 	State = EBrLifeState::Eliminated;
 	DownedEndTime = RespawnHoldEndTime = InvulnerabilityEndTime = 0;
-	if (ABrPlayerState* PS = Character()->GetPlayerState<ABrPlayerState>()) { PS->bEliminated = true; PS->ForceNetUpdate(); }
+	if (ABrPlayerState* PS = Character()->GetPlayerState<ABrPlayerState>())
+	{
+		PS->bEliminated = true;
+		PS->ForceNetUpdate();
+	}
 	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
 	{
 		Mode->LeaveCorpse(Character());
@@ -300,15 +439,27 @@ void UBrLifeComponent::Eliminate()
 
 void UBrLifeComponent::GrantSpawnProtection()
 {
-	if (!GetOwner()->HasAuthority()) return;
-	InvulnerabilityEndTime = ServerTime() + FMath::Max(0.0f, UBrDeveloperSettings::Get()->RespawnInvulnerabilityDuration);
-	if (HasBegunPlay()) EnsureServiceTimer();
+	if (!GetOwner()->HasAuthority())
+	{
+		return;
+	}
+	InvulnerabilityEndTime = ServerTime() + FMath::Max(
+		0.0f, UBrDeveloperSettings::Get()->RespawnInvulnerabilityDuration);
+	if (HasBegunPlay())
+	{
+		EnsureServiceTimer();
+	}
 }
 
 void UBrLifeComponent::Fired()
 {
 	if (GetOwner()->HasAuthority())
-		if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController())) PC->CancelUnstuck(TEXT("Unstuck cancelled: firing/throwing."));
+	{
+		if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController()))
+		{
+			PC->CancelUnstuck(TEXT("Unstuck cancelled: firing/throwing."));
+		}
+	}
 	if (GetOwner()->HasAuthority() && UBrDeveloperSettings::Get()->bCancelInvulnerabilityOnFire)
 	{
 		InvulnerabilityEndTime = 0;
