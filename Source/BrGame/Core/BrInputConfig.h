@@ -23,6 +23,8 @@ public:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> SprintAction;
 	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> SlideAction;
+	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> CrouchAction;
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> ProneAction;

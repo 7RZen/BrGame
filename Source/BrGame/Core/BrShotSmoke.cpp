@@ -47,7 +47,8 @@ namespace
 void ABrGameMode::ServiceShotSmoke()
 {
 #if !UE_BUILD_SHIPPING
-	if (FParse::Param(FCommandLine::Get(), TEXT("BrPostureShot")) ||
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrSlideShot")) ||
+		FParse::Param(FCommandLine::Get(), TEXT("BrPostureShot")) ||
 		FParse::Param(FCommandLine::Get(), TEXT("BrSkeletonShot")))
 	{
 		ServicePostureShot();

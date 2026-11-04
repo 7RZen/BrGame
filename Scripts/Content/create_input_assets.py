@@ -37,7 +37,7 @@ def main():
     # In particular, never silently miss the obsolete action during cleanup.
     unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous([ROOT], force_rescan=True)
     specs = [
-        ("Move", "Move"), ("Look", "Look"), ("Sprint", "Sprint"), ("Crouch", "Crouch"),
+        ("Move", "Move"), ("Look", "Look"), ("Sprint", "Sprint"), ("Slide", "Slide"), ("Crouch", "Crouch"),
         ("Prone", "Prone"), ("Fire", "Fire"), ("ThrowGrenade", "Throw Grenade"),
         ("Reload", "Reload"), ("Interact", "Interact"), ("RespawnHold", "Hold to Respawn"),
         ("Scoreboard", "Scoreboard"), ("Menu", "Menu"), ("Zoom", "Zoom"), ("Map", "Full Map"),
@@ -90,7 +90,7 @@ def main():
     map_key("Move", "A", "Br.MoveLeft", "Move Left", negate=True)
     map_key("Move", "D", "Br.MoveRight", "Move Right")
     for action_name, key in [
-        ("Sprint", "LeftShift"), ("Crouch", "C"), ("Prone", "Z"),
+        ("Sprint", "LeftShift"), ("Slide", "LeftControl"), ("Crouch", "C"), ("Prone", "Z"),
         ("Fire", "LeftMouseButton"), ("ThrowGrenade", "G"), ("Reload", "R"),
         ("Interact", "E"), ("RespawnHold", "SpaceBar"), ("Scoreboard", "Tab"), ("Menu", "Escape"), ("Map", "M"),
     ]:
@@ -129,7 +129,7 @@ def main():
     names = set()
     expected_keys = {
         "Br.MoveForward": "W", "Br.MoveBackward": "S", "Br.MoveLeft": "A", "Br.MoveRight": "D",
-        "Br.Sprint": "LeftShift", "Br.Crouch": "C", "Br.Prone": "Z", "Br.Fire": "LeftMouseButton",
+        "Br.Sprint": "LeftShift", "Br.Slide": "LeftControl", "Br.Crouch": "C", "Br.Prone": "Z", "Br.Fire": "LeftMouseButton",
         "Br.ThrowGrenade": "G", "Br.Reload": "R", "Br.Interact": "E", "Br.RespawnHold": "SpaceBar",
         "Br.Scoreboard": "Tab", "Br.Menu": "Escape", "Br.Map": "M", "Zoom": "MouseWheelAxis",
     }

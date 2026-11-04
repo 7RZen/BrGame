@@ -1,5 +1,6 @@
 #include "BrCharacterAnimInstance.h"
 #include "BrCharacter.h"
+#include "BrCharacterMovementComponent.h"
 #include "BrDeveloperSettings.h"
 #include "BrLifeComponent.h"
 #include "BrLog.h"
@@ -72,6 +73,13 @@ struct FBrCharacterAnimProxy final : FAnimInstanceProxy
 	float TorsoLean = 0;
 	float KneeOutward = 0;
 	float FootSpread = 0;
+	float SlideWeight = 0;
+	float SlideLean = 0;
+	float SlideHeight = 32;
+	float SlideReach = 72;
+	float SlideFootSpread = 15;
+	float SlideFootHeight = 10;
+	FVector SlideHandTarget = FVector::ZeroVector;
 	float CrawlPhase = 0;
 	float MoveAlpha = 0;
 	double Time = 0;
@@ -119,6 +127,15 @@ struct FBrCharacterAnimProxy final : FAnimInstanceProxy
 		const float VisualDelta = FMath::Max(DeltaSeconds, static_cast<float>(Now - LastUpdateTime));
 		auto* Anim = CastChecked<UBrCharacterAnimInstance>(Instance);
 		const bool Snap = bFirstUpdate || Anim->bSnapPosture;
+		const float SlideTarget = Alive && Character->GetBrMovement()->IsSliding() ? 1.f : 0.f;
+		SlideWeight = Snap || S->SlidePoseBlendTime <= 0 ? SlideTarget :
+			FMath::FInterpConstantTo(SlideWeight, SlideTarget, VisualDelta, 1.f / S->SlidePoseBlendTime);
+		SlideLean = FMath::DegreesToRadians(FMath::Clamp(S->SlideBackLean, 0.f, 70.f));
+		SlideHeight = FMath::Clamp(S->SlidePelvisHeight, 15.f, 60.f);
+		SlideReach = FMath::Clamp(S->SlideLegReach, 20.f, 100.f);
+		SlideFootSpread = FMath::Max(0.f, S->SlideFootSpread);
+		SlideFootHeight = FMath::Max(0.f, S->SlideFootHeight);
+		SlideHandTarget = S->SlideLeftHandTarget;
 		if (Snap)
 		{
 			// A newly relevant/late-joining proxy starts at its persistent state,
@@ -241,7 +258,11 @@ struct FBrCharacterAnimProxy final : FAnimInstanceProxy
 	{
 		Sample(0, Output, Speed);
 		const float LowWeight = Blend.Weights.Y + Blend.Weights.Z;
-		if (LowWeight < UE_SMALL_NUMBER) return true;
+		if (LowWeight < UE_SMALL_NUMBER)
+		{
+			ApplySlide(Output);
+			return true;
+		}
 		FPoseContext Low(this);
 		FPoseContext Crawl(this);
 		const auto LowPose = [&](FPoseContext& Pose, bool Prone)
@@ -274,7 +295,36 @@ struct FBrCharacterAnimProxy final : FAnimInstanceProxy
 		}
 		FAnimationPoseData Data(Output), Other(Low);
 		FAnimationRuntime::BlendTwoPosesTogetherInPlace(Data, Other, 1.f - LowWeight);
+		ApplySlide(Output);
 		return true;
+	}
+
+	void ApplySlide(FPoseContext& Output)
+	{
+		if (SlideWeight <= UE_SMALL_NUMBER || !bHasCoreBones) return;
+		FPoseContext SlidePose(this);
+		Sample(0, SlidePose, 0);
+		FCSPose<FCompactPose> CS;
+		CS.InitPose(SlidePose.Pose);
+		FTransform Hip = CS.GetComponentSpaceTransform(Index(Pelvis));
+		Hip.SetLocation(FVector(0, 0, SlideHeight));
+		// +X rotates the upper body backwards, with feet extended towards mesh +Y.
+		Hip.SetRotation((FQuat(FVector::ForwardVector, SlideLean) * Hip.GetRotation()).GetNormalized());
+		SetCS(CS, Index(Pelvis), Hip);
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const bool Left = Side == 0;
+			const float Sign = Left ? 1.f : -1.f;
+			SolveLimb(CS, Index(Left ? ThighL : ThighR), Index(Left ? CalfL : CalfR),
+				Index(Left ? FootL : FootR), FVector(Sign * SlideFootSpread, SlideReach, SlideFootHeight), FVector(Sign * .3f, 0, 1));
+			if (Left)
+				SolveLimb(CS, Index(ArmL), Index(ElbowL), Index(HandL),
+					SlideHandTarget, FVector(1, -1, 0));
+		}
+		FCSPose<FCompactPose>::ConvertComponentPosesToLocalPosesSafe(CS, SlidePose.Pose);
+		SlidePose.Pose.NormalizeRotations();
+		FAnimationPoseData Data(Output), Other(SlidePose);
+		FAnimationRuntime::BlendTwoPosesTogetherInPlace(Data, Other, 1.f - SlideWeight);
 	}
 };
 

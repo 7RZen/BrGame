@@ -208,7 +208,7 @@ void ABrCharacter::Tick(float DeltaSeconds)
 	// Applied to every character so spectators viewing through this camera get the same tilt.
 	// Reuse the existing character tick solely to gate the cheap cadence timer.
 	const bool bStepping = (HasAuthority() || IsLocallyControlled()) && Life->IsAlive() && GetPosture() != EBrPosture::Prone &&
-		!GetCharacterMovement()->IsFalling() && GetVelocity().SizeSquared2D() >=
+		!GetBrMovement()->IsSliding() && !GetCharacterMovement()->IsFalling() && GetVelocity().SizeSquared2D() >=
 		FMath::Square(FMath::Max(1.f, Settings->FootstepMinimumSpeed));
 	FTimerManager& Timers = GetWorld()->GetTimerManager();
 	if (bStepping && !Timers.IsTimerActive(FootstepTimer))
@@ -252,6 +252,9 @@ void ABrCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	Input->BindAction(LoadedInputConfig->SprintAction, ETriggerEvent::Started, this, &ABrCharacter::SprintStarted);
 	Input->BindAction(LoadedInputConfig->SprintAction, ETriggerEvent::Completed, this, &ABrCharacter::SprintStopped);
 	Input->BindAction(LoadedInputConfig->SprintAction, ETriggerEvent::Canceled, this, &ABrCharacter::SprintStopped);
+	if (LoadedInputConfig->SlideAction)
+		Input->BindAction(LoadedInputConfig->SlideAction, ETriggerEvent::Started, this, &ABrCharacter::SlideStarted);
+	else UE_LOG(LogBr, Error, TEXT("Br Slide action missing; regenerate Br input assets."));
 	Input->BindAction(LoadedInputConfig->CrouchAction, ETriggerEvent::Started, this, &ABrCharacter::ToggleCrouch);
 	Input->BindAction(LoadedInputConfig->ProneAction, ETriggerEvent::Started, this, &ABrCharacter::ToggleProne);
 	if (LoadedInputConfig->ZoomAction)
@@ -334,6 +337,7 @@ void ABrCharacter::ApplyLifePresentation()
 	ConsumeMovementInputVector();
 	GetCharacterMovement()->StopMovementImmediately();
 	GetBrMovement()->SetSprinting(false);
+	GetBrMovement()->CancelSlide();
 	bUseControllerRotationYaw = Life->State != EBrLifeState::Eliminated;
 	HelpText->SetVisibility(Life->State == EBrLifeState::Downed);
 	WeaponVisual->SetVisibility(bAlive);
@@ -428,7 +432,7 @@ void ABrCharacter::ServiceFootsteps()
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	const float Speed = GetVelocity().Size2D();
 	const float Interval = FBrAudioRules::StepInterval(Speed, S->FootstepStride, S->FootstepMinimumSpeed);
-	if (!Life->IsAlive() || GetPosture() == EBrPosture::Prone || Interval <= 0 ||
+	if (!Life->IsAlive() || GetBrMovement()->IsSliding() || GetPosture() == EBrPosture::Prone || Interval <= 0 ||
 		GetCharacterMovement()->IsFalling())
 	{
 		FootstepProgress = 0;
@@ -511,6 +515,11 @@ void ABrCharacter::SprintStarted()
 	GetBrMovement()->SetSprinting(true);
 }
 void ABrCharacter::SprintStopped() { GetBrMovement()->SetSprinting(false); }
+
+void ABrCharacter::SlideStarted()
+{
+	if (CanMove() && !IsGameplayInputBlocked()) GetBrMovement()->RequestSlide();
+}
 
 void ABrCharacter::ToggleCrouch()
 {

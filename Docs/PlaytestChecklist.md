@@ -58,6 +58,18 @@ count and test both modes.
   to end. Test posture/down/menu/map/unstuck/release/non-forward/empty cancellations.
   Repeat with artificial lag/loss and watch for corrections, lost shots or extra ammo.
   Old saved binding profiles must show Sprint (not a stale Walk row/conflict).
+- [ ] **Slide (host + remote):** rebind/reset Left Ctrl; standing/slow/back/strafe/
+  prone/downed/air/menu presses do nothing, C still crouches. Forward run/sprint
+  slides boost 1.2× and slow to crouch over 0.8 s, finishing crouched; Shift afterwards
+  stands/sprints only with clearance. Confirm 1 s cooldown from exit, including wall,
+  ledge, downed, Z and menu exits; no stamina charge. Turn mouse and strafe during
+  slide: facing changes but travel direction stays locked. Movement cancels unstuck.
+- [ ] **Slide combat/presentation:** fire/throw immediately during slide without
+  sprint recovery (normal ammo/rate rules remain). Both shooter and target count as
+  crouching. Host/owner/remote see low lean-back pose, legs forward and left arm down;
+  fog reveal/late join snaps current gait. Hear one scrape within 10 m through fog,
+  no slide footsteps or owner duplication. Test ramps/stairs, blocked ceilings,
+  100–200 ms latency/jitter/loss, correction replay and teardown mid-slide.
 - [OK] **Combat:** fire/reload each weapon at standing, crouching and prone
   targets; throw grenades near and behind cover. Expected: server-authoritative
   damage follows hit chance/posture reduction, grenade radius and wall

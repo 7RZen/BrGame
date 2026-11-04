@@ -19,7 +19,8 @@
 void ABrCharacter::ServicePostureShot(float DeltaSeconds)
 {
 	const bool Skeletons = FParse::Param(FCommandLine::Get(), TEXT("BrSkeletonShot"));
-	if ((!Skeletons && !FParse::Param(FCommandLine::Get(), TEXT("BrPostureShot"))) ||
+	const bool Sliding = FParse::Param(FCommandLine::Get(), TEXT("BrSlideShot"));
+	if ((!Sliding && !Skeletons && !FParse::Param(FCommandLine::Get(), TEXT("BrPostureShot"))) ||
 		!GetPlayerState() || GetPlayerState()->GetPlayerName() != TEXT("ShotHost")) return;
 	// Do not consume the standing capture at the random match spawn before the fixture starts.
 	if (FVector::Dist2D(GetActorLocation(), FVector(-6000, -6000, 0)) > 1000 ||
@@ -33,6 +34,19 @@ void ABrCharacter::ServicePostureShot(float DeltaSeconds)
 	FParse::Value(FCommandLine::Get(), TEXT("BrPostureShotWidth="), Width);
 	TargetOrthoWidth = ClampCameraWidth(Width);
 	TopDownCamera->SetOrthoWidth(TargetOrthoWidth);
+	if (Sliding)
+	{
+		if (HasAuthority() && (GetBrMovement()->WantsSprint() || GetBrMovement()->IsSliding()))
+			AddMovementInput(GetActorForwardVector(), 1);
+		if (!GetBrMovement()->IsSliding()) { PostureShotSettle = 0; return; }
+		PostureShotSettle += DeltaSeconds;
+		if (PostureShotSettle < .18f || PostureShotMask) return;
+		PostureShotMask = 1;
+		const FString Name = HasAuthority() ? TEXT("slide_gameplay") : TEXT("slide_observer");
+		UE_LOG(LogBr, Display, TEXT("Slide shot capture: Name=%s"), *Name);
+		FScreenshotRequest::RequestScreenshot(TEXT("Slide_") + Name, false, false);
+		return;
+	}
 	const bool Moving = GetVelocity().Size2D() > 20;
 	const int32 Pose = Skeletons ? (GetLife()->State == EBrLifeState::Downed ? 0 : 1) :
 		GetPosture() == EBrPosture::Standing ? 0 :
@@ -60,6 +74,41 @@ void ABrGameMode::ServicePostureShot()
 	if (!Pawn || !HasAuthority() || !Host->IsLocalController()) return;
 	const float Now = GetWorld()->GetTimeSeconds();
 	const bool Skeletons = FParse::Param(FCommandLine::Get(), TEXT("BrSkeletonShot"));
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrSlideShot")))
+	{
+		if (Now - MatchBeganTime < 6 || ShotSmokeStage > 3) return;
+		ABrPlayerController* Remote = nullptr;
+		for (APlayerState* PS : GetGameState<ABrGameState>()->PlayerArray)
+			if (PS && PS != Host->PlayerState) Remote = Cast<ABrPlayerController>(PS->GetOwner());
+		if (!Remote || !Remote->GetPawn()) return;
+		Remote->ClientSetViewTarget(Pawn);
+		if (Now < ShotSmokeNextTime) return;
+		auto* Move = Pawn->GetBrMovement();
+		if (ShotSmokeStage == 0)
+		{
+			Move->StopMovementImmediately();
+			Move->RequestPosture(EBrPosture::Standing);
+			Pawn->SetActorLocation(FVector(-6000, -6000, 100), false, nullptr, ETeleportType::TeleportPhysics);
+			Host->SetControlRotation(FRotator(0, 37, 0));
+			Pawn->FaceRotation(FRotator(0, 37, 0));
+			Remote->GetPawn()->SetActorLocation(Pawn->GetActorLocation() + FVector(300, 300, 0), false, nullptr, ETeleportType::TeleportPhysics);
+			ShotSmokeNextTime = Now + 6;
+		}
+		else if (ShotSmokeStage == 1)
+		{
+			Move->SetSprinting(true);
+			ShotSmokeNextTime = Now + .8f;
+		}
+		else if (ShotSmokeStage == 2)
+		{
+			Move->RequestSlide();
+			ShotSmokeNextTime = Now + 3;
+		}
+		else UE_LOG(LogBr, Display, TEXT("SHOT SMOKE PASS: slide gameplay and remote observer captures"));
+		Pawn->ForceNetUpdate();
+		++ShotSmokeStage;
+		return;
+	}
 	if (Skeletons)
 	{
 		if (Now - MatchBeganTime < 6 || ShotSmokeStage > 2) return;

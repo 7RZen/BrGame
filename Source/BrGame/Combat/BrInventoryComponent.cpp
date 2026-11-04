@@ -3,6 +3,8 @@
 #include "BrAudioSubsystem.h"
 #include "BrCharacter.h"
 #include "BrCharacterMovementComponent.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "BrCombatMath.h"
 #include "BrDeveloperSettings.h"
 #include "BrGrenade.h"
@@ -360,6 +362,8 @@ void UBrInventoryComponent::ServerFire_Implementation(FVector_NetQuantizeNormal 
 #if !UE_BUILD_SHIPPING
 	LastSprintFireRecovery = Now - Character->GetBrMovement()->GetSprintFireReadyTime() +
 		UBrDeveloperSettings::Get()->SprintToFireDelay;
+	if (Character->GetBrMovement()->IsSliding() && FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
+		UE_LOG(LogBr, Display, TEXT("E2E SLIDE FIRE PASS: accepted during authoritative slide Loaded=%d"), Loaded);
 #endif
 	Character->GetBrMovement()->ApplyAcceptedCombatAim(Aim, MoveTimeStamp);
 	Character->GetLife()->Fired();

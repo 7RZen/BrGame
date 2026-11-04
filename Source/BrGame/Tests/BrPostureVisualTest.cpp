@@ -212,6 +212,18 @@ bool FBrPostureFogRevealTest::RunTest(const FString& Parameters)
 			RevealedHead.Equals(Mesh->GetSocketTransform(TEXT("head"), RTS_Component).GetLocation(), 0.001));
 		Mesh->UnregisterOnBoneTransformsFinalizedDelegate(EvaluationHandle);
 	}
+	Fog->ApplyActorPresentation(C, false, false);
+	C->GetBrMovement()->ApplyAuthoritativePosture(EBrPosture::Crouching);
+	C->GetBrMovement()->Slide.bActive = true;
+	Fog->ApplyActorPresentation(C, true, false);
+	// No tick after reveal: persistent slide gait must override the cached standing pose.
+	const FVector SlideHip = Mesh->GetSocketTransform(TEXT("pelvis"), RTS_Component).GetLocation();
+	const FVector SlideHead = Mesh->GetSocketTransform(TEXT("head"), RTS_Component).GetLocation();
+	const FVector SlideFoot = Mesh->GetSocketTransform(TEXT("foot_l"), RTS_Component).GetLocation();
+	const FVector SlideHand = Mesh->GetSocketTransform(TEXT("hand_l"), RTS_Component).GetLocation();
+	TestTrue(TEXT("First slide reveal leans back"), SlideHead.Y < SlideHip.Y - 15);
+	TestTrue(TEXT("First slide reveal extends feet forward"), SlideFoot.Y > SlideHip.Y + 40);
+	TestTrue(TEXT("First slide reveal hand down"), SlideHand.Z < SlideHip.Z);
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);
 	return true;

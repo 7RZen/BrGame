@@ -132,6 +132,7 @@ float UBrAudioSubsystem::Range(EBrSoundKind Kind) const
 	case EBrSoundKind::RunStep: return S->RunStepHearingRange;
 	case EBrSoundKind::SprintStep: return S->SprintStepHearingRange;
 	case EBrSoundKind::CrouchStep: return S->CrouchStepHearingRange;
+	case EBrSoundKind::Slide: return S->SlideHearingRange;
 	default: return 0;
 	}
 }
@@ -279,7 +280,8 @@ void UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound
 	}
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	const FBrAudioVoicePolicy& Policy = S->VoicePolicy(Kind);
-	const EBrSoundKind Category = Kind == EBrSoundKind::SprintStep || Kind == EBrSoundKind::CrouchStep ? EBrSoundKind::RunStep : Kind;
+	const EBrSoundKind Category = Kind == EBrSoundKind::SprintStep || Kind == EBrSoundKind::CrouchStep ||
+		Kind == EBrSoundKind::Slide ? EBrSoundKind::RunStep : Kind;
 	USoundConcurrency* Concurrency = Concurrencies.FindRef(Category);
 	if (!Concurrency)
 	{

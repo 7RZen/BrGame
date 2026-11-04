@@ -74,3 +74,29 @@ struct FBrPostureAdjustment
 		return {StandingHeight - NewHeight, (PreviousHeight - NewHeight) * Scale};
 	}
 };
+
+/** Move-time state: no world-clock deadlines, so CMC timestamp resets need no rebasing. */
+struct FBrSlideState
+{
+	bool bActive = false;
+	float Remaining = 0;
+	float Cooldown = 0;
+	float InitialSpeed = 0;
+	float FinalSpeed = 0;
+	float Duration = 0;
+	float StartMoveTime = 0; // diagnostic native timestamp, never a permission/deadline
+	FVector Direction = FVector::ZeroVector;
+
+	float Speed(float TimeAhead = 0) const
+	{
+		return FMath::Lerp(FinalSpeed, InitialSpeed,
+			FMath::Clamp((Remaining - TimeAhead) / FMath::Max(.01f, Duration), 0.f, 1.f));
+	}
+	static bool Eligible(float Speed, float RunSpeed, const FVector& Input, float Yaw, float Cone,
+		float Rest, EBrPosture Posture, bool Alive, bool Grounded, bool Blocked)
+	{
+		return Alive && Grounded && !Blocked && Posture != EBrPosture::Prone && Rest <= 0 &&
+			Speed + UE_KINDA_SMALL_NUMBER >= RunSpeed &&
+			FBrSprintState::IsForward(Input, Yaw, Cone);
+	}
+};

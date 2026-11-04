@@ -29,6 +29,34 @@ class BRGAME_API UBrDeveloperSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Slide", meta=(ClampMin="1", ClampMax="2"))
+	float SlideSpeedMultiplier = 1.2f;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Slide", meta=(ClampMin="0.05", ClampMax="2", Units="s"))
+	float SlideDuration = 0.8f;
+	/** Cooldown starts on every slide exit, including early cancellation. */
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Slide", meta=(ClampMin="0", Units="s"))
+	float SlideCooldown = 1;
+	UPROPERTY(Config, EditAnywhere, Category="Movement|Slide", meta=(ClampMin="0", ClampMax="1"))
+	float SlideWallSpeedFraction = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(ClampMin="0", ClampMax="1", Units="s"))
+	float SlidePoseBlendTime = 0.08f;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(ClampMin="0", ClampMax="70", Units="deg"))
+	float SlideBackLean = 40;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(ClampMin="15", ClampMax="60", Units="cm"))
+	float SlidePelvisHeight = 32;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(ClampMin="20", ClampMax="100", Units="cm"))
+	float SlideLegReach = 72;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(ClampMin="0", Units="cm"))
+	float SlideFootSpread = 15;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(ClampMin="0", Units="cm"))
+	float SlideFootHeight = 10;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Slide", meta=(Units="cm"))
+	FVector SlideLeftHandTarget = FVector(35, -15, 8);
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
+	float SlideHearingRange = 1000;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	TSoftObjectPtr<USoundBase> SlideSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_Slide.SW_Slide")));
 	/** Full-body, in-place, non-additive sequence or blendspace, on the character skeleton.
 	 * Blendspace convention: direction (degrees) X, speed (cm/s) Y. Empty slots use procedural poses. */
 	UPROPERTY(Config, EditAnywhere, Category="Character|Posture")

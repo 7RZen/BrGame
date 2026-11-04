@@ -53,6 +53,8 @@ def samples(name, duration, seed, kind, frequency):
         elif kind == "step":
             value = (0.45 * noise * math.exp(-t * 60) +
                      0.5 * math.sin(2 * math.pi * frequency * t) * math.exp(-t * 45))
+        elif kind == "slide":
+            value = (noise * 0.24 + low * 1.8) * math.sin(math.pi * t / duration) ** 0.6
         else:
             value = (math.sin(2 * math.pi * frequency * t) +
                      0.4 * math.sin(2 * math.pi * frequency * 1.5 * t)) * 0.4 * math.exp(-t * 18)
@@ -93,6 +95,7 @@ def main():
     for n in range(3):
         specs += [("Step_Run" + str(n), 0.14, "step", 95 + n * 15),
                   ("Step_Soft" + str(n), 0.10, "step", 160 + n * 20)]
+    specs += [("Slide", settings.get_editor_property("SlideDuration"), "slide", 0)]
     for seed, (key, duration, kind, frequency) in enumerate(specs):
         name = "SW_" + key
         file = SOURCE / (name + ".wav")
@@ -115,7 +118,7 @@ def main():
         sound.set_editor_property("sound_class_object", effects)
         sound.set_editor_property("looping", False)
         category = ("Fire" if kind == "fire" else "Explosion" if kind == "boom" else
-                    "Downed" if kind == "scream" else "Footstep" if kind == "step" else "Pickup")
+                    "Downed" if kind == "scream" else "Footstep" if kind in ["step", "slide"] else "Pickup")
         concurrency, priority = voices[category]
         sound.set_editor_property("override_concurrency", False)
         sound.set_editor_property("concurrency_set", {concurrency})
@@ -133,7 +136,7 @@ def main():
     for category in voices:
         if not settings.get_editor_property(category + "Voice").get_editor_property("Concurrency"):
             raise RuntimeError("Missing configured category concurrency: " + category)
-    unreal.log("Br audio assets verified: 15 original deterministic mono SoundWaves, Master/Effects hierarchy and volume mix")
+    unreal.log("Br audio assets verified: 16 original deterministic mono SoundWaves, Master/Effects hierarchy and volume mix")
 
 
 main()

@@ -10,6 +10,7 @@ struct FBrMoveResponseDataContainer : public FCharacterMoveResponseDataContainer
 	EBrPosture Posture = EBrPosture::Standing;
 	EBrPosture RequestedPosture = EBrPosture::Standing;
 	FBrSprintState Sprint;
+	FBrSlideState Slide;
 
 	virtual void ServerFillResponseData(const UCharacterMovementComponent& Movement, const FClientAdjustment& Adjustment) override;
 	virtual bool Serialize(UCharacterMovementComponent& Movement, FArchive& Ar, UPackageMap* PackageMap) override;
@@ -18,6 +19,9 @@ struct FBrMoveResponseDataContainer : public FCharacterMoveResponseDataContainer
 struct FBrNetworkMoveData : public FCharacterNetworkMoveData
 {
 	FBrSprintState Sprint;
+	FBrSlideState Slide;
+	bool bSlidePressed = false;
+	bool bInputBlocked = false;
 	virtual void ClientFillNetworkMoveData(const FSavedMove_Character& Move, ENetworkMoveType Type) override;
 	virtual bool Serialize(UCharacterMovementComponent& Movement, FArchive& Ar, UPackageMap* Map, ENetworkMoveType Type) override;
 };
@@ -78,13 +82,36 @@ public:
 	void SetProne(bool bProne) { bWantsToProne = bProne; }
 	void RequestPosture(EBrPosture Posture);
 	void ApplyReplicatedPosture();
+	bool IsSliding() const;
+	void RequestSlide() { bSlidePressed = true; }
+	void CancelSlide();
+	const FBrSlideState& GetSlideState() const { return Slide; }
+	const FBrSlideState& GetServerCorrectionSlide() const { return ServerCorrectionSlide; }
+	bool WantsSlide() const { return bSlidePressed; }
+	void RestoreSlideRequest(bool Pressed) { bSlidePressed = Pressed; }
+	/** Saved input can only restrict gameplay; it cannot bypass authority life/phase checks. */
+	void RestoreInputBlock(bool Blocked) { bMoveInputBlocked = Blocked; }
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
+	virtual void CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration) override;
 
 private:
+	friend class FBrSlideIntegrationTest;
+	friend class FBrSlideReplayTest;
+	friend class FBrSlideReplayWireYawTest;
+	UPROPERTY(Replicated)
+	bool bReplicatedSlide = false;
+	FBrSlideState Slide;
+	FBrSlideState ServerCorrectionSlide;
+	FBrSlideState ClientReportedSlide;
+	bool bSlidePressed = false;
+	bool bMoveInputBlocked = false;
+	TOptional<float> MoveInputYaw;
+	float SlideMoveTimeStamp = 0;
+	void UpdateSlideBeforeMovement(float DeltaSeconds);
 	friend class FBrPostureRealMeshTest;
 	friend class FBrSkeletonPoseTest;
 	friend class FBrPostureFogRevealTest;

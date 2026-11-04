@@ -32,6 +32,7 @@ Status: Resolved (placeholder sounds; pending playtest)
 ## 4.1. (FR) Sound
 * Reload sound
 * Out of ammo sound, simple click sound
+Status: Unresolved
 
 ## 5. (FR) In-game menu
 Player should be allowed to leave game. Press ESC to get in-game menu with option to leave or to respawn (in case of stuck)
@@ -53,7 +54,7 @@ Status: Resolved (relative MouseX turns facing/camera instantly; persistent sens
 
 ## 9. (FR) Slide
 Pressing CTRL til slide if running or sprinting.
-Status: Unresolved
+Status: Implemented. Rebindable Left Ctrl; server-authoritative, CMC-predicted forward run/sprint slide with locked travel direction, crouch capsule/combat posture, immediate fire/throw eligibility, 0.8 s deceleration and 1 s exit-based cooldown. Native replicated procedural slide pose, fog snap, 10 m batched scrape, no footsteps and Slide HUD gait. Full UBT Editor build zero compiler warnings; 92/92 automation and 14/14 regression steps PASS (Saved/Logs/RunAll/20261104-113548/). All four remote sprint slides: 422.4 cm, zero corrections, crouched exit, cooldown rejection and accepted mid-slide shots. Four owner/remote default/close screenshots inspected. Details and remaining physical-input/audio/network-stress checks: Scripts/SlideValidation.md. Template code/assets untouched.
 
 ## 10 (FR) Maps and map selector
 More maps will be added. The person hosting should be able to choose from available maps.

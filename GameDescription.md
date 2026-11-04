@@ -21,6 +21,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
+| Issue 9 | Slide | Predicted authoritative crouch-capsule slide, pose/audio/input/HUD; validation: Scripts/SlideValidation.md |
 
 ### Posture presentation
 - Crouch lowers the pelvis, bends hips/knees with grounded sampled feet and leans the torso forward. Prone lies face-down along facing, with forward arms/weapon and alternating speed-scaled crawl limbs.
@@ -96,6 +97,7 @@ Joining a different session leaves the previous session first. Browser joins and
 |---|---|
 | Move (relative to screen, W = up) | W A S D |
 | Tactical sprint (forward/forward-diagonal only) | Hold Left Shift |
+| Slide (run/sprint speed, forward/forward-diagonal input) | Press Left Ctrl |
 | Crouch (toggle) | C |
 | Lie down (toggle) | Z |
 | Fire (hold for automatic weapons) | Left mouse |
@@ -134,7 +136,7 @@ Joining a different session leaves the previous session first. Browser joins and
   remaining cooldown in the menu. Selecting Unstuck closes the menu so progress is unobscured.
 
 ## Player states
-Standing, Running, Tactical sprinting, Crouching, Lying down, Downed (dying), Dead (eliminated).
+Standing, Running, Tactical sprinting, Sliding (crouching for combat), Crouching, Lying down, Downed (dying), Dead (eliminated).
 
 ### Movement speed *(dev)*
 Base running speed is 600.
@@ -162,6 +164,27 @@ Base running speed is 600.
   input/menu and unstuck hold stop sprint. E stops sprint then performs pickup/revive.
   Automatic overlap pickups wait until sprint ends; starting sprint/moving cancels
   an unstuck hold. Fire/interact/posture cancellation requires pressing Sprint again.
+
+### Slide *(all tuning dev-only, UBrDeveloperSettings)*
+- Rebindable Slide (Left Ctrl) is a press, not a crouch toggle. Requires grounded,
+  alive, unblocked gameplay, at least weapon-adjusted running speed and input within
+  the sprint forward cone (±50°). Invalid presses do nothing; C remains crouch.
+- Locks current horizontal travel direction, boosts current speed by 1.2×, then
+  linearly decelerates to crouch speed over 0.8 s. Default sprint slide travels
+  4.224 m; a run slide travels 3.36 m (weapon penalties shorten both).
+  Mouse still turns facing/camera/aim; movement input does not steer.
+- Requires successful crouch transition; uses crouch collision, hit chance and
+  damage multipliers as both shooter and target. Ends crouched, cancels held sprint,
+  costs no stamina. Press Shift again after exit to stand/sprint with normal clearance.
+- Cooldown is 1 s from every exit, including early exits. Wall-induced velocity
+  loss, falling, downing, prone requests and gameplay/menu input block end slide.
+  Movement/posture changes cancel an unstuck hold through existing validation.
+- Slide entry explicitly waives sprint-to-fire recovery. New fire/throw requests
+  are immediately eligible during slide; all normal ammo/rate/life/aim checks remain.
+  A request already queued before entry retains its existing short timer.
+- Remote persistent slide gait drives a short-blended native lean-back/legs-forward
+  pose, including fog reveal snaps. Slide scrape is batched within 10 m; slide has
+  no footsteps. HUD gait reads “Slide”.
 
 ### Downed (dying)
 - When health reaches 0 the player is downed for 30 s *(dev)*. They can't move, shoot or be damaged, and they call for help (a pulsing "HELP!" sign above them).

@@ -98,6 +98,13 @@ private:
 	bool bSprintSmokeRunning = false;
 	float SprintSmokeElapsed = 0;
 	int32 SprintSmokeCorrections = 0;
+	int32 SlideSmokeCorrections = 0;
+	bool bSlideSmokeSawActive = false;
+	bool bSlideSmokeSawEnd = false;
+	FVector SlideSmokeStart = FVector::ZeroVector;
+	float SprintSmokeDrainSeconds = 0;
+	bool bSprintSmokeExhausted = false;
+	friend class ABrGameMode;
 	friend class UBrCharacterMovementComponent;
 	void ServiceMeshPoseSmoke(float DeltaSeconds);
 	void ServicePostureShot(float DeltaSeconds);
@@ -143,6 +150,7 @@ private:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void SprintStarted();
+	void SlideStarted();
 	void SprintStopped();
 	void ToggleCrouch();
 	void ToggleProne();

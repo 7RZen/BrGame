@@ -58,9 +58,9 @@ void ABrHUD::DrawHUD()
 		return InputOwner ? InputOwner->GetBindingLabel(Name) : FString(TEXT("[input unavailable]"));
 	};
 	const FString Posture = StaticEnum<EBrPosture>()->GetNameStringByValue(static_cast<int64>(Character->GetPosture()));
-	const TCHAR* Gait = Movement->IsSprinting() ? TEXT("Sprint") : TEXT("Run");
+	const TCHAR* Gait = Movement->IsSliding() ? TEXT("Slide") : Movement->IsSprinting() ? TEXT("Sprint") : TEXT("Run");
 	DrawText(FString::Printf(TEXT("%s | %s%s\nSpeed: %.0f cm/s | Max: %.0f cm/s"),
-		*Posture, Gait, Character->GetPosture() != EBrPosture::Standing ? TEXT(" (modifier ignored)") : TEXT(""),
+		*Posture, Gait, !Movement->IsSliding() && Character->GetPosture() != EBrPosture::Standing ? TEXT(" (modifier ignored)") : TEXT(""),
 		Character->GetVelocity().Size2D(), Movement->GetMaxSpeed()), FLinearColor::White, 20.0f, 20.0f);
 	const UBrInventoryComponent* Inventory = Character->GetInventory();
 	if (Movement->GetSprintFraction() < 0.999f)
