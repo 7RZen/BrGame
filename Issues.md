@@ -18,7 +18,7 @@ Status: Resolved
 
 ## 3. (FR) Skeletons
 Dead skeletons should lie on their back and not on the side.
-Status: Unresolved
+Status: Resolved. Shared supine reference-pose transform for corpses and downed players: face up, head along victim facing, imported skin bounds grounded (no duplicate corpse spawn lift). CMC cached base/smoothing and separate prone animation preserved; pulsing HELP now stays upright for each viewer. Full UBT editor build zero compiler warnings; 89/89 automation and 14/14 regression steps PASS (Saved/Logs/RunAll/20261104-102131/), including both non-owner match modes. Eight owner/remote downed/corpse screenshots at default/min zoom inspected: face-up, grounded, readable HELP. Template code/assets untouched. Details: Scripts/SkeletonValidation.md.
 
 ## 4. (FR) Sound
 Add sounds for:

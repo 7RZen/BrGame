@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "BrHitFeedbackComponent.h"
 #include "BrCharacter.h"
+#include "BrSupinePose.h"
 #include "BrCharacterMovementComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -213,9 +214,10 @@ bool FBrHitFeedbackSmoothingTest::RunTest(const FString& Parameters)
 		C->GetLife()->State = EBrLifeState::Downed;
 		C->ApplyLifePresentation();
 		TestTrue(TEXT("Issue 1 downed base height retained"), FMath::IsNearlyEqual(
-			C->GetBaseTranslationOffset().Z, -C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 12, 0.0001));
-		TestTrue(TEXT("Issue 1 downed cached pitch retained"), FMath::IsNearlyEqual(
-			C->GetBaseRotationOffset().Rotator().Pitch, 90.0, 0.0001));
+			C->GetBaseTranslationOffset().Z, -C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() +
+				BrSupinePose::GroundLift(C->GetMesh()->GetSkeletalMeshAsset()), 0.0001));
+		TestTrue(TEXT("Issue 1 downed cached supine rotation retained"),
+			C->GetBaseRotationOffset().Equals(BrSupinePose::Rotation().Quaternion(), 0.0001));
 		C->Destroy();
 	}
 	World->DestroyWorld(false);

@@ -1,6 +1,7 @@
 #include "BrCorpse.h"
 #include "BrDeveloperSettings.h"
 #include "BrLog.h"
+#include "BrSupinePose.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -16,7 +17,7 @@ ABrCorpse::ABrCorpse()
 	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletonPlaceholder"));
 	Mesh->SetupAttachment(RootComponent);
 	Mesh->SetCollisionProfileName(TEXT("NoCollision"));
-	Mesh->SetRelativeRotation(FRotator(90, -90, 0));
+	Mesh->SetRelativeRotation(BrSupinePose::Rotation());
 	Mesh->SetComponentTickEnabled(false);
 	Mesh->SetCastShadow(false);
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> White(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
@@ -33,6 +34,7 @@ void ABrCorpse::BeginPlay()
 		return;
 	}
 	Mesh->SetSkeletalMesh(CharacterMesh);
+	Mesh->SetRelativeLocation(FVector(0, 0, BrSupinePose::GroundLift(CharacterMesh)));
 	UMaterialInterface* White = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	if (!White)
 	{

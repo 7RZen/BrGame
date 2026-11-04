@@ -67,6 +67,14 @@ count and test both modes.
   restores configured health without a death; choice respawn penalizes max
   health by 10% per choice, timeout follows its configured rule, gear persists,
   and respawn protection ends on firing or timeout.
+- [ ] **Issue 3 — face-up bodies:** down a standing/crouched/prone player at several
+  facings, view as owner and remote observer at pitch 65° and min/default/max zoom.
+  Expect chest/face upward, head along facing, back resting on ground, readable
+  pulsing HELP. Turning while downed must keep this orientation; no downed crawl
+  is currently implemented. Revive must restore normal posture/weapon/smoothing.
+  Respawn/elimination/forfeit/offline timeout must leave a grounded, arms-out,
+  bone-white face-up corpse at the victim's last facing; check a late joiner too.
+  Living prone/crawl stays face down. Capture command: `Scripts/RunShotSmoke.ps1 -Skeletons`.
 - [OK] **Pickups/zone:** collect health, ammo, grenade and weapon pickups; watch
   them respawn, then move outside the shrinking zone. Expected: health and
   grenade caps hold, weapon swap drops the old loaded weapon, and outside-zone

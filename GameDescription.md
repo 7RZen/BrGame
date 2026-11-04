@@ -25,7 +25,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 ### Posture presentation
 - Crouch lowers the pelvis, bends hips/knees with grounded sampled feet and leans the torso forward. Prone lies face-down along facing, with forward arms/weapon and alternating speed-scaled crawl limbs.
 - Cosmetic transitions use 0.25 s crouch / 0.4 s prone *(dev, Project Settings → BrGame → Character/Posture)*, including exits and crouch↔prone. Sprint returns to standing. Collision, damage rules and server authority are unchanged; prone wall clipping is accepted.
-- `DefaultCharacterAnimClass` now selects the native `BrCharacterAnimInstance`; no template asset is edited. Optional in-place full-body `CrouchIdle/CrouchMove/ProneIdle/ProneMove` sequence/blendspace slots replace procedural targets when supplied. Empty slots remain procedural. Downed/dead/corpse presentation and additive hit feedback are separate and unchanged.
+- `DefaultCharacterAnimClass` now selects the native `BrCharacterAnimInstance`; no template asset is edited. Optional in-place full-body `CrouchIdle/CrouchMove/ProneIdle/ProneMove` sequence/blendspace slots replace procedural targets when supplied. Empty slots remain procedural. Downed/dead/corpse presentation and additive hit feedback remain separate from this living-posture graph.
 
 ## Hosting
 - Player-hosted game (the host's game is the server) over Steam. Steam provides matchmaking, the server list, relays (hides IP addresses) and invites, but not server hosting.
@@ -165,6 +165,7 @@ Base running speed is 600.
 
 ### Downed (dying)
 - When health reaches 0 the player is downed for 30 s *(dev)*. They can't move, shoot or be damaged, and they call for help (a pulsing "HELP!" sign above them).
+- Downed players lie on their back, face up, with their head toward their current facing. Turning rotates this grounded pose; the help sign remains overhead. This is separate from the living face-down prone/crawl animation.
 - **Revive:** another player stands within about 150 cm and holds E for 5 s *(dev)*. It is cancelled if they let go, move away or take damage. The revived player gets 30% of their max health *(dev)*. A revive is not a death and has no penalty.
 - **Respawn by choice:** hold Space. Each respawn by choice permanently lowers max health by 10% for the round: 1 time = 90, 2 times = 80, and so on.
 - **Timer runs out:** the player respawns with no penalty.
@@ -173,6 +174,7 @@ Base running speed is 600.
 
 ### Dead (eliminated)
 - Every death leaves a skeleton on the ground for the rest of the round.
+- Skeletons keep the arms-out reference pose, lying face up with the head toward the victim's last facing. Their reference skin bounds rest on the ground.
 - Eliminated players watch living players (teammates first) and switch between them with fire.
 
 ## Weapons

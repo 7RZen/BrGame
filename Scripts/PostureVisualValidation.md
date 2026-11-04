@@ -29,7 +29,8 @@
 - Whole-mesh transform is **not** rotated for prone. `ApplyMeshPose`,
   `CacheInitialMeshOffset`, native crouch base-height restoration, life presentation
   and additive hit reaction remain independent. Downed/dead still switch out of this
-  anim instance and use their original back-lying transform.
+  anim instance. Issue 3 corrects their separate supine transform/grounding;
+  see `SkeletonValidation.md` (living prone/crawl remains face down).
 - Actual weapon inspection found a capsule-root attachment, **not** a hand socket.
   The cosmetic block now attaches to `hand_r`; game-thread post-evaluation keeps its
   X-long barrel along smoothed character facing, independent of mannequin hand axes.

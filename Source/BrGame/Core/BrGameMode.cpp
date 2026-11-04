@@ -195,7 +195,7 @@ void ABrGameMode::LeaveCorpse(const ABrCharacter* Character)
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	const FVector Ground = Character->GetActorLocation() -
-		FVector(0, 0, Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - 10);
+		FVector(0, 0, Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
 	if (ABrCorpse* Corpse = GetWorld()->SpawnActor<ABrCorpse>(Ground, FRotator(0, Character->GetActorRotation().Yaw, 0), Params))
 		Corpse->SetGear(Character->GetInventory()->CaptureState());
 	else UE_LOG(LogBr, Error, TEXT("Failed to leave permanent corpse for %s"), *Character->GetName());
@@ -452,7 +452,7 @@ void ABrGameMode::LeaveRecordedCorpse(const FBrRoundRecord& Record)
 	if (!Record.bHasPawnSnapshot) return;
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	if (ABrCorpse* Corpse = GetWorld()->SpawnActor<ABrCorpse>(Record.GroundLocation + FVector(0, 0, 10),
+	if (ABrCorpse* Corpse = GetWorld()->SpawnActor<ABrCorpse>(Record.GroundLocation,
 		FRotator(0, Record.Yaw, 0), Params))
 		Corpse->SetGear(Record.Gear);
 	else

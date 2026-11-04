@@ -86,6 +86,7 @@ protected:
 
 private:
 	friend class FBrPostureRealMeshTest;
+	friend class FBrSkeletonPoseTest;
 	friend class FBrPostureFogRevealTest;
 	friend class FBrHitFeedbackSmoothingTest;
 	friend class FBrSprintIntegrationTest;

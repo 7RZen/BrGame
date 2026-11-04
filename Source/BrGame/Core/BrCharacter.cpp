@@ -24,6 +24,7 @@
 #include "BrFlowRules.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "BrLifeComponent.h"
+#include "BrSupinePose.h"
 #include "BrPickup.h"
 #include "TimerManager.h"
 #include "Components/TextRenderComponent.h"
@@ -34,6 +35,7 @@
 #include "InputActionValue.h"
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -193,6 +195,12 @@ void ABrCharacter::Tick(float DeltaSeconds)
 		HelpText->SetText(FText::FromString(FString::Printf(TEXT("HELP! %.0fs"),
 			FMath::Max(0.0f, Life->DownedEndTime - Life->ServerTime()))));
 		HelpText->SetRelativeScale3D(FVector(1.0f + 0.15f * FMath::Sin(Life->ServerTime() * 5)));
+		// TextRender's reading direction is local -Y, top is +Z. Keep this
+		// ground-parallel sign upright for each viewer, not upside down at yaw 0
+		// or following the supine mesh. Cosmetic only; never replicate camera yaw.
+		const APlayerController* Viewer = GetWorld()->GetFirstPlayerController();
+		if (Viewer && Viewer->IsLocalController() && Viewer->PlayerCameraManager)
+			HelpText->SetWorldRotation(FRotator(90, Viewer->PlayerCameraManager->GetCameraRotation().Yaw + 180, 0));
 	}
 	GetMesh()->SetVisibility(Life->State != EBrLifeState::Eliminated &&
 		(!Life->IsInvulnerable() || FMath::Fmod(Life->ServerTime(), 0.3f) < 0.2f));
@@ -313,8 +321,9 @@ void ABrCharacter::ApplyLifeMeshPose(bool bPreserveSmoothing)
 {
 	const bool bAlive = !Life || Life->IsAlive();
 	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	ApplyMeshPose(FVector(0, 0, -HalfHeight + (bAlive ? 0 : 12)) + (bAlive && HitFeedback ? HitFeedback->MeshOffset() : FVector::ZeroVector),
-		FRotator(bAlive ? 0 : 90, -90, 0), bPreserveSmoothing);
+	ApplyMeshPose(FVector(0, 0, -HalfHeight + (bAlive ? 0 : BrSupinePose::GroundLift(GetMesh()->GetSkeletalMeshAsset()))) +
+		(bAlive && HitFeedback ? HitFeedback->MeshOffset() : FVector::ZeroVector),
+		bAlive ? FRotator(0, -90, 0) : BrSupinePose::Rotation(), bPreserveSmoothing);
 }
 
 void ABrCharacter::ApplyLifePresentation()

@@ -6,6 +6,7 @@
 #include "BrCharacterMovementComponent.h"
 #include "BrDeveloperSettings.h"
 #include "BrLifeComponent.h"
+#include "BrSupinePose.h"
 #include "BrFogComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -133,9 +134,9 @@ bool FBrPostureRealMeshTest::RunTest(const FString& Parameters)
 		}
 	C->GetLife()->State = EBrLifeState::Downed;
 	C->ApplyLifePresentation();
-	TestTrue(TEXT("Downed uses unchanged whole-mesh rotation"), FMath::IsNearlyEqual(Mesh->GetRelativeRotation().Pitch, 90., 0.01));
+	TestTrue(TEXT("Downed uses supine whole-mesh rotation"), Mesh->GetRelativeRotation().Quaternion().Equals(BrSupinePose::Rotation().Quaternion(), 0.001));
 	TestTrue(TEXT("Downed cached base retained"), FMath::IsNearlyEqual(C->GetBaseTranslationOffset().Z,
-		-C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 12, 0.01));
+		-C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + BrSupinePose::GroundLift(Mesh->GetSkeletalMeshAsset()), 0.01));
 	TestNull(TEXT("Downed doesn't run posture graph"), Cast<UBrCharacterAnimInstance>(Mesh->GetAnimInstance()));
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);

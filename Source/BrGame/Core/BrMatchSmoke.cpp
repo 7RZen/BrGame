@@ -4,6 +4,7 @@
 #include "BrPlayerState.h"
 #include "BrPlayerController.h"
 #include "BrCharacter.h"
+#include "BrSupinePose.h"
 #include "BrCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -206,11 +207,16 @@ void ABrCharacter::ServiceMeshPoseSmoke(float DeltaSeconds)
 	++MeshPoseSmokeSamples;
 	// Allow a short replication/smoothing settling interval, then check every tick.
 	if (MeshPoseSmokeSeconds < 0.2f) return;
-	const float ExpectedPitch = bDowned ? 90.f : 0.f;
+	const FQuat ExpectedRotation = (bDowned ? BrSupinePose::Rotation() : FRotator(0, -90, 0)).Quaternion();
 	const float Pitch = GetMesh()->GetRelativeRotation().Pitch;
-	const float ExpectedZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + (bDowned ? 12.f : 0.f);
-	if (!FMath::IsNearlyEqual(Pitch, ExpectedPitch, 2.f) ||
-		!FMath::IsNearlyEqual(GetBaseRotationOffset().Rotator().Pitch, ExpectedPitch, 2.f) ||
+	const float ExpectedZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight() +
+		(bDowned ? BrSupinePose::GroundLift(GetMesh()->GetSkeletalMeshAsset()) : 0.f);
+	const FVector BodyAxis = GetMesh()->GetBoneLocation(TEXT("head")) - GetMesh()->GetBoneLocation(TEXT("pelvis"));
+	const bool bSupine = !bDowned || (GetMesh()->GetComponentQuat().RotateVector(FVector::RightVector).Z > 0.98 &&
+		FVector::DotProduct(BodyAxis.GetSafeNormal2D(), GetActorForwardVector()) > 0.98 && FMath::Abs(BodyAxis.Z) < 10);
+	if (GetMesh()->GetRelativeRotation().Quaternion().AngularDistance(ExpectedRotation) > FMath::DegreesToRadians(2.f) ||
+		GetBaseRotationOffset().AngularDistance(ExpectedRotation) > FMath::DegreesToRadians(2.f) ||
+		!bSupine ||
 		!FMath::IsNearlyEqual(GetBaseTranslationOffset().Z, ExpectedZ, 0.1f))
 	{
 		bMeshPoseSmokeFailed = true;
