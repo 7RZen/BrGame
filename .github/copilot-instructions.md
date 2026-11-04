@@ -1,35 +1,62 @@
 # Copilot Instructions — BrGame
 
-Unreal Engine 5.8 C++ project (`BrGame.uproject`, single `Runtime` module `BrGame`). Intended to become a top-down multiplayer battle-royale shooter (see `GameDescription.md` for the design spec: game modes, player states, weapon/damage/hit-chance rules, fog of war, pickups, Steam hosting). The code currently is the UE Top-Down template plus two template "Variants"; the BR gameplay is not implemented yet.
+BrGame is a top-down, player-hosted multiplayer battle-royale shooter. It is an Unreal Engine 5.8 C++ project (`BrGame.uproject`) with a single `Runtime` module, `BrGame`, and targets Win64 with Steam hosting. `GameDescription.md` is the agreed design spec and includes a per-step implementation status table. Keep that table current when you add features. `Issues.md` tracks issues (I) and feature requests (FR). `README.md` is the project overview.
 
-## Build / run
+## Build / test / run
 
-No test suite, linter, or scripts exist in the repo. Builds go through Unreal Build Tool (use the engine install matching `EngineAssociation` 5.8):
+Use the engine at `C:\Program Files\Epic Games\UE_5.8` (the scripts hardcode this path). Close the editor, Live Coding and other UnrealEditor processes before you build or run tests. Reflection or layout changes need a full UBT build, because Live Coding is not enough.
 
 ```powershell
-# Editor target build (replace <UE> with the engine root)
-& "<UE>\Engine\Build\BatchFiles\Build.bat" BrGameEditor Win64 Development -Project="C:\Users\oiste\Projects\Unreal\BrGame\BrGame.uproject" -WaitMutex
+$UE = "C:\Program Files\Epic Games\UE_5.8"
+& "$UE\Engine\Build\BatchFiles\Build.bat" BrGameEditor Win64 Development -Project="$PWD\BrGame.uproject" -WaitMutex   # editor
+& "$UE\Engine\Build\BatchFiles\Build.bat" BrGame Win64 Development -Project="$PWD\BrGame.uproject"                    # game
 
-# Standalone game target
-& "<UE>\Engine\Build\BatchFiles\Build.bat" BrGame Win64 Development -Project="C:\Users\oiste\Projects\Unreal\BrGame\BrGame.uproject"
+# Automation tests (all are named BrGame.*; narrow the filter, e.g. BrGame.Fog)
+& "$UE\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "$PWD\BrGame.uproject" -ExecCmds="Automation RunTests BrGame; Quit" -unattended -nullrhi -nosound -nosteam
+
+.\Scripts\RunAllTests.ps1                      # build + full automation suite + smoke scripts (logs in Saved\Logs\RunAll)
+.\Scripts\RunLocalMultiplayer.ps1 -Clients 2   # local listen server + clients on L_Town (-nosteam); -Menu, -Headless
 ```
 
-Regenerate solution files by right-clicking `BrGame.uproject` → *Generate Visual Studio project files*. Automated tests, if added, run via `UnrealEditor-Cmd.exe BrGame.uproject -ExecCmds="Automation RunTests <Filter>; Quit" -unattended -nullrhe`.
+- `Scripts\Run*Smoke.ps1` each cover one area: Flow, Match, Shot, Fog, Menu, Audio, Session and Packaged. `RunSteamHostCheck.ps1` covers Steam.
+- `Scripts\Content\*.py` scripts create or update assets headlessly. Run them with `UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script=<path> -unattended -nullrhi -nosound -nosteam`. Because they write binary assets, run them serially and never in parallel with builds or tests.
+- `Scripts\*Validation.md` files record the decisions, changed paths, commands, results and remaining manual checks for each feature. Add or update one when you implement a feature or issue.
+- `Docs\PlaytestChecklist.md` lists the manual checks, and `Docs\AddingMaps.md` explains how to add a map.
+- Steam needs a logged-in Steam client and standalone or packaged play, not PIE. Use `-nosteam` to force the Null/LAN subsystem and IP transport.
 
-`Binaries/`, `Intermediate/`, `DerivedDataCache/`, `Saved/`, `.vs/` are generated; don't edit them. The directory is not a git repository currently.
+`Binaries/`, `Intermediate/`, `DerivedDataCache/`, `Saved/` and `.vs/` are generated, so don't edit them.
 
 ## Architecture
 
-- `Source/BrGame/` root: `ABrGameGameMode` (abstract; classes assigned in Blueprint subclasses), `ABrGameCharacter`, `ABrGamePlayerController` — the base top-down template.
-- `Variant_TwinStick/` — twin-stick shooter: `ATwinStickCharacter` (move/aim/dash/shoot/AoE), `ATwinStickProjectile`, `ATwinStickAoEAttack`, `ATwinStickPickup`, AI NPCs (`ATwinStickNPC`, `ATwinStickAIController`, `ATwinStickSpawner`) driven by **StateTree** (`TwinStickStateTreeUtility`), and `UTwinStickUI`. Closest match to the target game.
-- `Variant_Strategy/` — RTS-style variant (`StrategyPawn/Unit/PlayerController/HUD/UI`, EQS context `EnvQueryContext_MoveGoal`).
-- Each variant has its own GameMode/PlayerController; the active setup is determined by Blueprint assets, not C++. `Config/DefaultEngine.ini` sets `GameDefaultMap=/Game/TopDown/Lvl_TopDown` and `GlobalDefaultGameMode=/Game/TopDown/Blueprints/BP_TopDownGameMode`. Variant content lives under `Content/Variant_*` and `Content/TopDown`.
-- Plugins enabled: `StateTree`, `GameplayStateTree`, `ModelingToolsEditorMode` (editor only). Online/Steam is not yet enabled (`OnlineSubsystem` is commented out in `BrGame.Build.cs`; Steam also requires enabling `OnlineSubsystemSteam` in the `.uproject`).
+The BR game lives in four folders under `Source/BrGame/`:
+
+- `Core/` holds the framework classes:
+  - `ABrGameMode` (global default) and `BrFlowGameModes` (`ABrMenuGameMode`, `ABrLobbyGameMode`)
+  - `ABrGameState`, `ABrPlayerState` and `ABrPlayerController`
+  - `UBrGameInstance` and `UBrLocalPlayer`, which are configured in `DefaultEngine.ini`
+  - `ABrCharacter`, plus `UBrCharacterMovementComponent` (prediction for sprint, slide and posture) and `UBrCharacterAnimInstance` (procedural posture)
+  - `UBrSessionSubsystem` for Steam/Null sessions, privacy and passwords
+  - `BrFogComponent` and `BrVisibilitySubsystem` (server-side fog of war), plus `BrSafeZone`
+  - `BrHUD` and the menu, flow and settings widgets (native UMG/Slate)
+  - `BrAudioSubsystem`, `BrHitFeedbackComponent` and `BrMatchSettings` (host settings)
+  - `UBrDeveloperSettings`, the developer tuning shown in *Project Settings → BrGame* and stored in `DefaultGame.ini`
+- `Combat/` holds `BrCombatDefinitions` (weapon/grenade data), `BrCombatMath`, `BrHealthComponent`, `BrInventoryComponent` (shared ammo), `BrGrenade` and the damage types.
+- `Life/` holds the downed, revive, respawn, death-limit and elimination flow (`BrLifeComponent`), along with `BrCorpse`, `BrSupinePose` and `BrRoundRecord`.
+- `Pickups/` holds the pickup definitions, spawn points and `BrPickupManager`, which handles respawn timing.
+- `Tests/` holds the automation tests (`Br*Test.cpp`), roughly one per feature.
+
+Other code and content:
+
+- The root `BrGame*` classes and `Variant_TwinStick/` / `Variant_Strategy/` are leftover UE Top-Down template code. Leave them alone unless a task targets them.
+- Content lives under `Content/BrGame/` (Audio, Feedback, Fog, Input, Maps, Minimap, Pickups, Throwables, Town, Weapons, Zone). The maps are `L_MainMenu` (`GameDefaultMap`), `L_Town` (the main match map) and Test Arena. The lobby map list is a developer allowlist.
+- Plugins: OnlineSubsystem, OnlineSubsystemNull, OnlineSubsystemSteam, SteamSockets, StateTree, GameplayStateTree, PythonScriptPlugin (editor only) and ModelingToolsEditorMode (editor only). Steam currently uses test App ID 480 (`SteamDevAppId` in `DefaultEngine.ini`).
 
 ## Conventions
 
-- Gameplay classes are `UCLASS(abstract)` with tuning values exposed as `UPROPERTY(EditAnywhere, Category=..., meta=(ClampMin, ClampMax, Units))`; concrete values (input actions, projectile/AoE classes, meshes) are set in Blueprint subclasses, so C++ changes often need matching Blueprint updates in the editor.
-- Input uses Enhanced Input (`UInputAction` properties bound in `SetupPlayerInputComponent`).
-- Each variant subfolder (including `AI`, `Gameplay`, `UI`) is listed explicitly in `PublicIncludePaths` in `BrGame.Build.cs`; new subfolders need a new entry.
-- Renamed-from-template redirects (`TP_TopDown*` → `BrGame*`) live in `DefaultEngine.ini`; keep them (and add new ones) when renaming classes.
-- Design requirements from `GameDescription.md`: weapon damage and hit chances must be developer-configurable (not player-configurable); ammo is shared now but should be structured so it can be split per weapon later; pickups/throwables/weapon types should be extensible; no upper player-count limit; host-configurable max players and pickup respawn time.
+- **Server-authoritative:** the host decides every shot, hit, damage event and pickup. Clients only predict movement through the custom movement component. Treat client input as untrusted. Do not trust Null/IP identities as Steam identities.
+- **Pure rules structs:** gameplay policy goes into header-only structs such as `FBrFogRules`, `FBrLifeRules`, `FBrZoneRules` and `FBrSessionRules`. They have no UObject dependencies, so actors, replication and automation tests can share them. Put new logic there and test it in `Tests/`.
+- **Tuning split:** developer tuning goes in `UBrDeveloperSettings` or data assets (`UPROPERTY(Config/EditAnywhere, meta=(ClampMin, ClampMax, Units))`). Players must not be able to change it. Host choices go in `BrMatchSettings`. Machine-local comfort settings (volume, mouse sensitivity, key bindings) are saved locally.
+- **Input** uses Enhanced Input with player-rebindable mappings through user settings. Conflicting bindings are rejected, Tilde and Period are reserved, and the Look axis is not rebindable.
+- **Include paths:** every source subfolder is listed explicitly in `PublicIncludePaths` in `BrGame.Build.cs`. Add an entry for any new subfolder.
+- **Redirects:** the template-rename redirects (`TP_TopDown*` → `BrGame*`) live in `DefaultEngine.ini`. Keep them, and add new ones when you rename classes.
+- **Design requirements:** there is no upper player-count limit (host max players, 0 = unlimited). Ammo is shared now but must stay splittable per weapon. Pickup, throwable and weapon types must stay extensible.
