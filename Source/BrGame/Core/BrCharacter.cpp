@@ -1,4 +1,5 @@
 #include "BrCharacter.h"
+#include "BrCharacterAnimInstance.h"
 #include "BrHitFeedbackComponent.h"
 #include "BrAimingRules.h"
 #include "BrGameInstance.h"
@@ -39,6 +40,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UBrCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -57,6 +60,10 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 
 	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -96.0f));
 	GetMesh()->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+	// Hidden/fogged meshes need no pose evaluation. PreUpdate catches up from current
+	// replicated posture/velocity when rendered again; no animation RPCs or timers.
+	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+	GetMesh()->bEnableUpdateRateOptimizations = true;
 
 	Health = CreateDefaultSubobject<UBrHealthComponent>(TEXT("Health"));
 	HitFeedback = CreateDefaultSubobject<UBrHitFeedbackComponent>(TEXT("HitFeedback"));
@@ -73,9 +80,10 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	HelpText->SetCollisionProfileName(TEXT("NoCollision"));
 	HelpText->SetVisibility(false);
 	WeaponVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponVisual"));
-	WeaponVisual->SetupAttachment(RootComponent);
+	WeaponVisual->SetupAttachment(GetMesh(), TEXT("hand_r"));
 	WeaponVisual->SetCollisionProfileName(TEXT("NoCollision"));
-	WeaponVisual->SetRelativeLocation(FVector(40, 15, 0));
+	WeaponVisual->SetUsingAbsoluteRotation(true);
+	WeaponVisual->SetRelativeLocation(FVector::ZeroVector);
 	WeaponVisual->SetRelativeScale3D(FVector(0.5f, 0.08f, 0.08f));
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
@@ -178,6 +186,7 @@ void ABrCharacter::Tick(float DeltaSeconds)
 #if !UE_BUILD_SHIPPING
 	ServiceSprintSmoke(DeltaSeconds);
 	ServiceMeshPoseSmoke(DeltaSeconds);
+	ServicePostureShot(DeltaSeconds);
 #endif
 	if (Life->State == EBrLifeState::Downed)
 	{
@@ -336,7 +345,7 @@ void ABrCharacter::ApplyLifePresentation()
 		ApplyLifeMeshPose();
 		UClass* AnimClass = UBrDeveloperSettings::Get()->DefaultCharacterAnimClass.LoadSynchronous();
 		if (AnimClass) GetMesh()->SetAnimInstanceClass(AnimClass);
-		else UE_LOG(LogBr, Warning, TEXT("Life presentation: unarmed animation class is missing."));
+		else UE_LOG(LogBr, Error, TEXT("Life presentation: configured character animation class is missing."));
 	}
 	GetMesh()->SetVisibility(Life->State != EBrLifeState::Eliminated);
 }
@@ -353,6 +362,34 @@ void ABrCharacter::UpdateWeaponVisual()
 	{
 		UE_LOG(LogBr, Warning, TEXT("Weapon has no cosmetic mesh: %s"), *GetNameSafe(Inventory->Weapon));
 	}
+}
+
+void ABrCharacter::UpdatePostureWeaponPose()
+{
+	// The current weapon is an X-long cosmetic block, not a rigged firearm.
+	// Keep its position at the evaluated hand and its barrel on the smoothed facing,
+	// rather than inheriting the mannequin's arbitrary hand-bone axes.
+	WeaponVisual->SetWorldRotation(GetMesh()->GetComponentQuat() * FRotator(0, 90, 0).Quaternion());
+}
+
+void ABrCharacter::PrepareForFogReveal()
+{
+	USkeletalMeshComponent* CharacterMesh = GetMesh();
+	if (!CharacterMesh || !CharacterMesh->GetSkeletalMeshAsset() || GetNetMode() == NM_DedicatedServer ||
+		!GetWorld() || GetWorld()->bIsTearingDown) return;
+	// Complete any old task before changing the instance's game-thread snapshot.
+	CharacterMesh->HandleExistingParallelEvaluationTask(true, true);
+	if (auto* Anim = Cast<UBrCharacterAnimInstance>(CharacterMesh->GetAnimInstance()))
+		Anim->SnapPostureOnNextUpdate();
+	// TickAnimation bypasses visibility/skip-update gating. Refresh(nullptr) is
+	// synchronous; temporarily bypass URO so it cannot return cached/interpolated bones.
+	const bool UseURO = CharacterMesh->bEnableUpdateRateOptimizations;
+	CharacterMesh->bEnableUpdateRateOptimizations = false;
+	CharacterMesh->TickAnimation(0.f, false);
+	CharacterMesh->RefreshBoneTransforms();
+	CharacterMesh->UpdateComponentToWorld();
+	CharacterMesh->bEnableUpdateRateOptimizations = UseURO;
+	CharacterMesh->MarkRenderDynamicDataDirty();
 }
 
 void ABrCharacter::PlayTracer(const FVector& Origin, const FVector& Direction, float Speed, float Range)
@@ -515,6 +552,15 @@ void ABrCharacter::Zoom(const FInputActionValue& Value)
 void ABrCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+#if !UE_BUILD_SHIPPING
+	// Null-RHI regression fixtures still evaluate real bones on each observer.
+	if (FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) ||
+		FParse::Param(FCommandLine::Get(), TEXT("BrPostureShot")))
+	{
+		GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+		GetMesh()->bEnableUpdateRateOptimizations = false;
+	}
+#endif
 	LastFootstepService = GetWorld()->GetTimeSeconds();
 	UE_LOG(LogBr, Display, TEXT("BrCharacter BeginPlay: Name=%s Authority=%s Controller=%s"),
 		*GetName(), HasAuthority() ? TEXT("true") : TEXT("false"), *GetNameSafe(GetController()));
@@ -530,15 +576,8 @@ void ABrCharacter::BeginPlay()
 		GetMesh()->SetSkeletalMesh(CharacterMesh);
 
 		UClass* AnimClass = Settings->DefaultCharacterAnimClass.LoadSynchronous();
-		if (AnimClass)
-		{
-			GetMesh()->SetAnimInstanceClass(AnimClass);
-		}
-		else
-		{
-			UE_LOG(LogBr, Warning, TEXT("Character animation is unset or failed to load: %s. Using reference pose."),
-				*Settings->DefaultCharacterAnimClass.ToString());
-		}
+		if (AnimClass) GetMesh()->SetAnimInstanceClass(AnimClass);
+		else UE_LOG(LogBr, Error, TEXT("Character animation class is missing: %s"), *Settings->DefaultCharacterAnimClass.ToString());
 	}
 	else
 	{

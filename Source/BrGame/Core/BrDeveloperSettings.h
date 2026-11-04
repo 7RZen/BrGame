@@ -10,6 +10,8 @@
 #include "BrDeveloperSettings.generated.h"
 
 class UAnimInstance;
+class UAnimationAsset;
+class UBlendSpace;
 class USkeletalMesh;
 class UBrInputConfig;
 class UBrWeaponDefinition;
@@ -27,6 +29,39 @@ class BRGAME_API UBrDeveloperSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	/** Full-body, in-place, non-additive sequence or blendspace, on the character skeleton.
+	 * Blendspace convention: direction (degrees) X, speed (cm/s) Y. Empty slots use procedural poses. */
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture")
+	TSoftObjectPtr<UAnimationAsset> CrouchIdle;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture")
+	TSoftObjectPtr<UAnimationAsset> CrouchMove;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture")
+	TSoftObjectPtr<UAnimationAsset> ProneIdle;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture")
+	TSoftObjectPtr<UAnimationAsset> ProneMove;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="2", Units="s"))
+	float CrouchPoseBlendTime = 0.25f;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="2", Units="s"))
+	float PronePoseBlendTime = 0.4f;
+	/** Pelvis drop at the default 60 cm crouch capsule half-height; scales with capsule reduction. */
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="75", Units="cm"))
+	float CrouchPelvisDrop = 65;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="35", Units="cm"))
+	float CrouchPelvisForward = 22;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="25", Units="deg"))
+	float CrouchHipLean = 12;
+	/** Additional forward spine lean on top of the hip lean. */
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="55", Units="deg"))
+	float CrouchTorsoLean = 38;
+	/** Outward/forward ratio of each knee's IK bend direction. */
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="2"))
+	float CrouchKneeOutward = 1.2f;
+	/** Extra lateral foot spacing per side; sampled foot height/cycle stays unchanged. */
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture", meta=(ClampMin="0", ClampMax="20", Units="cm"))
+	float CrouchFootSpread = 8;
+	UPROPERTY(Config, EditAnywhere, Category="Character|Posture")
+	TSoftObjectPtr<UBlendSpace> PostureLocomotion = TSoftObjectPtr<UBlendSpace>(
+		FSoftObjectPath(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/BS_Idle_Walk_Run.BS_Idle_Walk_Run")));
 	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="deg"))
 	float BulletHitAngle = 3;
 	UPROPERTY(Config, EditAnywhere, Category="HitFeedback", meta=(ClampMin="0", Units="deg"))

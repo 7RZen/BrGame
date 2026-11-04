@@ -55,6 +55,10 @@ public:
 	UBrHealthComponent* GetHealth() const { return Health; }
 	class UBrHitFeedbackComponent* GetHitFeedback() const { return HitFeedback; }
 	void UpdateWeaponVisual();
+	/** Game-thread post-animation callback; cosmetic only, no firing-origin changes. */
+	void UpdatePostureWeaponPose();
+	/** Synchronously publish the current pose while still fog-hidden, before any primitive is unhidden. */
+	void PrepareForFogReveal();
 	/** Coalesced server-only retry of cached auto-pickup overlaps, after state mutation completes. */
 	void RequestAutoPickupRetry();
 	void PlayTracer(const FVector& Origin, const FVector& Direction, float Speed, float Range);
@@ -96,12 +100,20 @@ private:
 	int32 SprintSmokeCorrections = 0;
 	friend class UBrCharacterMovementComponent;
 	void ServiceMeshPoseSmoke(float DeltaSeconds);
+	void ServicePostureShot(float DeltaSeconds);
+	int32 PostureShotLast = INDEX_NONE;
+	float PostureShotSettle = 0;
+	uint8 PostureShotMask = 0;
 	float MeshPoseSmokeSeconds = 0;
 	int32 MeshPoseSmokeSamples = 0;
 	bool bMeshPoseSmokeDowned = false;
 	bool bMeshPoseSmokeDownPassed = false;
 	bool bMeshPoseSmokeRevivePassed = false;
 	bool bMeshPoseSmokeFailed = false;
+	EBrPosture VisualSmokePosture = EBrPosture::Standing;
+	float VisualSmokeSeconds = 0;
+	bool bVisualCrouchPassed = false;
+	bool bVisualPronePassed = false;
 #endif
 	void TopDownCameraActivate();
 	UPROPERTY(Transient)

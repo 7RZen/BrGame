@@ -38,6 +38,15 @@ count and test both modes.
   buildings, cross low cover and approach the boundary. Expected: movement
   speeds/postures change; walls block movement and shots; low cover blocks
   shots but not fog vision; doors are passable; boundary contains players.
+- [ ] **Posture visuals (Issue 14):** compare host/remote crouch idle/walk and prone
+  idle/crawl at camera pitch 30/65/90 and several yaws/zoom levels. Check grounded
+  crouch feet, face-down forward prone body, forward hand-held weapon and smooth
+  0.25/0.4 s transitions, including rapid reversals, crouch↔prone and sprint.
+  Hit each low posture; mesh jerk must recover without snapping the pose.
+  Down/revive from both low postures; downed/dead must retain their back-lying pose.
+  Join while another player is prone, hide/reveal through fog and spectate them:
+  no stale standing pose. Check stairs/slopes and 60-character URO/visibility costs.
+  Optional future animation slots need retesting with real crouch/prone assets.
 - [ ] **Tactical sprint (host + remote):** hold/rebind Left Shift, test W/WA/WD versus
   A/D/S and mouse turns at the ±50° cone. Expect 1.3× weapon-adjusted run speed,
   five seconds of energy, 1 s regen wait, 5 s full regen, 0.5 s minimum restart.

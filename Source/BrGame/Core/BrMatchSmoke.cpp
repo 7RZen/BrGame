@@ -118,6 +118,15 @@ namespace
 }
 #endif
 
+void ABrPlayerController::ClientPostureSmoke_Implementation(EBrPosture Posture)
+{
+#if !UE_BUILD_SHIPPING
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || !IsLocalController()) return;
+	if (ABrCharacter* BrPawn = Cast<ABrCharacter>(GetPawn()))
+		BrPawn->GetBrMovement()->RequestPosture(Posture);
+#endif
+}
+
 #if !UE_BUILD_SHIPPING
 void ABrPlayerController::ReportMatchSmokeReady(ABrCharacter* ObserverPawn)
 {
@@ -154,6 +163,36 @@ void ABrCharacter::ServiceMeshPoseSmoke(float DeltaSeconds)
 		return;
 	}
 	if (bMeshPoseSmokeFailed) return;
+	if (GetLife()->IsAlive() && GetPosture() != EBrPosture::Standing)
+	{
+		if (VisualSmokePosture != GetPosture())
+		{
+			VisualSmokePosture = GetPosture();
+			VisualSmokeSeconds = 0;
+		}
+		VisualSmokeSeconds += DeltaSeconds;
+		bool& Passed = GetPosture() == EBrPosture::Prone ? bVisualPronePassed : bVisualCrouchPassed;
+		if (!Passed && VisualSmokeSeconds >= 0.9f)
+		{
+			const float HeadHeight = GetMesh()->GetBoneLocation(TEXT("head")).Z -
+				(GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+			const bool Prone = GetPosture() == EBrPosture::Prone;
+			if (HeadHeight < 5 || HeadHeight > (Prone ? 45.f : 135.f))
+			{
+				bMeshPoseSmokeFailed = true;
+				UE_LOG(LogBr, Error, TEXT("E2E MESH POSE FAIL: Posture=%d HeadHeight=%.2f Authority=%d"), int32(GetPosture()), HeadHeight, HasAuthority());
+				return;
+			}
+			Passed = true;
+			UE_LOG(LogBr, Display, TEXT("E2E MESH POSE %s PASS: Pawn=%s Authority=%d NonOwner=1 HeadHeight=%.2f"),
+				Prone ? TEXT("PRONE") : TEXT("CROUCH"), *GetName(), HasAuthority(), HeadHeight);
+		}
+	}
+	else
+	{
+		VisualSmokePosture = EBrPosture::Standing;
+		VisualSmokeSeconds = 0;
+	}
 	const bool bDowned = GetLife()->State == EBrLifeState::Downed;
 	if (!bDowned && (!bMeshPoseSmokeDownPassed || !GetLife()->IsAlive() || bMeshPoseSmokeRevivePassed)) return;
 	if (bDowned != bMeshPoseSmokeDowned)
@@ -491,19 +530,39 @@ void ABrGameMode::ServiceMatchSmoke()
 		ABrCharacter* Target = MatchSmokeTarget.Get();
 		if (Target && Target->GetLife()->IsAlive())
 		{
-			// Revived low-posture transitions must not retain the +12 downed offset.
-			for (EBrPosture Posture : {EBrPosture::Crouching, EBrPosture::Prone, EBrPosture::Standing})
+			Target->GetBrMovement()->RequestPosture(EBrPosture::Crouching);
+			CastChecked<ABrPlayerController>(Target->GetController())->ClientPostureSmoke(EBrPosture::Crouching);
+			Target->GetBrMovement()->Crouch(false);
+			Target->ForceNetUpdate();
+			MatchSmokeStage = 21;
+			MatchSmokeDeadline = Now + 1.8f;
+			return;
+		}
+		FailSmoke(TEXT("Revived pawn disappeared during mesh observation."));
+		return;
+	}
+	if (MatchSmokeStage == 21 || MatchSmokeStage == 22 || MatchSmokeStage == 23)
+	{
+		if (Now < MatchSmokeDeadline) return;
+		ABrCharacter* Target = MatchSmokeTarget.Get();
+		if (Target && Target->GetLife()->IsAlive())
+		{
+			if (!CheckAliveMeshPose(Target))
 			{
+				FailSmoke(TEXT("Post-revive crouch/prone mesh offset mismatch."));
+				return;
+			}
+			if (MatchSmokeStage < 23)
+			{
+				const EBrPosture Posture = MatchSmokeStage == 21 ? EBrPosture::Prone : EBrPosture::Standing;
 				Target->GetBrMovement()->RequestPosture(Posture);
+				CastChecked<ABrPlayerController>(Target->GetController())->ClientPostureSmoke(Posture);
 				if (Posture == EBrPosture::Standing) Target->GetBrMovement()->UnCrouch(false);
 				else Target->GetBrMovement()->Crouch(false);
-				if (!FMath::IsNearlyEqual(Target->GetBaseTranslationOffset().Z,
-					-Target->GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), 0.1f) ||
-					!FMath::IsNearlyZero(Target->GetMesh()->GetRelativeRotation().Pitch, 2.f))
-				{
-					FailSmoke(TEXT("Post-revive crouch/prone mesh offset mismatch."));
-					return;
-				}
+				Target->ForceNetUpdate();
+				++MatchSmokeStage;
+				MatchSmokeDeadline = Now + 1.8f;
+				return;
 			}
 			MatchSmokeTargetController = Target->GetController();
 			MatchSmokeGearWeapon = Target->GetInventory()->Weapon;

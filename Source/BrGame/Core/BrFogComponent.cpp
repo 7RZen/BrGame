@@ -11,6 +11,7 @@
 #include "BrLog.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/PostProcessVolume.h"
@@ -74,6 +75,9 @@ void UBrFogComponent::RestorePresentation()
 	for (const auto& Pair : OriginalHidden)
 		if (UPrimitiveComponent* Primitive = Pair.Key.Get())
 		{
+			if (!Pair.Value && Primitive->bHiddenInGame)
+				if (ABrCharacter* Character = Cast<ABrCharacter>(Primitive->GetOwner()))
+					if (Primitive == Character->GetMesh()) Character->PrepareForFogReveal();
 			Primitive->SetHiddenInGame(Pair.Value);
 			if (Primitive->GetOwner()->IsA<ABrCharacter>())
 			{
@@ -277,6 +281,26 @@ void UBrFogComponent::ValidateSmokeMasks(int32 Stage)
 	}
 #endif
 }
+void UBrFogComponent::ApplyActorPresentation(AActor* Actor, bool bShow, bool bFriendly)
+{
+	ABrCharacter* Character = Cast<ABrCharacter>(Actor);
+	// Evaluate BEFORE exposing any primitive (including the attached weapon).
+	if (Character && bShow && Character->GetMesh()->bHiddenInGame)
+		if (const bool* OriginallyHidden = OriginalHidden.Find(Character->GetMesh()))
+			if (!*OriginallyHidden) Character->PrepareForFogReveal();
+	TInlineComponentArray<UPrimitiveComponent*> Primitives(Actor);
+	for (UPrimitiveComponent* Primitive : Primitives)
+	{
+		const bool bOriginallyHidden = OriginalHidden.FindOrAdd(Primitive, Primitive->bHiddenInGame);
+		Primitive->SetHiddenInGame(bOriginallyHidden || !bShow);
+		if (Character)
+		{
+			Primitive->SetRenderCustomDepth(bFriendly);
+			Primitive->SetCustomDepthStencilValue(bFriendly ? 1 : 0);
+		}
+	}
+}
+
 void UBrFogComponent::Update()
 {
 	const ABrPlayerController* PC = Cast<ABrPlayerController>(GetOwner());
@@ -300,19 +324,8 @@ void UBrFogComponent::Update()
 			const bool bFriendly = bActive && Character && UBrVisibilitySubsystem::Friendly(
 				Viewer, Character->GetPlayerState<ABrPlayerState>());
 			// bHiddenInGame is independent of gameplay's SetVisibility (life/invulnerability).
-			TInlineComponentArray<UPrimitiveComponent*> Primitives(*It);
-			for (UPrimitiveComponent* Primitive : Primitives)
-			{
-				const bool bOriginallyHidden = OriginalHidden.FindOrAdd(Primitive, Primitive->bHiddenInGame);
-				Primitive->SetHiddenInGame(bOriginallyHidden || !bShow);
-				if (Character)
-				{
-					// Reserve stencil 1 for friends. This preserves own/team meshes
-					// even at authored map bounds and polygon rasterization edges.
-					Primitive->SetRenderCustomDepth(bFriendly);
-					Primitive->SetCustomDepthStencilValue(bFriendly ? 1 : 0);
-				}
-			}
+			// Stencil 1 preserves friends at authored bounds and polygon rasterization edges.
+			ApplyActorPresentation(*It, bShow, bFriendly);
 		}
 	for (auto HiddenIt = OriginalHidden.CreateIterator(); HiddenIt; ++HiddenIt)
 		if (!HiddenIt.Key().IsValid()) HiddenIt.RemoveCurrent();

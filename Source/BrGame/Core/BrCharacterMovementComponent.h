@@ -85,6 +85,8 @@ protected:
 	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 
 private:
+	friend class FBrPostureRealMeshTest;
+	friend class FBrPostureFogRevealTest;
 	friend class FBrHitFeedbackSmoothingTest;
 	friend class FBrSprintIntegrationTest;
 	friend class FBrSprintReplayYawTest;

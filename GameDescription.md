@@ -20,6 +20,12 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
 | Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
+| Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
+
+### Posture presentation
+- Crouch lowers the pelvis, bends hips/knees with grounded sampled feet and leans the torso forward. Prone lies face-down along facing, with forward arms/weapon and alternating speed-scaled crawl limbs.
+- Cosmetic transitions use 0.25 s crouch / 0.4 s prone *(dev, Project Settings → BrGame → Character/Posture)*, including exits and crouch↔prone. Sprint returns to standing. Collision, damage rules and server authority are unchanged; prone wall clipping is accepted.
+- `DefaultCharacterAnimClass` now selects the native `BrCharacterAnimInstance`; no template asset is edited. Optional in-place full-body `CrouchIdle/CrouchMove/ProneIdle/ProneMove` sequence/blendspace slots replace procedural targets when supplied. Empty slots remain procedural. Downed/dead/corpse presentation and additive hit feedback are separate and unchanged.
 
 ## Hosting
 - Player-hosted game (the host's game is the server) over Steam. Steam provides matchmaking, the server list, relays (hides IP addresses) and invites, but not server hosting.

@@ -32,6 +32,8 @@ public:
 	/** Development smoke only: synchronous GPU readback, never used in ordinary play. */
 	void ValidateSmokeMasks(int32 Stage);
 private:
+	friend class FBrPostureFogRevealTest;
+	void ApplyActorPresentation(AActor* Actor, bool bShow, bool bFriendly);
 	void Update();
 	bool InitializeRendering();
 	void DrawMask(UTextureRenderTarget2D* Target, const FLinearColor& Color);

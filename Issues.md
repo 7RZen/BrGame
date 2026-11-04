@@ -52,7 +52,7 @@ Player is locked at looking up, mouse rotates map. Keys W and S moves forward an
 Status: Resolved (relative MouseX turns facing/camera instantly; persistent sensitivity slider, zoom/pitch-independent below-centre framing, UI cursor transitions and downed/spectator turning implemented. Independent-review P2 fixed: accepted fire/grenade aim commits server control/actor yaw; older queued moves cannot undo it, newer turns remain unrestricted. UBT build: zero compiler warnings; 68/68 automation and 12/12 regression steps PASS. Earlier pitch 30/65/90 and Settings screenshots inspected. Physical mouse/focus/network-stress playtests remain: Scripts/AimingValidation.md.)
 
 ## 9. (FR) Slide
-Pressing CTRL til slide if running.
+Pressing CTRL til slide if running or sprinting.
 Status: Unresolved
 
 ## 10 (FR) Maps and map selector
@@ -70,3 +70,7 @@ Status: Implemented; all four P2 review defects fixed (historical replay yaw/rec
 ## 13 (I) Wrong player name in multiplayer
 When testing local the player names are correct for other players, but when joingin via steam the other players name are Player and not what they set.
 Status: Unresolved
+
+## 14 (I) Crouching or prone animation is wrong
+When crouching or in prone mode the character is still standing, should be visible when crouching the character is bent. When prone the character should be lying down.
+Status: Implemented; both P2 review findings fixed. Native procedural crouch-walk/crawl retains locomotion, developer blends and optional animation slots. Crouch now has developer-tunable deep pelvis drop/forward lean and exposed outward knees, with 65° projected silhouette regression checks; fog synchronously snaps/evaluates current posture BEFORE unhide, tested with production visibility/URO policies and hidden bone-finalization assertions. Template code/assets untouched. Full UBT editor build zero compiler warnings; 88/88 automation and 14/14 regression steps PASS (Saved/Logs/RunAll/20261104-091657/), including both non-owner match modes. Thirty gameplay/remote captures regenerated at default/min/max zoom; 22 frames inspected, including standing vs crouch idle/moving at all three zooms. Approach, evidence and remaining manual checks: Scripts/PostureVisualValidation.md.

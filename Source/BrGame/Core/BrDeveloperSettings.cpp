@@ -30,7 +30,7 @@ UBrDeveloperSettings::UBrDeveloperSettings()
 	DefaultCharacterMesh = TSoftObjectPtr<USkeletalMesh>(
 		FSoftObjectPath(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple")));
 	DefaultCharacterAnimClass = TSoftClassPtr<UAnimInstance>(
-		FSoftObjectPath(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C")));
+		FSoftObjectPath(TEXT("/Script/BrGame.BrCharacterAnimInstance")));
 }
 
 const FBrAudioVoicePolicy& UBrDeveloperSettings::VoicePolicy(EBrSoundKind Kind) const

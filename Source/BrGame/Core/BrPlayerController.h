@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "BrMatchSettings.h"
 #include "BrAudioRules.h"
+#include "BrMovement.h"
 #include "BrPlayerController.generated.h"
 
 class UBrInputConfig;
@@ -34,6 +35,9 @@ public:
 	void ClientHitSmokeProbe(int32 Stage, bool bVictim, FVector_NetQuantize Origin);
 	UFUNCTION(Client, Reliable)
 	void ClientSprintSmoke(bool bStart, FVector Location);
+	/** Development fixture only; normal predicted CMC input carries posture to authority. */
+	UFUNCTION(Client, Reliable)
+	void ClientPostureSmoke(EBrPosture Posture);
 	UFUNCTION(Server, Reliable)
 	void ServerSettings(FBrMatchSettings Settings);
 	UFUNCTION(Server, Reliable)

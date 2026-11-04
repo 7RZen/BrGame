@@ -6,6 +6,8 @@ param([int]$Port = 17981, [int]$TimeoutSeconds = 180,
     [switch]$Menu,
     [switch]$Aiming,
     [switch]$HitFeedback,
+    [switch]$Posture,
+    [ValidateRange(1200,4000)][float]$PostureOrthoWidth = 2500,
     [switch]$Maps,
     [switch]$MapAnnouncement,
     [ValidateRange(30,90)][float]$CameraPitchAngle = 65,
@@ -16,7 +18,7 @@ $Editor = Join-Path ${env:ProgramFiles} "Epic Games\UE_5.8\Engine\Binaries\Win64
 $Project = Join-Path $Root "BrGame.uproject"
 $Case = "Shot$RunLabel"
 $Logs = Join-Path $Root "Saved\Logs\MP\$Case"
-$ShotDir = Join-Path $Root $(if ($Maps -or $MapAnnouncement) { "Saved\Screenshots\Maps" } elseif ($HitFeedback) { "Saved\Screenshots\HitFeedback" } elseif ($Aiming) { "Saved\Screenshots\Aiming" } elseif ($Menu) { "Saved\Screenshots\Menu" } elseif ($Minimap) { "Saved\Screenshots\Minimap" } else { "Saved\Screenshots\Step10" })
+$ShotDir = Join-Path $Root $(if ($Posture) { "Saved\Screenshots\Posture" } elseif ($Maps -or $MapAnnouncement) { "Saved\Screenshots\Maps" } elseif ($HitFeedback) { "Saved\Screenshots\HitFeedback" } elseif ($Aiming) { "Saved\Screenshots\Aiming" } elseif ($Menu) { "Saved\Screenshots\Menu" } elseif ($Minimap) { "Saved\Screenshots\Minimap" } else { "Saved\Screenshots\Step10" })
 $Source = Join-Path $Root "Saved\Screenshots\WindowsEditor"
 if (Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue) {
     throw "Editor/LiveCodingConsole running; close it first. Nothing was stopped."
@@ -52,7 +54,7 @@ function WaitLog($Role, $Pattern) {
     throw "Timed out waiting for $Role '$Pattern'"
 }
 try {
-    if (([int]$MapAnnouncement.IsPresent + [int]$Maps.IsPresent + [int]$Menu.IsPresent + [int]$Minimap.IsPresent + [int]$Aiming.IsPresent + [int]$HitFeedback.IsPresent) -gt 1) { throw "Shot fixtures cannot be combined." }
+    if (([int]$Posture.IsPresent + [int]$MapAnnouncement.IsPresent + [int]$Maps.IsPresent + [int]$Menu.IsPresent + [int]$Minimap.IsPresent + [int]$Aiming.IsPresent + [int]$HitFeedback.IsPresent) -gt 1) { throw "Shot fixtures cannot be combined." }
     if ($MapAnnouncement) {
         Launch "Host" "/Game/BrGame/Maps/L_Town?Name=MapHost" @("-BrShotSmoke", "-BrMapAnnouncementShot")
     } elseif ($Maps) {
@@ -62,16 +64,32 @@ try {
     } elseif ($Minimap) {
         Launch "Host" "/Game/BrGame/Maps/L_Town?Name=MapHost?Mode=Grouped" @("-BrShotSmoke", "-BrMinimapShot")
     } else {
-        $AimingArgs = $(if ($HitFeedback) { @("-BrHitShot", "-ExecCmds=`"r.MotionBlurQuality 0`"") } elseif ($Aiming) { @("-BrAimingShot") } else { @() })
+        $AimingArgs = $(if ($Posture) { @("-BrPostureShot", "-ExecCmds=`"r.MotionBlurQuality 0`"", "-BrPostureShotWidth=$PostureOrthoWidth") } elseif ($HitFeedback) { @("-BrHitShot", "-ExecCmds=`"r.MotionBlurQuality 0`"") } elseif ($Aiming) { @("-BrAimingShot") } else { @() })
         Launch "Host" "/Game/BrGame/Maps/L_Lobby?listen?Name=ShotHost" (@("-Port=$Port", "-BrShotSmoke",
             "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:CameraPitchAngle=$CameraPitchAngle") + $AimingArgs)
         WaitLog "Host" "Flow ready: L_Lobby Lobby=1"
-        Launch "Client" "127.0.0.1:$Port`?Name=ShotClient" @() $false
+        Launch "Client" "127.0.0.1:$Port`?Name=ShotClient" $(if ($Posture) { @("-BrPostureShot", "-ExecCmds=`"r.MotionBlurQuality 0`"", "-BrPostureShotWidth=$PostureOrthoWidth", "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:CameraPitchAngle=$CameraPitchAngle") } else { @() }) $Posture.IsPresent
         WaitLog "Host" "Flow admitted: ShotClient"
     }
     WaitLog "Host" "SHOT SMOKE PASS"
     # RequestScreenshot writes asynchronously after several frames; give the window time before stopping.
     Start-Sleep -Seconds 15
+    if ($Posture) {
+        foreach ($Role in @("Host", "Client")) {
+            $Names = @(Select-String -Path (Join-Path $Logs "$Role.log") -Pattern "Posture shot capture: Name=(\S+)" |
+                ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -Unique)
+            if ($Names.Count -ne 5) { throw "Expected 5 $Role posture captures, got $($Names.Count)." }
+            foreach ($Name in $Names) {
+                $File = Join-Path $Source "Posture_$Name.png"
+                if (!(Test-Path $File)) { throw "Missing $File" }
+                Copy-Item $File (Join-Path $ShotDir "$Name$RunLabel.png") -Force
+                Remove-Item $File
+                Write-Output "SHOT $Name"
+            }
+        }
+        Write-Output "SHOT SMOKE PASS: 10 posture screenshots saved to $ShotDir"
+        return
+    }
     $Names = @(Select-String -Path (Join-Path $Logs "Host.log") -Pattern "Shot smoke capture: Name=(\S+)" |
         ForEach-Object { $_.Matches[0].Groups[1].Value })
     $Found = 0

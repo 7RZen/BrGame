@@ -99,7 +99,7 @@ try {
     # Both rounds must pass sustained checks on the listen host and another
     # client, not the downed pawn's owner. Samples cover >=0.5s after settling.
     foreach ($Role in @("Host", "Client3")) {
-        foreach ($Pose in @("DOWNED", "REVIVED")) {
+        foreach ($Pose in @("DOWNED", "REVIVED", "CROUCH", "PRONE")) {
             $Authority = if ($Role -eq "Host") { 1 } else { 0 }
             WaitLog $Role "E2E MESH POSE $Pose PASS:.*Authority=$Authority NonOwner=1" 2
         }

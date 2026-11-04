@@ -105,6 +105,7 @@ private:
 	int32 ShotSmokeStage = 0;
 	float ShotSmokeNextTime = 0;
 	void ServiceShotSmoke();
+	void ServicePostureShot();
 #if !UE_BUILD_SHIPPING
 	void ServiceMapSelectorSmoke();
 	void ServiceMinimapShot();
