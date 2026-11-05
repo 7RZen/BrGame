@@ -124,10 +124,11 @@ try {
     $URL = "/Game/BrGame/Maps/L_Lobby?listen?Name=SmokeHost"
     if ($Grouped) { $URL += "?Mode=Grouped?NumGroups=2" }
     $HostExtra = @("-Port=$Port", "-BrFlowSmoke")
-    if ($MatchLevel -ne "L_Town") {
-        if ($MatchLevel -ne "Lvl_TopDown") { throw "Unknown allowlisted MatchLevel: $MatchLevel" }
+    if ($MatchLevel -eq "L_Town") {
+        $HostExtra += "-BrSmokeMapId=Town"
+    } elseif ($MatchLevel -eq "Lvl_TopDown") {
         $HostExtra += "-BrSmokeMapId=TestArena"
-    }
+    } else { throw "Unknown allowlisted MatchLevel: $MatchLevel" }
     if ($Zone) {
         $HostExtra += @("-BrZoneSmoke", "-LogCmds=`"LogBr Verbose`"",
             "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:ZoneTimeScale=20",
