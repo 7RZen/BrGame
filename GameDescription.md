@@ -18,6 +18,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | 10 | Real map with obstructions | Done: L_Town (200 m town/field/compound/forest) is the match map; all BrGame tests (44) and flow/fog/session/local smokes pass; gameplay screenshots reviewed; open items in Scripts\Step10Validation.md |
 | 11 | Further tests and playtesting | Automated suite done; manual playtest pending |
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
+| GitHub #7 | Weapon models | Placeholder held/pickup/dropped visuals; validation: Scripts/Issue7WeaponVisualValidation.md |
 | Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
@@ -203,6 +204,7 @@ Base running speed is 600.
 
 ## Weapons
 - A player carries one weapon at a time. Weapons are pickups; picking one up drops the current weapon, which keeps only its loaded rounds (so swapping can't farm ammo). Dropped weapons disappear after 120 s *(dev)*.
+- Held, pickup and dropped weapons use a replaceable BasicShapes Cube placeholder, scaled to 25/50/75 cm along local X for the pistol/assault rifle/machine gun.
 - Bullets and grenades travel (not instant hits). Weapon bullets are very fast.
 - All values are *(dev)*, in data assets, and more weapon and throwable types can be added later.
 

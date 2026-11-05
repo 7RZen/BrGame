@@ -86,7 +86,6 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	WeaponVisual->SetCollisionProfileName(TEXT("NoCollision"));
 	WeaponVisual->SetUsingAbsoluteRotation(true);
 	WeaponVisual->SetRelativeLocation(FVector::ZeroVector);
-	WeaponVisual->SetRelativeScale3D(FVector(0.5f, 0.08f, 0.08f));
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
@@ -371,6 +370,7 @@ float ABrCharacter::GetWeaponRunSpeedMultiplier() const
 void ABrCharacter::UpdateWeaponVisual()
 {
 	WeaponVisual->SetStaticMesh(Inventory->Weapon ? Inventory->Weapon->Mesh.Get() : nullptr);
+	WeaponVisual->SetRelativeScale3D(Inventory->Weapon ? Inventory->Weapon->VisualScale : FVector::OneVector);
 	if (Inventory->Weapon && !Inventory->Weapon->Mesh)
 	{
 		UE_LOG(LogBr, Warning, TEXT("Weapon has no cosmetic mesh: %s"), *GetNameSafe(Inventory->Weapon));

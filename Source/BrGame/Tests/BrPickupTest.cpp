@@ -3,6 +3,119 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
+#include "BrPickup.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/UnrealType.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrWeaponPlaceholderLengthTest, "BrGame.Pickups.WeaponPlaceholderLengths",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrWeaponPlaceholderLengthTest::RunTest(const FString& Parameters)
+{
+	const TCHAR* Names[] = { TEXT("Pistol"), TEXT("AssaultRifle"), TEXT("MachineGun") };
+	const double ExpectedLengths[] = { 25.0, 50.0, 75.0 };
+	double PreviousLength = 0;
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Names); ++Index)
+	{
+		const FString Path = FString::Printf(TEXT("/Game/BrGame/Weapons/DA_Weapon_%s.DA_Weapon_%s"),
+			Names[Index], Names[Index]);
+		const UBrWeaponDefinition* Weapon = LoadObject<UBrWeaponDefinition>(nullptr, *Path);
+		if (!TestNotNull(*Path, Weapon)) return false;
+		if (!TestNotNull(TEXT("Placeholder weapon has a mesh"), Weapon->Mesh.Get())) return false;
+		const FVector Size = Weapon->Mesh->GetBoundingBox().GetSize() * Weapon->VisualScale;
+		TestTrue(TEXT("Placeholder has expected approximate length"), FMath::IsNearlyEqual(Size.X, ExpectedLengths[Index], 1.0));
+		TestTrue(TEXT("Pistol < assault rifle < machine gun"), Size.X > PreviousLength);
+		TestTrue(TEXT("Local X remains the long axis"), Size.X > Size.Y && Size.X > Size.Z);
+		PreviousLength = Size.X;
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrPickupVisualResolutionTest, "BrGame.Pickups.WeaponVisualResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrPickupVisualResolutionTest::RunTest(const FString& Parameters)
+{
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	if (!TestNotNull(TEXT("Cube fixture"), Cube) || !TestNotNull(TEXT("Sphere fixture"), Sphere) ||
+		!TestNotNull(TEXT("Pickup material fixture"), Material)) return false;
+	// Exercise the real rep-notify without changing the production actor's private API.
+	FStructProperty* StateProperty = FindFProperty<FStructProperty>(ABrPickup::StaticClass(), TEXT("State"));
+	UFunction* RepNotify = ABrPickup::StaticClass()->FindFunctionByName(TEXT("OnRep_State"));
+	if (!TestNotNull(TEXT("Replicated pickup state"), StateProperty) ||
+		!TestNotNull(TEXT("Pickup rep-notify"), RepNotify)) return false;
+
+	const UWorld::InitializationValues Values = UWorld::InitializationValues().AllowAudioPlayback(false)
+		.CreatePhysicsScene(true).CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false);
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::SM5, &Values);
+	if (!TestNotNull(TEXT("Test world"), World)) return false;
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	World->InitializeActorsForPlay(FURL());
+	ABrPickup* Pickup = World->SpawnActor<ABrPickup>();
+	if (!TestNotNull(TEXT("Pickup actor"), Pickup))
+	{
+		World->DestroyWorld(false);
+		GEngine->DestroyWorldContext(World);
+		return false;
+	}
+	UStaticMeshComponent* Visual = Pickup->FindComponentByClass<UStaticMeshComponent>();
+	UTextRenderComponent* Label = Pickup->FindComponentByClass<UTextRenderComponent>();
+	if (TestNotNull(TEXT("Visual component"), Visual) && TestNotNull(TEXT("Label component"), Label))
+	{
+		UBrWeaponDefinition* Pistol = NewObject<UBrWeaponDefinition>(World);
+		Pistol->Mesh = Cube;
+		Pistol->VisualScale = FVector(0.25f, 0.08f, 0.08f);
+		Pistol->DisplayName = FText::FromString(TEXT("Pistol"));
+		UBrWeaponDefinition* DroppedWeapon = NewObject<UBrWeaponDefinition>(World);
+		DroppedWeapon->Mesh = Sphere; // Different mesh as well as scale detects template-mesh regressions.
+		DroppedWeapon->VisualScale = FVector(0.75f, 0.08f, 0.08f);
+		DroppedWeapon->DisplayName = FText::FromString(TEXT("Machine Gun"));
+		UBrWeaponPickupDefinition* Template = NewObject<UBrWeaponPickupDefinition>(World);
+		Template->Weapon = Pistol;
+		Template->Mesh = Sphere;
+		Template->VisualScale = FVector(0.2f);
+		Template->Material = Material;
+		Template->Color = FLinearColor::Green;
+		FBrPickupState* State = StateProperty->ContainerPtrToValuePtr<FBrPickupState>(Pickup);
+		State->Definition = Template;
+		State->bAvailable = true;
+		Pickup->ProcessEvent(RepNotify, nullptr);
+		TestTrue(TEXT("Fresh pickup uses weapon mesh, not pickup mesh"), Visual->GetStaticMesh() == Cube);
+		TestEqual(TEXT("Fresh pickup uses weapon scale"), Visual->GetRelativeScale3D(), Pistol->VisualScale);
+		TestEqual(TEXT("Fresh weapon label preserved"), Pickup->GetPickupLabel().ToString(), FString(TEXT("Pistol")));
+
+		State->Payload.bDropped = true;
+		State->Payload.DroppedWeapon = DroppedWeapon;
+		State->Payload.LoadedRounds = 7;
+		Pickup->ProcessEvent(RepNotify, nullptr);
+		TestTrue(TEXT("Dropped pickup uses payload mesh, not template pistol"), Visual->GetStaticMesh() == Sphere);
+		TestEqual(TEXT("Dropped pickup uses payload scale"), Visual->GetRelativeScale3D(), DroppedWeapon->VisualScale);
+		TestEqual(TEXT("Dropped label uses payload weapon"), Pickup->GetPickupLabel().ToString(), FString(TEXT("Machine Gun (7 loaded)")));
+		TestEqual(TEXT("Weapon pickup retains label color"), Label->TextRenderColor, Template->Color.ToFColor(true));
+		if (TestNotNull(TEXT("Weapon pickup retains material"), Visual->GetMaterial(0)))
+			TestTrue(TEXT("Weapon pickup material derives from pickup definition"), Visual->GetMaterial(0)->GetBaseMaterial() == Material->GetBaseMaterial());
+
+		UBrAmmoPickupDefinition* Ammo = NewObject<UBrAmmoPickupDefinition>(World);
+		Ammo->Mesh = Cube;
+		Ammo->VisualScale = FVector(0.3f, 0.4f, 0.5f);
+		Ammo->Material = Material;
+		Ammo->Color = FLinearColor::Blue;
+		Ammo->Label = FText::FromString(TEXT("Ammo"));
+		Pickup->ResetPickup(Ammo);
+		TestTrue(TEXT("Nonweapon mesh unchanged"), Visual->GetStaticMesh() == Cube);
+		TestEqual(TEXT("Nonweapon scale unchanged"), Visual->GetRelativeScale3D(), Ammo->VisualScale);
+		TestEqual(TEXT("Nonweapon label unchanged"), Pickup->GetPickupLabel().ToString(), FString(TEXT("Ammo")));
+		TestEqual(TEXT("Nonweapon label color unchanged"), Label->TextRenderColor, Ammo->Color.ToFColor(true));
+	}
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrPickupWeightedTest, "BrGame.Pickups.WeightedSelection",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -132,15 +132,35 @@ void ABrPickup::OnRep_State()
 		if (State.bAvailable) UE_LOG(LogBr, Error, TEXT("Available pickup has no definition: %s"), *GetName());
 		return;
 	}
-	Visual->SetStaticMesh(State.Definition->Mesh);
-	Visual->SetRelativeScale3D(State.Definition->VisualScale);
+	if (const UBrWeaponPickupDefinition* WeaponPickup = Cast<UBrWeaponPickupDefinition>(State.Definition))
+	{
+		const UBrWeaponDefinition* Weapon = WeaponPickup->GetWeapon(State.Payload);
+		// A generic drop template represents the payload's weapon, never its template mesh.
+		Visual->SetStaticMesh(Weapon ? Weapon->Mesh.Get() : nullptr);
+		Visual->SetRelativeScale3D(Weapon ? Weapon->VisualScale : FVector::OneVector);
+		if (!Weapon)
+		{
+			UE_LOG(LogBr, Warning, TEXT("Weapon pickup has no weapon definition: %s (Dropped=%d)"),
+				*GetNameSafe(State.Definition), State.Payload.bDropped);
+		}
+		else if (!Weapon->Mesh)
+		{
+			UE_LOG(LogBr, Warning, TEXT("Weapon pickup cosmetic mesh missing: %s"), *GetNameSafe(Weapon));
+		}
+	}
+	else
+	{
+		Visual->SetStaticMesh(State.Definition->Mesh);
+		Visual->SetRelativeScale3D(State.Definition->VisualScale);
+		if (!State.Definition->Mesh)
+			UE_LOG(LogBr, Warning, TEXT("Pickup cosmetic mesh missing: %s"), *GetNameSafe(State.Definition));
+	}
 	if (State.Definition->Material)
 	{
 		if (UMaterialInstanceDynamic* MID = Visual->CreateDynamicMaterialInstance(0, State.Definition->Material))
 			MID->SetVectorParameterValue(TEXT("PickupColor"), State.Definition->Color);
 	}
 	else UE_LOG(LogBr, Warning, TEXT("Pickup cosmetic material missing: %s"), *GetNameSafe(State.Definition));
-	if (!State.Definition->Mesh) UE_LOG(LogBr, Warning, TEXT("Pickup cosmetic mesh missing: %s"), *GetNameSafe(State.Definition));
 	Label->SetText(GetPickupLabel());
 	Label->SetTextRenderColor(State.Definition->Color.ToFColor(true));
 }

@@ -52,6 +52,8 @@ public:
 	TObjectPtr<UBrAmmoDefinition> AmmoType;
 	UPROPERTY(EditAnywhere, Category="Cosmetics")
 	TObjectPtr<UStaticMesh> Mesh;
+	UPROPERTY(EditAnywhere, Category="Cosmetics")
+	FVector VisualScale = FVector(0.5f, 0.08f, 0.08f);
 	UPROPERTY(EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundBase> FireSound;
 };
