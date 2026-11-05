@@ -19,6 +19,7 @@ void ABrHUD::DrawHUD()
 {
 	Super::DrawHUD();
 	DrawMinimap(); // Before the pawn-only HUD return, so spectators get their target's view.
+	DrawCompass();
 	if (Canvas && PlayerOwner)
 	{
 		if (const ABrPlayerController* PC = Cast<ABrPlayerController>(PlayerOwner))

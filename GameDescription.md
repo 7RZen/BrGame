@@ -19,6 +19,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | 11 | Further tests and playtesting | Automated suite done; manual playtest pending |
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
 | GitHub #7 | Weapon models | Placeholder held/pickup/dropped visuals; validation: Scripts/Issue7WeaponVisualValidation.md |
+| GitHub #21 | Compass and coordinates | Top-center heading strip and live world X/Y readout; validation: Scripts/Issue21CompassValidation.md |
 | Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |

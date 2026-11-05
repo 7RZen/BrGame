@@ -19,6 +19,7 @@ public:
 	bool ExportMapPreview();
 
 private:
+	void DrawCompass();
 	void DrawMinimap();
 	bool InitializeMap();
 	UPROPERTY(Transient)
