@@ -227,14 +227,40 @@ Review-specific changed paths:
 `Scripts/RunFlowSmoke.ps1`, `Scripts/RunShotSmoke.ps1`,
 `Scripts/RunAllTests.ps1`, this document and Issues.md point 10.
 
-## Cooking (static verification; no package build requested)
+## Cooking and packaged runtime verification
 
 - MapsToCook explicitly includes L_MainMenu, L_Lobby, L_Transition, **L_Town**
   and **Lvl_TopDown**. `BrGame.Maps.CookSettings` passes.
 - Both preview references are under `/Game/BrGame/Maps/Previews`, covered by
   existing `DirectoriesToAlwaysCook=/Game/BrGame`.
 - New map authoring/cook steps documented in `Docs/AddingMaps.md`; always add
-  new map packages to MapsToCook. No claim of packaged-runtime validation.
+  new map packages to MapsToCook. The packaged Development build and runtime
+  selector smoke now verify these entries in IoStore.
+
+## Packaged IoStore map-list regression (2026-11-05)
+
+The first packaged selector smoke logged all configured entries as invalid and
+rejected `TestArena`. The maps were cooked into IoStore (`.ucas`), not loose
+`.umap` files, so `FPackageName::DoesPackageExist()` plus a filename-extension
+check incorrectly filtered them all. `ValidMaps()` now performs the physical
+existence/type check only in editor builds; all builds still reject malformed
+long package names and mismatched asset names. Packaged availability relies on
+the project cook allowlist, which is covered by `BrGame.Maps.CookSettings` and
+the packaged travel smoke.
+
+`RunPackagedSmoke.ps1` now runs the map-selector fixture as well as the menu and
+standard flow. `RunFlowSmoke.ps1` explicitly selects the requested fixture map;
+this avoids relying on the developer default (`Battlefield`) while asserting
+Town in the ordinary flow fixture.
+
+Validation on 2026-11-05:
+
+- `Build.bat BrGameEditor Win64 Development ...` succeeded.
+- `Automation RunTests BrGame.Maps` succeeded, including map list validation,
+  cook settings, state carry, and Town/Test Arena/Battlefield map checks.
+- Win64 Development `BuildCookRun` completed with `BUILD SUCCESSFUL`.
+- `RunPackagedSmoke.ps1 -Packaged Build/Package/Windows/BrGame.exe` passed the
+  packaged menu, two-client flow, and two-round map-selector/travel/carry test.
 
 ## Changed paths
 
@@ -245,7 +271,8 @@ Review-specific changed paths:
   `BrHUD.h`, `BrMinimapHUD.cpp`, `BrShotSmoke.cpp`
 - `Source/BrGame/Tests/BrMapsTest.cpp`
 - `Scripts/Content/create_map_previews.py`, `Scripts/RunFlowSmoke.ps1`,
-  `Scripts/RunFogSmoke.ps1`, `Scripts/RunShotSmoke.ps1`, this document
+  `Scripts/RunPackagedSmoke.ps1`, `Scripts/RunFogSmoke.ps1`,
+  `Scripts/RunShotSmoke.ps1`, this document
 - `Content/BrGame/Maps/Previews/T_Town.uasset`, `T_TestArena.uasset`;
   `Content/BrGame/Maps/L_Town.umap`, `Content/TopDown/Lvl_TopDown.umap`;
   `Content/__ExternalActors__/TopDown/Lvl_TopDown/2/33/SKUR0WWL7JT7C3OXZMWAQS.uasset`
@@ -265,5 +292,5 @@ Review-specific changed paths:
 - Developer-only removal of preview/invalid map entries/empty map list;
   confirm placeholder, warnings and visible Start refusal. Player counts
   outside recommendation must remain allowed.
-- Packaged/cooked play is not run; static cook settings and editor/runtime
-  smokes only. No required asset/editor work remains for the configured maps.
+- The packaged Development menu, two-client flow, and two-round map-selector
+  smoke passed. Steam two-PC hosting and manual lobby interaction checks remain.

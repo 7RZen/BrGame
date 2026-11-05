@@ -85,4 +85,14 @@ foreach ($Log in @($MenuLog, $HostLog, $Client1Log, $Client2Log)) {
         throw "Packaged smoke found an asset/runtime error in $Log"
     }
 }
+$SelectorArgs = @(
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$FlowScript`"",
+    "-Packaged", "`"$Exe`"", "-MapSelector", "-Port", "$Port", "-TimeoutSeconds", "$TimeoutSeconds"
+)
+$SelectorProcess = Start-Process -FilePath $PowerShell -ArgumentList $SelectorArgs -WorkingDirectory $Root -Wait -PassThru
+if ($SelectorProcess.ExitCode -ne 0) {
+    throw "Packaged map selector smoke failed with exit code $($SelectorProcess.ExitCode)."
+}
+Require-LogMatch (Join-Path $Root "Saved\Logs\MP\MapSelector\Host.log") "MAP SELECTOR SMOKE PASS: two rounds" "packaged map selection, map travel and carry"
+Write-Output "PACKAGED MAP SELECTOR PASS: host selected, replicated, travelled to, and retained a map across rounds."
 Write-Output "PACKAGED FLOW PASS: host, two IP clients, match travel, player spawns, results and return to lobby."

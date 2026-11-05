@@ -10,14 +10,20 @@ TArray<FBrMapEntry> UBrDeveloperSettings::ValidMaps() const
 	for (const FBrMapEntry& Entry : Maps)
 	{
 		const FSoftObjectPath Path = Entry.Map.ToSoftObjectPath();
-		// Read package metadata, not the world itself: safe during travel and in packaged builds.
+		const FString LongPackageName = Path.GetLongPackageName();
+		bool bMapPackageIsValid = true;
+		// IoStore maps lack loose files; cooked availability is enforced by the cook list.
+#if WITH_EDITOR
 		FString Filename;
+		bMapPackageIsValid = FPackageName::DoesPackageExist(LongPackageName, &Filename) &&
+			Filename.EndsWith(FPackageName::GetMapPackageExtension());
+#endif
 		if (Entry.Id.IsNone() || Entry.Id == TEXT("Random") || Seen.Contains(Entry.Id) ||
 			Entry.Id.ToString().Contains(TEXT("/")) || Entry.DisplayName.IsEmpty() ||
 			!Path.IsValid() || !Path.GetSubPathString().IsEmpty() ||
-			Path.GetAssetName() != FPackageName::GetShortName(Path.GetLongPackageName()) ||
-			!FPackageName::DoesPackageExist(Path.GetLongPackageName(), &Filename) ||
-			!Filename.EndsWith(FPackageName::GetMapPackageExtension()))
+			!FPackageName::IsValidLongPackageName(LongPackageName) ||
+			Path.GetAssetName() != FPackageName::GetShortName(LongPackageName) ||
+			!bMapPackageIsValid)
 		{
 			UE_LOG(LogBr, Warning, TEXT("Skipping invalid/duplicate map entry Id='%s' Map='%s'"), *Entry.Id.ToString(), *Path.ToString());
 			continue;
