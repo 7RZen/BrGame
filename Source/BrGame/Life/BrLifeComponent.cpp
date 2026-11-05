@@ -84,6 +84,11 @@ void UBrLifeComponent::HealthDepleted()
 	}
 }
 
+void UBrLifeComponent::SetPendingDowner(const FString& Key)
+{
+	if (GetOwner()->HasAuthority()) PendingDownerKey = Key;
+}
+
 void UBrLifeComponent::Down()
 {
 	if (!GetOwner()->HasAuthority() || !IsAlive())
@@ -97,6 +102,9 @@ void UBrLifeComponent::Down()
 	CancelRevive();
 	GearAtDown = Character()->GetInventory()->CaptureState();
 	State = EBrLifeState::Downed;
+	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
+		Mode->CommitQuestDown(Character()->GetController(), PendingDownerKey);
+	PendingDownerKey.Reset();
 	// Do not replay on initial OnRep_State, relevancy entry or restored downed saves.
 	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
 	{
@@ -361,6 +369,8 @@ void UBrLifeComponent::FinishRevive()
 	CancelRevive();
 	DownedEndTime = RespawnHoldEndTime = 0;
 	State = EBrLifeState::Alive;
+	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
+		Mode->ClearQuestDown(Character()->GetController());
 	Character()->GetHealth()->SetHealth(Character()->GetHealth()->MaxHealth *
 		FMath::Clamp(UBrDeveloperSettings::Get()->RevivedHealthFraction, 0.01f, 1.0f));
 	OnRep_State();
@@ -418,6 +428,8 @@ void UBrLifeComponent::Eliminate()
 		return;
 	}
 	CancelRevive();
+	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
+		Mode->ResolveQuestLife(Character()->GetController(), true);
 	State = EBrLifeState::Eliminated;
 	DownedEndTime = RespawnHoldEndTime = InvulnerabilityEndTime = 0;
 	if (ABrPlayerState* PS = Character()->GetPlayerState<ABrPlayerState>())

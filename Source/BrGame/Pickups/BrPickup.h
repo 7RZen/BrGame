@@ -37,6 +37,7 @@ public:
 	bool TryAutoCollect(ABrCharacter* Character);
 	void ResetPickup(UBrPickupDefinition* Definition);
 	FText GetPickupLabel() const;
+	const FBrQuestOffer* GetQuestOffer() const;
 	FBrPickupConsumed OnConsumed;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void Tick(float DeltaSeconds) override;

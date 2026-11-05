@@ -38,6 +38,7 @@ bool ABrGameMode::ForfeitPlayer(ABrPlayerController* Player)
 	if (!Record || Record->ActiveController.Get() != Player) return false;
 	if (Record->bForfeited) return true;
 	// Mark the ledger BEFORE elimination/winner callbacks and subsequent Destroyed snapshots.
+	ResolveQuestRecord(*Record, true);
 	FBrReconnectRules::Forfeit(*Record);
 	if (ABrCharacter* Pawn = Cast<ABrCharacter>(Player->GetPawn()))
 	{

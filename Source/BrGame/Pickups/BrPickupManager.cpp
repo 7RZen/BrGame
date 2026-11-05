@@ -1,6 +1,7 @@
 #include "BrPickupManager.h"
 #include "BrPickup.h"
 #include "BrPickupDefinition.h"
+#include "BrInventoryComponent.h"
 #include "BrCrateRules.h"
 #include "BrSupplyCrate.h"
 #include "BrDeveloperSettings.h"
@@ -57,6 +58,28 @@ void ABrPickupManager::Initialize(int32 PlayersAtStart)
 			return;
 		}
 		Definitions.Add(Definition);
+	}
+	QuestDefinition = Cast<UBrQuestPickupDefinition>(S->QuestPickup.LoadSynchronous());
+	if (!QuestDefinition || !QuestDefinition->bRequiresInteract)
+	{
+		UE_LOG(LogBr, Error, TEXT("Crates disabled: missing/invalid interactive QuestPickup definition %s"), *S->QuestPickup.ToString());
+		Definitions.Reset();
+		return;
+	}
+	TArray<FName> WeaponKeys;
+	S->WeaponRegistry.GetKeys(WeaponKeys);
+	WeaponKeys.Sort(FNameLexicalLess());
+	for (const FName Key : WeaponKeys)
+	{
+		UBrWeaponDefinition* Weapon = S->WeaponRegistry.FindChecked(Key).LoadSynchronous();
+		if (UBrInventoryComponent::IsValidWeaponDefinition(Weapon)) QuestWeapons.AddUnique(Weapon);
+		else UE_LOG(LogBr, Error, TEXT("Quest weapon registry entry rejected: %s"), *Key.ToString());
+	}
+	if (QuestWeapons.IsEmpty())
+	{
+		UE_LOG(LogBr, Error, TEXT("Crates disabled: no valid quest weapon targets in WeaponRegistry"));
+		Definitions.Reset();
+		return;
 	}
 	GetWorld()->GetTimerManager().SetTimer(DropTimer, this, &ThisClass::InitialWave, 0.25f, false);
 }
@@ -212,11 +235,65 @@ bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
 		!ClearGround(Crate->GetActorLocation(), Landing, true, Crate) ||
 		FVector::DistSquared2D(Landing, Crate->GetActorLocation()) > FMath::Square(10.f)) return false;
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	if (!QuestDefinition || QuestWeapons.IsEmpty())
+	{
+		UE_LOG(LogBr, Error, TEXT("Crate landing cancelled: quest definition/weapon registry unavailable"));
+		return false;
+	}
+	// Reserve every mandatory token position before spawning any loot. The normal
+	// ground policy is bounded and independent of navigation readiness.
+	const int32 QuestCount = FBrQuestRules::OfferCount(Stream);
+	TArray<FVector> Used;
+	for (int32 Q = 0; Q < QuestCount; ++Q)
+	{
+		bool bFound = false;
+		for (int32 Attempt = 0; Attempt < 64; ++Attempt)
+		{
+			const bool bCloser = Attempt >= 48;
+			const float Min = bCloser ? 150.f : FMath::Max(150.f, S->CrateScatterMin);
+			const float Max = bCloser ? FMath::Max(150.f, S->CrateScatterMin) : FMath::Max(Min, S->CrateScatterMax);
+			FVector Floor;
+			if (!ClearGround(Landing + FBrCrateRules::Scatter(Stream, Min, Max), Floor, false, Crate) ||
+				!InsideZone(Floor)) continue;
+			const double Radius = FVector::Dist2D(Floor, Landing);
+			if (Radius < Min || Radius > Max ||
+				Used.ContainsByPredicate([&](const FVector& Other) { return FVector::DistSquared2D(Other, Floor) < 10000; })) continue;
+			Used.Add(Floor);
+			bFound = true;
+			break;
+		}
+		if (!bFound)
+		{
+			UE_LOG(LogBr, Warning, TEXT("Crate landing cancelled: cannot reserve %d required quest tokens (64 attempts/token)"), QuestCount);
+			return false;
+		}
+	}
+	TArray<ABrPickup*> Tokens;
+	for (const FVector& Floor : Used)
+	{
+		FBrPickupPayload Payload;
+		Payload.QuestOffer.Id = FGuid::NewGuid();
+		Payload.QuestOffer.Objective = FBrQuestRules::SelectObjective(Stream);
+		if (Payload.QuestOffer.Objective == EBrQuestObjective::CollectWeapon)
+			Payload.QuestOffer.Weapon = QuestWeapons[FBrQuestRules::SelectWeapon(Stream, QuestWeapons.Num())];
+		ABrPickup* Token = ABrPickup::Spawn(GetWorld(), FTransform(Floor + FVector(0, 0, 35)), QuestDefinition, Payload);
+		if (!Token)
+		{
+			for (ABrPickup* SpawnedToken : Tokens) SpawnedToken->Destroy();
+			UE_LOG(LogBr, Error, TEXT("Crate landing cancelled: mandatory quest token allocation failed"));
+			return false;
+		}
+		Tokens.Add(Token);
+	}
+	for (ABrPickup* Token : Tokens)
+	{
+		RegisterRoundDrop(Token);
+		Token->SetLifeSpan(FMath::Max(1.f, S->CrateItemLifetime));
+	}
 	const TArray<int32> Loot = FBrCrateRules::Roll(Stream, FMath::Clamp(S->CrateARMin, 1, 2),
 		FMath::Clamp(S->CrateARMax, 1, 2), S->CrateMGChance, S->CrateHealthMin, S->CrateHealthMax,
 		S->CrateHealthWeights, S->CrateAmmoMin, S->CrateAmmoMax, S->CrateGrenadeMin, S->CrateGrenadeMax);
 	int32 Spawned = 0, Closer = 0;
-	TArray<FVector> Used;
 	for (const int32 Type : Loot)
 	{
 		FVector Floor;
@@ -250,8 +327,8 @@ bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
 				Type, FVector::Dist2D(Floor, Landing), S->CrateItemLifetime, bCloser, Attempts, bUsedNav ? TEXT("Navigation") : TEXT("Trace"));
 		}
 	}
-	UE_LOG(LogBr, Display, TEXT("Crate landed: Location=%s Inside=1 Items=%d/%d Closer=%d"),
-		*Landing.ToString(), Spawned, Loot.Num(), Closer);
+	UE_LOG(LogBr, Display, TEXT("Crate landed: Location=%s Inside=1 Items=%d/%d Closer=%d Quests=%d"),
+		*Landing.ToString(), Spawned, Loot.Num(), Closer, Tokens.Num());
 	return true;
 }
 
@@ -331,6 +408,8 @@ void ABrPickupManager::ClearRoundPickups()
 			Crate->Destroy();
 		}
 	Definitions.Reset();
+	QuestDefinition = nullptr;
+	QuestWeapons.Reset();
 	bInitialized = false;
 	NavigationProbes = 0;
 	PlayableBounds = FBox(ForceInit);

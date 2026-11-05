@@ -20,6 +20,11 @@ public:
 	bool bCanChooseColor = false;
 	UPROPERTY(Replicated, BlueprintReadOnly, Category="Match")
 	int32 DownsInflicted = 0;
+	UPROPERTY(Replicated, BlueprintReadOnly, Category="Match")
+	int32 RoundScore = 0;
+	UPROPERTY(Replicated)
+	TArray<FBrQuestProgress> Quests;
+	void RestoreQuests(const FBrQuestJournal& Journal);
 	void SetTeam(int32 NewTeam, FLinearColor Color);
 	void ResetRound();
 	UPROPERTY(Replicated, BlueprintReadOnly, Category="Life")

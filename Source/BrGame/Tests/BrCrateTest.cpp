@@ -104,7 +104,7 @@ bool FBrCrateScheduleTest::RunTest(const FString&)
 	double Time = 123.5;
 	for (int32 I = 0; I < 100; ++I) Time = FBrCrateRules::NextDrop(Time, 12.5f);
 	TestEqual(TEXT("Periodic wave deadline is independent of initial wave count"), Time, 1373.5);
-	TestEqual(TEXT("Network layout requires protocol 13"), FBrSessionRules::Protocol, 13);
+	TestEqual(TEXT("Quest network layout requires protocol 14"), FBrSessionRules::Protocol, 14);
 	return true;
 }
 
@@ -347,6 +347,26 @@ public:
 						FVector::Dist2D(FallingLandings[I], FallingLandings[J]) >=
 							FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax));
 			Test->TestTrue(TEXT("Landing scatters real pickup actors"), Items >= 10);
+			TSet<FGuid> OfferIds;
+			for (TActorIterator<ABrSupplyCrate> Crate(World); Crate; ++Crate)
+			{
+				if (!Crate->IsLanded() || Crate->IsActorBeingDestroyed()) continue;
+				int32 Offers = 0;
+				for (TActorIterator<ABrPickup> Pickup(World); Pickup; ++Pickup)
+				{
+					if (Pickup->IsActorBeingDestroyed()) continue;
+					const FBrQuestOffer* Offer = Pickup->GetQuestOffer();
+					if (!Offer || FVector::DistSquared2D(Pickup->GetActorLocation(), Crate->GetActorLocation()) >
+						FMath::Square(FMath::Max(S->CrateScatterMin, S->CrateScatterMax))) continue;
+					++Offers;
+					Test->TestTrue(TEXT("Landed offer payload valid"), FBrQuestRules::Valid(*Offer));
+					Test->TestFalse(TEXT("Every token has a distinct identity"), OfferIds.Contains(Offer->Id));
+					OfferIds.Add(Offer->Id);
+					Test->TestTrue(TEXT("Quest tokens share crate loot expiry"), Pickup->GetLifeSpan() > S->CrateItemLifetime - 10 &&
+						Pickup->GetLifeSpan() <= S->CrateItemLifetime);
+				}
+				Test->TestTrue(TEXT("Every successfully landed crate has 1 or 2 separate tokens"), Offers >= 1 && Offers <= 2);
+			}
 			for (TActorIterator<ABrSupplyCrate> It(World); It; ++It)
 			{
 				if (!It->IsLanded() || It->IsActorBeingDestroyed()) continue;
@@ -365,9 +385,13 @@ public:
 				if (It->IsActorBeingDestroyed()) continue;
 				Test->TestTrue(TEXT("Contents have configured item lifetime"), It->GetLifeSpan() > S->CrateItemLifetime - 10 &&
 					It->GetLifeSpan() <= S->CrateItemLifetime);
-				ExpiringItem = *It;
-				It->SetLifeSpan(0.2f);
-				break;
+				// Explicitly exercise a quest token's timer, not just ordinary loot.
+				if (It->GetQuestOffer())
+				{
+					ExpiringItem = *It;
+					It->SetLifeSpan(0.2f);
+					break;
+				}
 			}
 			Phase = 2; PhaseTime = Now;
 			return false;

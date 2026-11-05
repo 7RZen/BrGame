@@ -6,6 +6,8 @@
 #include "BrHealthComponent.h"
 #include "BrInventoryComponent.h"
 #include "BrLifeComponent.h"
+#include "BrGameMode.h"
+#include "Engine/World.h"
 #include "BrLog.h"
 #include "Components/CapsuleComponent.h"
 
@@ -16,6 +18,47 @@ bool UBrPickupDefinition::CanApply(const ABrCharacter* Character, const FBrPicku
 }
 
 FText UBrPickupDefinition::GetLabel(const FBrPickupPayload& Payload) const { return Label.IsEmpty() ? DisplayName : Label; }
+
+UBrQuestPickupDefinition::UBrQuestPickupDefinition() { bRequiresInteract = true; }
+
+FText UBrQuestPickupDefinition::DescribeOffer(const FBrQuestOffer& Offer)
+{
+	switch (Offer.Objective)
+	{
+	case EBrQuestObjective::DownOpponent: return NSLOCTEXT("BrQuest", "Down", "Down an opponent");
+	case EBrQuestObjective::CollectGrenade: return NSLOCTEXT("BrQuest", "Grenade", "Pick up a hand grenade");
+	case EBrQuestObjective::CollectWeapon:
+		return FText::Format(NSLOCTEXT("BrQuest", "Weapon", "Pick up {0}"),
+			Offer.Weapon ? Offer.Weapon->DisplayName : NSLOCTEXT("BrQuest", "MissingWeapon", "missing weapon"));
+	default: return NSLOCTEXT("BrQuest", "Invalid", "Invalid quest");
+	}
+}
+
+FText UBrQuestPickupDefinition::GetLabel(const FBrPickupPayload& Payload) const
+{
+	return FText::Format(NSLOCTEXT("BrQuest", "Offer", "Quest: {0} (+2 score)"), DescribeOffer(Payload.QuestOffer));
+}
+
+bool UBrQuestPickupDefinition::CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const
+{
+	if (!Super::CanApply(Character, Payload) || !FBrQuestRules::Valid(Payload.QuestOffer)) return false;
+	if (Character->HasAuthority())
+	{
+		const ABrGameMode* Mode = Character->GetWorld()->GetAuthGameMode<ABrGameMode>();
+		return Mode && Mode->CanAcceptQuest(Character->GetController(), Payload.QuestOffer);
+	}
+	// Client prompt is provisional; server checks admission and global single-use identity.
+	return true;
+}
+
+bool UBrQuestPickupDefinition::Apply(ABrCharacter* Character, FBrPickupPayload& Payload) const
+{
+	if (!Character || !Character->HasAuthority() || !CanApply(Character, Payload)) return false;
+	ABrGameMode* Mode = Character->GetWorld()->GetAuthGameMode<ABrGameMode>();
+	if (!Mode || !Mode->AcceptQuest(Character->GetController(), Payload.QuestOffer)) return false;
+	Payload.Feedback = FString::Printf(TEXT("Accepted: %s"), *DescribeOffer(Payload.QuestOffer).ToString());
+	return true;
+}
 
 bool UBrAmmoPickupDefinition::CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const
 {

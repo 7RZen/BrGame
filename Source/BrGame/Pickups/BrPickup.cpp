@@ -6,6 +6,7 @@
 #include "BrGameMode.h"
 #include "BrPickupManager.h"
 #include "BrHealthComponent.h"
+#include "BrInventoryComponent.h"
 #include "BrLifeComponent.h"
 #include "BrLog.h"
 #include "BrPlayerController.h"
@@ -122,6 +123,11 @@ FText ABrPickup::GetPickupLabel() const
 	return State.Definition ? State.Definition->GetLabel(State.Payload) : FText::GetEmpty();
 }
 
+const FBrQuestOffer* ABrPickup::GetQuestOffer() const
+{
+	return Cast<UBrQuestPickupDefinition>(State.Definition) ? &State.Payload.QuestOffer : nullptr;
+}
+
 void ABrPickup::OnRep_State()
 {
 	SetActorHiddenInGame(!State.bAvailable);
@@ -186,6 +192,16 @@ bool ABrPickup::TryCollect(ABrCharacter* Character)
 	const bool bApplied = State.Definition->Apply(Character, State.Payload);
 	bCollecting = false;
 	if (!bApplied) return false;
+	// Only a successful physical collection advances objectives. Inventory restores,
+	// failed Apply calls, and accepting an offer never synthesize pickup progress.
+	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
+	{
+		if (Cast<UBrGrenadePickupDefinition>(State.Definition) &&
+			Character->GetInventory()->Throwable == UBrDeveloperSettings::Get()->HandGrenade.LoadSynchronous())
+			Mode->ProgressQuest(Character->GetController(), EBrQuestObjective::CollectGrenade);
+		else if (const UBrWeaponPickupDefinition* Weapon = Cast<UBrWeaponPickupDefinition>(State.Definition))
+			Mode->ProgressQuest(Character->GetController(), EBrQuestObjective::CollectWeapon, Weapon->GetWeapon(State.Payload));
+	}
 	State.bAvailable = false;
 	Trigger->SetGenerateOverlapEvents(false);
 	OnRep_State();

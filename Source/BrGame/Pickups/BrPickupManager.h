@@ -6,6 +6,8 @@
 class ABrPickup;
 class ABrSupplyCrate;
 class UBrPickupDefinition;
+class UBrWeaponDefinition;
+class UBrQuestPickupDefinition;
 
 /** Server-only crate scheduler and round drop ownership. No Tick. */
 UCLASS()
@@ -24,6 +26,10 @@ protected:
 private:
 	UPROPERTY()
 	TArray<TObjectPtr<UBrPickupDefinition>> Definitions;
+	UPROPERTY()
+	TObjectPtr<UBrQuestPickupDefinition> QuestDefinition;
+	UPROPERTY()
+	TArray<TObjectPtr<UBrWeaponDefinition>> QuestWeapons;
 	FRandomStream Stream;
 	FTimerHandle DropTimer;
 	FBox PlayableBounds = FBox(ForceInit);

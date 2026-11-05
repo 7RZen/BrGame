@@ -1,2 +1,6 @@
-.\Scripts\RunLocalMultiplayer.ps1 -Clients 1 -Menu 
+param(
+	[string]$PlayerCount = 1
+)
+
+.\Scripts\RunLocalMultiplayer.ps1 -Clients $PlayerCount -Menu 
 

@@ -492,6 +492,7 @@ bool ABrGameMode::RespawnPlayer(ABrCharacter* OldPawn, const FBrInventoryState& 
 		return false;
 	}
 	Record.SpawnRetries.Reset();
+	ResolveQuestRecord(Record, false); // Successful possession only, independent of DeathCount tuning.
 	PS->VoluntaryRespawnCount = Voluntary;
 	if (bVoluntary || Settings->bTimeoutRespawnCountsAsDeath)
 	{
@@ -534,6 +535,11 @@ void ABrGameMode::ClearRoundRecords()
 		return;
 	}
 	RoundRecords.Empty();
+	AcceptedQuestOffers.Reset();
+	if (IsValid(PickupManager)) PickupManager->ClearRoundPickups();
+	for (const TWeakObjectPtr<AController>& Entry : AdmittedControllers)
+		if (AController* Controller = Entry.Get())
+			if (ABrPlayerState* PS = Controller->GetPlayerState<ABrPlayerState>()) PS->ResetRound();
 	// Clear inactive bookkeeping as well; otherwise engine reactivation could resurrect the prior round.
 	for (APlayerState* Inactive : InactivePlayerArray)
 	{
@@ -699,6 +705,7 @@ bool ABrGameMode::PreparePlayer(AController* Player)
 		PS->SetPlayerId(Record->PlayerId);
 		PS->DownsInflicted = Record->DownsInflicted;
 	}
+	PS->RestoreQuests(Record->Journal);
 	PS->SetPlayerName(Record->PlayerName);
 	Record->bAwaitingInitialization = false;
 	Record->ReconnectDeadline = -1;
@@ -748,6 +755,7 @@ void ABrGameMode::FailedSpawn(AController* Controller)
 		return;
 	}
 	ABrPlayerState* PS = Controller->GetPlayerState<ABrPlayerState>();
+	ResolveQuestRecord(*Record, true);
 	FBrReconnectRules::Forfeit(*Record);
 	if (PS)
 	{
@@ -776,6 +784,7 @@ void ABrGameMode::ServiceRoundRecord(const FString& Key, FBrRoundRecord& Record)
 	                                             AreRespawnsDisabled() ? 0 : Settings->MaxDeaths,
 	                                             Settings->bTimeoutRespawnCountsAsDeath))
 	{
+		ResolveQuestRecord(Record, Record.Life.bEliminated);
 		LeaveRecordedCorpse(Record);
 		Record.bOfflineCorpseLeft = true;
 		Record.DownedEndTime = Record.ProtectionEndTime = 0;
@@ -790,6 +799,7 @@ void ABrGameMode::ServiceRoundRecord(const FString& Key, FBrRoundRecord& Record)
 			LeaveRecordedCorpse(Record);
 		}
 		Record.bOfflineCorpseLeft = true;
+		ResolveQuestRecord(Record, true);
 		FBrReconnectRules::Forfeit(Record);
 		UE_LOG(LogBr, Display, TEXT("Flow forfeit: %s Id=%s Deadline=%.2f Now=%.2f"),
 		       *Record.PlayerName, *Key, Record.ReconnectDeadline, Now);

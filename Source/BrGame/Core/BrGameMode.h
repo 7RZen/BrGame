@@ -61,6 +61,13 @@ public:
 	bool CanDamageSource(const FBrDamageSource& Source, const AActor* Victim, bool bZoneDamage = false) const;
 	FBrDamageSource CaptureDamageSource(AController* Controller) const;
 	void CreditDown(const FBrDamageSource& Source);
+	FString CaptureOpponentDowner(const FBrDamageSource& Source, const ABrCharacter* Victim, bool bZone) const;
+	void CommitQuestDown(AController* Victim, const FString& DownerKey);
+	void ClearQuestDown(AController* Player);
+	void ResolveQuestLife(AController* Player, bool bFinal);
+	bool CanAcceptQuest(AController* Player, const FBrQuestOffer& Offer) const;
+	bool AcceptQuest(AController* Player, const FBrQuestOffer& Offer);
+	void ProgressQuest(AController* Player, EBrQuestObjective Event, const UBrWeaponDefinition* Weapon = nullptr);
 	bool IsAdmitted(const AController* Controller) const;
 	virtual bool IsEnemy(const ABrCharacter* A, const ABrCharacter* B) const;
 	virtual bool AreTeammates(const ABrCharacter* A, const ABrCharacter* B) const;
@@ -79,6 +86,7 @@ private:
 	friend class FBrMenuSameFrameForfeitTest;
 	friend class FBrServerAimTest;
 	friend class FBrSprintPendingCombatTest;
+	friend class FBrQuestRuntimeTest;
 #endif
 	FTimerHandle FlowTimer, ResultsTimer;
 	struct FPendingSteamLogin
@@ -178,6 +186,10 @@ private:
 	FBrMatchSettings InitialMatchSettings;
 	UPROPERTY(Transient)
 	TMap<FString, FBrRoundRecord> RoundRecords;
+	TSet<FGuid> AcceptedQuestOffers;
+	FBrRoundRecord* ActiveQuestRecord(AController* Player);
+	void PublishQuests(const FBrRoundRecord& Record);
+	void ResolveQuestRecord(FBrRoundRecord& Record, bool bFinal);
 	FString RoundKey(const AController* Player) const;
 	bool PreparePlayer(AController* Player);
 	bool AdmitController(APlayerController* Player);

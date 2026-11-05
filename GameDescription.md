@@ -20,6 +20,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
 | GitHub #7 | Weapon models | Placeholder held/pickup/dropped visuals; validation: Scripts/Issue7WeaponVisualValidation.md |
 | GitHub #21 | Compass and coordinates | Top-center heading strip and live world X/Y readout; validation: Scripts/Issue21CompassValidation.md |
+| GitHub #20 | Quests and round score | Implemented; quest/crate automation 12/12 and packaged smoke passed; manual interaction pending; validation: Scripts/Issue20QuestValidation.md |
 | Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
@@ -49,7 +50,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 1. **Start page:** enter a player name, then Host, refresh/join a browser entry, Join by IP (development), or Quit. The browser shows host/game name, selected map (including Random), current/max players, mode, password lock, in-progress state and available ping. Steam/LAN-IP status and connection errors are shown here.
 2. **Lobby:** player list and host settings, visible live to everyone. Only the host can change settings and press Start (a single host may start alone to test).
 3. **Match.**
-4. **Results:** shown for about 10 s *(dev)*: the winner, and per player: group, downs inflicted, deaths, survived/eliminated.
+4. **Results:** shown for about 10 s *(dev)*: the winner, and per player: group, downs inflicted, deaths, score, survived/eliminated. Score is informational and does not change the winner.
 5. **Back to the lobby,** with settings and groups kept.
 
 If the host leaves, everyone returns to the start page with a message.
@@ -270,6 +271,13 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 - Crates fall 3000 cm over 4 s with a yellow ground marker, then provide cover for 20 s *(dev)*. Server navigation is an optional placement preference, never an initial-wave readiness gate. Shared zone-fallback ground tracing verifies a walkable tagged `BrFogGround` floor blocking WorldStatic traces, capsule clearance and 300 cm pawn clearance. Crate/scatter ground must also be non-simulating, at rest and broad enough for the scatter footprint plus 85 cm clearance (21.7 m minimum component span at defaults); fog-tagged small raised caps are not floors. Bounded failures log attempts/skip the drop. Landing rechecks the current zone/clearance and cancels safely if conditions changed. Crates never deal damage.
 - Contents scatter 500–1000 cm *(dev)* onto clear ground using the same navigation-independent floor/capsule checks. Bounded retries may use a closer clear position; impossible items are logged/skipped, never placed inside walls. Uncollected contents expire after 120 s *(dev)*.
 - Falling and landed crates have public yellow markers on minimap and full map, independent of fog. Contents retain existing pickup fog presentation. Round reset clears crates, their landing timers, periodic drops and contents; dropped weapon payload/lifetime behaviour is unchanged.
+
+### Quests and round score
+- Each landed crate adds 1 or 2 separate quest tokens among its scattered loot. Quest types may duplicate; each offer is consumed by the first player to accept it with E and expires with other crate loot. Multiple active quests are allowed.
+- Objectives: down an opponent, pick up a hand grenade, or pick up a specified weapon selected randomly when the offer spawns. Progress is server-authoritative; the existing nearby pickup prompt describes each offer.
+- Per-round informational score: +1 for a credited final elimination, -1 each time downed, another -1 for a later death/respawn or final elimination, and +2 per completed quest. The down and death penalties stack; score does not affect the winner.
+- Accepted quests and score last for the round and survive a reconnect; round reset clears them. Unaccepted offers expire with other loot.
+
 - Planned for later (not now): radar that reveals nearby enemies, and teleport to a safe location. Pickup types are data assets, so these can be added without changing the spawn system.
 
 ## Audio

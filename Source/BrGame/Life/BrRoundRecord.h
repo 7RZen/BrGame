@@ -4,6 +4,7 @@
 #include "BrInventoryComponent.h"
 #include "BrLifeRules.h"
 #include "BrZoneRules.h"
+#include "BrQuestRules.h"
 #include "BrRoundRecord.generated.h"
 
 USTRUCT()
@@ -27,6 +28,9 @@ struct FBrRoundRecord
 	FBrLifeBookkeeping Life;
 	UPROPERTY()
 	FBrInventoryState Gear;
+	UPROPERTY()
+	FBrQuestJournal Journal;
+	FBrScoreEpisode ScoreEpisode;
 	UPROPERTY()
 	TWeakObjectPtr<AController> ActiveController;
 	int32 Team = INDEX_NONE;

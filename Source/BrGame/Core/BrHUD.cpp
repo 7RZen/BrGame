@@ -32,6 +32,30 @@ void ABrHUD::DrawHUD()
 		}
 		const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
 		const ABrPlayerState* PS = PlayerOwner->GetPlayerState<ABrPlayerState>();
+		if (PS)
+		{
+			DrawText(FString::Printf(TEXT("Round score: %d"), PS->RoundScore), FLinearColor::White, 20, 430);
+			// Group duplicate objectives for display only: every accepted offer
+			// remains independent in the replicated journal and awards its own +2.
+			TArray<const FBrQuestOffer*> Objectives;
+			TArray<int32> Counts;
+			int32 Completed = 0;
+			for (const FBrQuestProgress& Quest : PS->Quests)
+			{
+				if (Quest.bComplete) { ++Completed; continue; }
+				const int32 Index = Objectives.IndexOfByPredicate([&](const FBrQuestOffer* Offer)
+				{
+					return Offer->Objective == Quest.Offer.Objective && Offer->Weapon == Quest.Offer.Weapon;
+				});
+				if (Index != INDEX_NONE) ++Counts[Index];
+				else { Objectives.Add(&Quest.Offer); Counts.Add(1); }
+			}
+			DrawText(FString::Printf(TEXT("Quests completed: %d (+2 each)"), Completed), FLinearColor::Green, 20, 455);
+			for (int32 I = 0; I < Objectives.Num(); ++I)
+				DrawText(FString::Printf(TEXT("[Quest x%d] %s"), Counts[I],
+					*UBrQuestPickupDefinition::DescribeOffer(*Objectives[I]).ToString()),
+					FLinearColor::Yellow, 20, 480 + I * 20);
+		}
 		if (GS && PS)
 			DrawText(FString::Printf(TEXT("%s | Group %d"), GS->MatchSettings.Mode == EBrMode::Grouped ?
 				TEXT("Grouped") : TEXT("All vs all"), PS->Team + 1), PS->TeamColor, 20, 370);
@@ -101,7 +125,7 @@ void ABrHUD::DrawHUD()
 			DrawLine(Tip.X, Tip.Y, Tip.X + Back.X + Side.X, Tip.Y + Back.Y + Side.Y, FLinearColor::Red, 3);
 			DrawLine(Tip.X, Tip.Y, Tip.X + Back.X - Side.X, Tip.Y + Back.Y - Side.Y, FLinearColor::Red, 3);
 		}
-		DrawText(ZoneText, Zone->IsInside(Character->GetActorLocation()) ? FLinearColor::White : FLinearColor::Red, 20, 430);
+		DrawText(ZoneText, Zone->IsInside(Character->GetActorLocation()) ? FLinearColor::White : FLinearColor::Red, 360, 430);
 	}
 	const ABrPlayerState* PS = Character->GetPlayerState<ABrPlayerState>();
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();

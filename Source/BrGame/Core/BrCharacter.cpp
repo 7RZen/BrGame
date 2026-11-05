@@ -477,7 +477,10 @@ float ABrCharacter::TakeDamage(float Damage, const FDamageEvent& Event, AControl
 	const float Adjusted = bZone ? Damage : FBrCombatMath::Damage(Damage, GetPosture(), bExplosion, Settings->bGrenadePostureDamage,
 		Settings->StandingDamageMultiplier, Settings->CrouchingDamageMultiplier, Settings->ProneDamageMultiplier);
 	const float BeforeHealth = Health->Health;
+	// Capture opponent identity before the health delegate can enter Down().
+	Life->SetPendingDowner(Mode->CaptureOpponentDowner(Source, this, bZone));
 	const float Applied = Super::TakeDamage(Adjusted, Event, InstigatorController, Causer);
+	Life->SetPendingDowner(FString());
 	// The downing hit is deliberately excluded, just like all damage while downed.
 	// Only native combat events carry an authoritative launch/explosion origin.
 	if ((bBullet || bExplosion) && Event.IsOfType(FBrDamageEvent::ClassID))

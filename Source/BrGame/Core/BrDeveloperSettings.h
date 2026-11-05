@@ -270,6 +270,9 @@ public:
 	/** Weapon pickup template; payload supplies the actual weapon and loaded rounds. */
 	UPROPERTY(Config, EditAnywhere, Category="Pickups")
 	TSoftObjectPtr<UBrPickupDefinition> DroppedWeaponPickup;
+	/** Required interactive quest token; missing asset cancels crate landings. */
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
+	TSoftObjectPtr<UBrPickupDefinition> QuestPickup;
 	/** Ordered: Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100. */
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
 	TArray<TSoftObjectPtr<UBrPickupDefinition>> CrateDefinitions;

@@ -626,7 +626,7 @@ void ABrGameMode::CheckWinner()
 	{
 		GS->WinnerColor = FBrFlowRules::Palette(GS->GroupColors[Winner]);
 	}
-	GS->ResultsTable = TEXT("Player | Group | Downs | Deaths | Result\n");
+	GS->ResultsTable = TEXT("Player | Group | Downs | Deaths | Result | Score\n");
 	for (const auto& Pair : RoundRecords)
 	{
 		const FBrRoundRecord& Record = Pair.Value;
@@ -636,8 +636,9 @@ void ABrGameMode::CheckWinner()
 				GS->WinnerText = Record.PlayerName + TEXT(" wins");
 				GS->WinnerColor = Record.TeamColor;
 			}
-			GS->ResultsTable += FString::Printf(TEXT("%s | %d | %d | %d | %s\n"), *Record.PlayerName,
-				Record.Team + 1, Record.DownsInflicted, Record.Life.Deaths, Record.Life.bEliminated ? TEXT("Eliminated") : TEXT("Survived"));
+			GS->ResultsTable += FString::Printf(TEXT("%s | %d | %d | %d | %s | %d\n"), *Record.PlayerName,
+				Record.Team + 1, Record.DownsInflicted, Record.Life.Deaths,
+				Record.Life.bEliminated ? TEXT("Eliminated") : TEXT("Survived"), Record.Journal.Score);
 		}
 	}
 	GS->ResultsEndTime = GS->GetServerWorldTimeSeconds() + FMath::Max(1.0f, UBrDeveloperSettings::Get()->ResultsDuration);

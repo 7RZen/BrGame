@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "BrCombatDefinitions.h"
+#include "BrQuestRules.h"
 #include "BrPickupDefinition.generated.h"
 
 class ABrCharacter;
@@ -20,6 +21,8 @@ struct FBrPickupPayload
 	/** A generic drop template can represent any future weapon definition. */
 	UPROPERTY()
 	TObjectPtr<UBrWeaponDefinition> DroppedWeapon;
+	UPROPERTY()
+	FBrQuestOffer QuestOffer;
 	// Apply's transient feedback output; not replicated with the payload.
 	FString Feedback;
 };
@@ -48,6 +51,18 @@ public:
 	virtual bool CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const;
 	virtual bool Apply(ABrCharacter* Character, FBrPickupPayload& Payload) const PURE_VIRTUAL(UBrPickupDefinition::Apply, return false;);
 	virtual FText GetLabel(const FBrPickupPayload& Payload) const;
+};
+
+UCLASS(BlueprintType)
+class BRGAME_API UBrQuestPickupDefinition : public UBrPickupDefinition
+{
+	GENERATED_BODY()
+public:
+	UBrQuestPickupDefinition();
+	static FText DescribeOffer(const FBrQuestOffer& Offer);
+	virtual bool CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const override;
+	virtual bool Apply(ABrCharacter* Character, FBrPickupPayload& Payload) const override;
+	virtual FText GetLabel(const FBrPickupPayload& Payload) const override;
 };
 
 UCLASS(BlueprintType)

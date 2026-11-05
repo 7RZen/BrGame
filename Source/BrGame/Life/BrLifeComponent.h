@@ -35,6 +35,8 @@ public:
 	bool IsInvulnerable() const;
 	float ServerTime() const;
 	void Down();
+	/** Synchronous authority damage context, cleared immediately after TakeDamage. */
+	void SetPendingDowner(const FString& Key);
 	void Eliminate();
 	/** Server restore only; preserves the old absolute deadline, not a new dying interval. */
 	void RestoreDowned(float Deadline);
@@ -54,6 +56,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
+	FString PendingDownerKey;
 	bool bAudioPresentationInitialized = false;
 	EBrLifeState AudioPresentedState = EBrLifeState::Alive;
 	UPROPERTY()
