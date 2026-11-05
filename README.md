@@ -4,6 +4,8 @@ A top-down, player-hosted multiplayer battle-royale shooter built with **Unreal 
 
 The full agreed design, including the implementation status per step, is in [GameDescription.md](GameDescription.md). Known issues and feature requests are tracked in [Issues.md](Issues.md).
 
+Github repository: https://github.com/7RZen/BrGame
+
 ## Features
 
 - **Server-authoritative multiplayer.** The host's game is the listen server and resolves every shot, hit and damage event. There is no hard player cap; the host sets max players (0 = unlimited).
