@@ -131,7 +131,7 @@ void ABrPickupManager::DropWave(bool bInitial)
 	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
 	if (!HasAuthority() || !bInitialized || !GS || GS->bResults) return;
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
-	const float Spacing = FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax);
+	const float Spacing = FBrCrateRules::WaveSpacing(S->CrateWaveSpacing, S->CrateScatterMin, S->CrateScatterMax);
 	const int32 Count = bInitial ? InitialCrateCount : IntervalCrateCount;
 	TArray<FVector> Landings;
 	for (int32 I = 0; I < Count; ++I) DropOne(Landings, Spacing);

@@ -309,9 +309,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="1", Units="s"))
 	float CrateItemLifetime = 120;
 	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0", Units="cm"))
-	float CrateScatterMin = 500;
+	float CrateScatterMin = 250;
 	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="0", Units="cm"))
-	float CrateScatterMax = 1000;
+	float CrateScatterMax = 500;
+	/** Minimum XY distance between same-wave crate landings; raised to twice scatter max if smaller. */
+	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="170", Units="cm"))
+	float CrateWaveSpacing = 2000;
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Assets")
 	TSoftObjectPtr<USoundBase> CrateLandingSound;
 	UPROPERTY(Config, EditAnywhere, Category="Pickups", meta=(ClampMin="1", Units="cm"))

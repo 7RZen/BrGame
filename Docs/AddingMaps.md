@@ -14,11 +14,11 @@
    Movable/BlockAllDynamic (Test Arena's floor) is supported without map edits.
    Tagged small caps/cover are excluded by component footprint: both horizontal
    axes and the scaled local surface axes must span twice (scatter max + 85 cm),
-   **21.7 m** at defaults. Broad floors/slopes remain eligible; no height reference,
+   **11.7 m** at defaults. Broad floors/slopes remain eligible; no height reference,
    new per-map tags or tuning override is needed. No pickup spawn points are used.
    Allow an 85 × 96 cm
    clearance capsule 100 cm above crate floors (42 × 96 cm for scattered items),
-   plus room for 5–10 m scatter. Bounded searches skip/log impossible drops.
+   plus room for 2.5–5 m scatter. Bounded searches skip/log impossible drops.
 4. Prefer `BrZoneBounds` for explicit playable bounds. The safe zone is spawned
    by GameMode, not placed. Its fallback bounds are navmesh volume bounds, then
    PlayerStarts/colliding static geometry; emergency 100 m bounds are not valid
@@ -30,8 +30,8 @@
    **4 / 2** (new-entry defaults), large **6 / 3**. Initial 0 disables only the
    initial wave; periodic waves require at least 1. Both counts are capped at
    100 to bound server work. There is no global count override. Each wave keeps
-   crate landing centers at least twice the scatter max radius apart (20 m by
-   default), so small/final zones may skip crates after bounded searches.
+   crate landing centers at least `CrateWaveSpacing` apart (20 m by default,
+   never less than twice the scatter max radius), so small/final zones may skip crates after bounded searches.
    Commit the resulting `Config/DefaultGame.ini`. `MatchMap` has been removed.
 6. Add the world package to Packaging → **Maps to cook** (`MapsToCook` in
    DefaultGame.ini). Keep preview textures under `/Game/BrGame/Maps/Previews`;

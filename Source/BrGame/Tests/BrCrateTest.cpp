@@ -127,10 +127,13 @@ bool FBrCrateWaveTest::RunTest(const FString&)
 		TestEqual(*(Entry->Id.ToString() + TEXT(" initial")), Entry->InitialCrates, Expected.Initial);
 		TestEqual(*(Entry->Id.ToString() + TEXT(" per interval")), Entry->CratesPerDrop, Expected.PerDrop);
 	}
-	const float Spacing = FBrCrateRules::WaveSpacing(500, 1000);
+	const float Spacing = FBrCrateRules::WaveSpacing(0, 500, 1000);
 	TestEqual(TEXT("Spacing separates scatter discs"), Spacing, 2000.f);
-	TestEqual(TEXT("Reversed scatter tuning still separates discs"), FBrCrateRules::WaveSpacing(1000, 500), Spacing);
-	TestTrue(TEXT("Zero scatter still separates physical crates"), FBrCrateRules::WaveSpacing(0, 0) >= 170);
+	TestEqual(TEXT("Reversed scatter tuning still separates discs"), FBrCrateRules::WaveSpacing(0, 1000, 500), Spacing);
+	TestTrue(TEXT("Zero scatter still separates physical crates"), FBrCrateRules::WaveSpacing(0, 0, 0) >= 170);
+	TestEqual(TEXT("Tuned spacing is independent of a smaller scatter"), FBrCrateRules::WaveSpacing(2000, 250, 500), 2000.f);
+	TestEqual(TEXT("Non-finite tuned spacing falls back to scatter separation"),
+		FBrCrateRules::WaveSpacing(std::numeric_limits<float>::quiet_NaN(), 250, 500), 1000.f);
 	TestFalse(TEXT("Vertical separation cannot bypass XY spacing"),
 		FBrCrateRules::IsWaveSpaced(FVector(100,0,5000), {FVector::ZeroVector}, Spacing));
 	TestTrue(TEXT("Exact spacing boundary allowed"),
@@ -324,7 +327,7 @@ public:
 					{
 						Test->TestTrue(TEXT("Initial wave has spaced real landing positions"),
 							FBrCrateRules::IsWaveSpaced(It->GetActorLocation(), Landings,
-								FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax)));
+								FBrCrateRules::WaveSpacing(S->CrateWaveSpacing, S->CrateScatterMin, S->CrateScatterMax)));
 						Landings.Add(It->GetActorLocation());
 					}
 				Test->TestEqual(TEXT("Town initial wave uses per-map count"), Landings.Num(), Town->InitialCrates);
@@ -345,7 +348,7 @@ public:
 				for (int32 J = I + 1; J < FallingLandings.Num(); ++J)
 					Test->TestTrue(TEXT("Real periodic wave has spaced landing positions"),
 						FVector::Dist2D(FallingLandings[I], FallingLandings[J]) >=
-							FBrCrateRules::WaveSpacing(S->CrateScatterMin, S->CrateScatterMax));
+							FBrCrateRules::WaveSpacing(S->CrateWaveSpacing, S->CrateScatterMin, S->CrateScatterMax));
 			Test->TestTrue(TEXT("Landing scatters real pickup actors"), Items >= 10);
 			TSet<FGuid> OfferIds;
 			for (TActorIterator<ABrSupplyCrate> Crate(World); Crate; ++Crate)

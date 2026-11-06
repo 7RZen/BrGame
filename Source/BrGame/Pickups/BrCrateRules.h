@@ -55,12 +55,12 @@ struct FBrCrateRules
 			FMath::IsFinite(ScatterMin) ? ScatterMin : 0.f,
 			FMath::IsFinite(ScatterMax) ? ScatterMax : 0.f));
 	}
-	/** Keep scatter discs apart within a wave; even zero scatter must separate crate bodies. */
-	static float WaveSpacing(float ScatterMin, float ScatterMax)
+	/** Tuned wave spacing, never below scatter-disc separation or the 170 cm crate-body minimum. */
+	static float WaveSpacing(float MinSpacing, float ScatterMin, float ScatterMax)
 	{
-		return FMath::Max(170.f, 2 * FMath::Max(
+		return FMath::Max(FMath::IsFinite(MinSpacing) ? MinSpacing : 0.f, FMath::Max(170.f, 2 * FMath::Max(
 			FMath::IsFinite(ScatterMin) ? ScatterMin : 0.f,
-			FMath::IsFinite(ScatterMax) ? ScatterMax : 0.f));
+			FMath::IsFinite(ScatterMax) ? ScatterMax : 0.f)));
 	}
 	static bool IsWaveSpaced(const FVector& Candidate, const TArray<FVector>& Previous, float Spacing)
 	{
