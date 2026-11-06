@@ -66,16 +66,8 @@ void UBrHealthComponent::SetHealth(float Amount)
 {
 	if (GetOwner()->HasAuthority() && FMath::IsFinite(Amount))
 	{
-		const float PreviousHealth = Health;
 		Health = FMath::Clamp(Amount, 0.0f, MaxHealth);
 		OnRep_Health();
-		if (Health < PreviousHealth)
-		{
-			if (ABrCharacter* BrCharacter = Cast<ABrCharacter>(GetOwner()))
-			{
-				BrCharacter->RequestAutoPickupRetry();
-			}
-		}
 	}
 }
 

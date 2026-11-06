@@ -563,8 +563,6 @@ void UBrCharacterMovementComponent::SprintStopped()
 	// never move an existing combat recovery to "replay now + delay".
 	const double StopTime = SprintReplayYaw.IsSet() ? SprintReplayWorldTime : GetWorld()->GetTimeSeconds();
 	SprintFireReadyTime = FMath::Max(SprintFireReadyTime, StopTime + UBrDeveloperSettings::Get()->SprintToFireDelay);
-	if (!SprintReplayYaw.IsSet() && CharacterOwner && CharacterOwner->HasAuthority())
-		CastChecked<ABrCharacter>(CharacterOwner)->RequestAutoPickupRetry();
 }
 
 void UBrCharacterMovementComponent::CancelSprintForCombat()

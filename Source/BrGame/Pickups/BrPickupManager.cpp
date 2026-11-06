@@ -59,15 +59,14 @@ void ABrPickupManager::Initialize(int32 PlayersAtStart)
 		}
 		Definitions.Add(Definition);
 	}
-	if (!Cast<UBrArmorPickupDefinition>(Definitions[FBrCrateRules::Armor]) ||
-		Definitions[FBrCrateRules::Armor]->bRequiresInteract)
+	if (!Cast<UBrArmorPickupDefinition>(Definitions[FBrCrateRules::Armor]))
 	{
-		UE_LOG(LogBr, Error, TEXT("Crates disabled: Armor must be an automatic BrArmorPickupDefinition."));
+		UE_LOG(LogBr, Error, TEXT("Crates disabled: Armor must be a BrArmorPickupDefinition."));
 		Definitions.Reset();
 		return;
 	}
 	QuestDefinition = Cast<UBrQuestPickupDefinition>(S->QuestPickup.LoadSynchronous());
-	if (!QuestDefinition || !QuestDefinition->bRequiresInteract)
+	if (!QuestDefinition)
 	{
 		UE_LOG(LogBr, Error, TEXT("Crates disabled: missing/invalid interactive QuestPickup definition %s"), *S->QuestPickup.ToString());
 		Definitions.Reset();

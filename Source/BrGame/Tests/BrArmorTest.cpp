@@ -180,7 +180,6 @@ bool FBrArmorRuntimeTest::RunTest(const FString&)
 	Mode->RoundRecords.Add(Mode->RoundKey(PC), Record);
 	UBrArmorPickupDefinition* Pickup = NewObject<UBrArmorPickupDefinition>(World);
 	FBrPickupPayload Payload;
-	TestFalse(TEXT("Armor definition defaults to automatic"), Pickup->bRequiresInteract);
 	TestTrue(TEXT("Real Apply first plate"), Pickup->Apply(Pawn, Payload));
 	TestTrue(TEXT("Real Apply second plate"), Pickup->Apply(Pawn, Payload));
 	ABrPlayerController* Spectator = World->SpawnActor<ABrPlayerController>();
@@ -197,17 +196,13 @@ bool FBrArmorRuntimeTest::RunTest(const FString&)
 	const TArray<float>* Mirror = Spectator->GetSpectatorArmor(Pawn);
 	TestTrue(TEXT("Selected spectator receives exact plate snapshot"), Mirror && *Mirror == Pawn->GetArmor()->GetPlates());
 	TestTrue(TEXT("Non-spectating owner has no spectator mirror"), PC->SpectatorArmor.Plates.IsEmpty());
-	World->GetTimerManager().ClearTimer(Pawn->AutoPickupRetryTimer);
-	Pawn->bAutoPickupRetryQueued = false;
 	const FDamageEvent DebugDamage(UDamageType::StaticClass());
 	TestEqual(TEXT("Debug damage counts absorbed hit"), Pawn->TakeDamage(5, DebugDamage, nullptr, nullptr), 5.f);
 	TestEqual(TEXT("Armor-only hit does not damage health"), Pawn->GetHealth()->Health, 100.f);
 	TestFalse(TEXT("Partial plate cannot collect"), Pickup->CanApply(Pawn, Payload));
-	TestFalse(TEXT("Partial damage does not queue pickup retry"), Pawn->bAutoPickupRetryQueued);
 	Mirror = Spectator->GetSpectatorArmor(Pawn);
 	TestTrue(TEXT("Damage immediately updates private spectator mirror"), Mirror && *Mirror == Pawn->GetArmor()->GetPlates());
 	TestEqual(TEXT("Break counts applied damage"), Pawn->TakeDamage(15, DebugDamage, nullptr, nullptr), 15.f);
-	TestTrue(TEXT("Breaking plate queues stationary auto-pickup retry"), Pawn->bAutoPickupRetryQueued);
 	TestTrue(TEXT("Freed slot CanApply"), Pickup->CanApply(Pawn, Payload));
 	FDamageEvent ZoneDamage(UBrZoneDamageType::StaticClass());
 	Pawn->TakeDamage(10, ZoneDamage, nullptr, nullptr);

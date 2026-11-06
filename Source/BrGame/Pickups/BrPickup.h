@@ -34,7 +34,6 @@ public:
 	static ABrPickup* FindInteractPickup(const ABrCharacter* Character);
 	bool CanCollect(const ABrCharacter* Character) const;
 	bool TryCollect(ABrCharacter* Character);
-	bool TryAutoCollect(ABrCharacter* Character);
 	void ResetPickup(UBrPickupDefinition* Definition);
 	FText GetPickupLabel() const;
 	const FBrQuestOffer* GetQuestOffer() const;
@@ -55,11 +54,6 @@ private:
 	FBrPickupState State;
 	bool bManagedSlot = false;
 	bool bCollecting = false;
-	FTimerHandle ActivationTimer;
-	void EnableCollection();
 	UFUNCTION()
 	void OnRep_State();
-	UFUNCTION()
-	void Overlap(UPrimitiveComponent* Component, AActor* Other, UPrimitiveComponent* OtherComponent,
-		int32 BodyIndex, bool bFromSweep, const FHitResult& Sweep);
 };

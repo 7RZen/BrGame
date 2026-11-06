@@ -108,6 +108,9 @@ bool FBrSprintIntegrationTest::RunTest(const FString& Parameters)
 	World->SetGameState(State);
 	ABrCharacter* Pawn = World->SpawnActor<ABrCharacter>();
 	ABrPlayerController* PC = World->SpawnActor<ABrPlayerController>();
+	ABrPlayerState* PS = World->SpawnActor<ABrPlayerState>();
+	PC->PlayerState = PS;
+	PS->SetOwner(PC);
 	PC->Player = NewObject<ULocalPlayer>(GEngine);
 	PC->Possess(Pawn);
 	PC->SetControlRotation(FRotator::ZeroRotator);
@@ -393,35 +396,4 @@ bool FBrSprintPendingCombatTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrSprintPickupRetryTest, "BrGame.Sprint.ReleaseRetriesAutomaticPickup",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FBrSprintPickupRetryTest::RunTest(const FString& Parameters)
-{
-	FBrSprintReviewFixture F;
-	auto ClearRetry = [&]()
-	{
-		F.World->GetTimerManager().ClearTimer(F.Pawn->AutoPickupRetryTimer);
-		F.Pawn->bAutoPickupRetryQueued = false;
-	};
-	ClearRetry();
-	F.Move->Sprint.bActive = true;
-	F.Move->SetSprinting(false);
-	TestTrue(TEXT("Listen-host Shift release queues stationary overlap retry"), F.Pawn->bAutoPickupRetryQueued);
-	TestTrue(TEXT("Retry has a real next-tick timer"), F.World->GetTimerManager().TimerExists(F.Pawn->AutoPickupRetryTimer));
-	const FTimerHandle Retry = F.Pawn->AutoPickupRetryTimer;
-	F.Move->SetSprinting(false);
-	TestTrue(TEXT("Repeated stop coalesces, never duplicates retry"), F.Pawn->AutoPickupRetryTimer == Retry);
-	ClearRetry();
-	F.Move->Sprint.bActive = true;
-	F.Move->Sprint.Stamina = .01f;
-	F.Move->RestoreSprintIntent(true);
-	F.Move->Acceleration = FVector(1000, 0, 0);
-	F.Move->UpdateSprint(.02f);
-	TestTrue(TEXT("Exhaustion uses same overlap retry path"), F.Pawn->bAutoPickupRetryQueued);
-	ClearRetry();
-	F.Move->Sprint.bActive = true;
-	F.Move->SetSprinting(false); // Fire/posture/menu use this same cancellation.
-	TestTrue(TEXT("Explicit cancellation also retries"), F.Pawn->bAutoPickupRetryQueued);
-	return true;
-}
 #endif

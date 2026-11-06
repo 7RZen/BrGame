@@ -48,7 +48,6 @@ FBrArmorRules::FAbsorption UBrArmorComponent::Absorb(float Damage, bool bBypass)
 		if (Result.Broken > 0)
 		{
 			PlayBreaks(Result.Broken);
-			C->RequestAutoPickupRetry();
 		}
 	}
 	return Result;

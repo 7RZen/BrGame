@@ -66,8 +66,7 @@ def main():
             raise RuntimeError("Run create_sound_assets.py first; pickup sound missing: " + category)
         props = {"DisplayName": display, "Label": display, "Mesh": mesh, "Material": mat,
                  "PickupSound": sound,
-                 "Color": unreal.LinearColor(*color), "VisualScale": unreal.Vector(*scale),
-                 "bRequiresInteract": key.startswith("Weapon_")}
+                 "Color": unreal.LinearColor(*color), "VisualScale": unreal.Vector(*scale)}
         props.update(properties or {})
         for prop, value in props.items():
             obj.set_editor_property(prop, value)

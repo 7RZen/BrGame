@@ -43,7 +43,6 @@ def main():
     for prop, value in {
         "DisplayName": "Armor Plate",
         "Label": "Armor",
-        "bRequiresInteract": False,
         # Pale steel: distinct from pistol blue, rifle cyan, MG orange, health green, ammo yellow, grenade dark green, quest magenta.
         "Color": unreal.LinearColor(0.62, 0.74, 0.86, 1),
         "VisualScale": unreal.Vector(0.5, 0.35, 0.08),

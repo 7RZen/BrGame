@@ -54,8 +54,7 @@ count and test both modes.
   prone stays prone. Try blocked uncrouch beneath cover.
 - [ ] **Sprint cancellation/combat:** tap/hold Fire and throw G during sprint:
   no immediate shot/throw, then action after 0.2 s; automatic fire keeps sprint
-  suppressed. E stops sprint then picks up/revives; overlap pickups wait for sprint
-  to end. Test posture/down/menu/map/unstuck/release/non-forward/empty cancellations.
+  suppressed. E stops sprint then picks up/revives. Test posture/down/menu/map/unstuck/release/non-forward/empty cancellations.
   Repeat with artificial lag/loss and watch for corrections, lost shots or extra ammo.
   Old saved binding profiles must show Sprint (not a stale Walk row/conflict).
 - [ ] **Slide (host + remote):** rebind/reset Left Ctrl; standing/slow/back/strafe/
@@ -88,6 +87,7 @@ count and test both modes.
   bone-white face-up corpse at the victim's last facing; check a late joiner too.
   Living prone/crawl stays face down. Capture command: `Scripts/RunShotSmoke.ps1 -Skeletons`.
 - [ ] **Armor plates:** collect up to 2 plates from a crate; a third is refused until one breaks. Hits drain the most damaged plate first, then health; zone damage skips armor. Hear the break sound; the HUD armor bar shows for owner and spectator only; armor survives revive/respawn and clears next round.
+- [ ] **E-only pickups (host + remote):** walk and sprint over ammo, health, grenade, armor, weapon and quest-token pickups: nothing is collected on touch. The HUD prompts `Press E to pick up <item>` for the nearest usable item; each E press picks up exactly one. Full health/armor/ammo items get no prompt. With a downed teammate in range, E revives instead.
 - [OK] **Pickups/zone:** collect health, ammo, grenade and weapon pickups; watch
   them respawn, then move outside the shrinking zone. Expected: health and
   grenade caps hold, weapon swap drops the old loaded weapon, and outside-zone

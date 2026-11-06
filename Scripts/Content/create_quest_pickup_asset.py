@@ -36,7 +36,6 @@ def main():
     for prop, value in {
         "DisplayName": "Quest",
         "Label": "Quest",
-        "bRequiresInteract": True,
         "Color": unreal.LinearColor(0.9, 0.15, 1, 1),
         "VisualScale": unreal.Vector(0.45, 0.45, 0.12),
     }.items():

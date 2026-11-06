@@ -27,6 +27,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
 | Issue 9 | Slide | Predicted authoritative crouch-capsule slide, pose/audio/input/HUD; validation: Scripts/SlideValidation.md |
+| GitHub #25 | Player-initiated pickups | All pickup types require E; touch/overlap collection removed; validation: Scripts/Issue25InteractPickupValidation.md |
 | GitHub #24 | Reduce crate spread | Contents scatter halved to 250–500 cm; wave spacing kept at 20 m via `CrateWaveSpacing`; validation: Scripts/Issue24CrateSpreadValidation.md |
 | Issue 16 | Airdrop crates | Implemented; navigation-independent ground checks, per-map waves and public markers; standalone nav data repaired; evidence: Scripts/Issue16CrateValidation.md |
 
@@ -169,8 +170,7 @@ Base running speed is 600.
   with 30 ms arrival grace (never while actively sprinting).
 - Release, non-forward input, empty stamina, posture change, downing, blocked gameplay
   input/menu and unstuck hold stop sprint. E stops sprint then performs pickup/revive.
-  Automatic overlap pickups wait until sprint ends; starting sprint/moving cancels
-  an unstuck hold. Fire/interact/posture cancellation requires pressing Sprint again.
+  Starting sprint/moving cancels an unstuck hold. Fire/interact/posture cancellation requires pressing Sprint again.
 
 ### Slide *(all tuning dev-only, UBrDeveloperSettings)*
 - Rebindable Slide (Left Ctrl) is a press, not a crouch toggle. Requires grounded,
@@ -264,11 +264,12 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 - Players start with 100 health, capped at their max health (which can be lowered by respawn penalties).
 
 ## Pickups
-- **Ammo:** one magazine for your current weapon. Collected on overlap while not sprinting.
-- **Health:** restores 100%, 50% or 20% of max health (very few, a few and several, in a 1 : 3 : 6 ratio). Collected on overlap while not sprinting, but not at full health.
-- **Hand grenade:** +1, up to 2. Collected on overlap while not sprinting.
-- **Armor plate:** 20 armor per plate, up to 2 plates *(dev)*, collected on overlap only while a plate slot is empty (a partially damaged plate keeps its slot). Damage after posture scaling hits the most damaged plate first, overflows into the next plate, then health in the same hit; zone damage bypasses armor. A distinct sound plays when a plate breaks. Armor is private to its owner and their spectators, persists through down, revive and respawn, and resets at round start and final elimination.
-- **Weapons:** pistol, assault rifle and machine gun. Press E to pick up.
+- Every pickup is player-initiated: nothing is collected by touching it. Press E (Interact) to pick up the nearest usable item within `InteractRadius` *(dev, 150 cm)*; one press picks up one item, and E stops sprint first. Items you cannot use right now (for example health at full) are skipped and get no prompt. A downed teammate in range takes priority (E revives). The HUD shows `Press E to pick up <item>`; the server chooses the item and validates it.
+- **Ammo:** one magazine for your current weapon.
+- **Health:** restores 100%, 50% or 20% of max health (very few, a few and several, in a 1 : 3 : 6 ratio). Not usable at full health.
+- **Hand grenade:** +1, up to 2.
+- **Armor plate:** 20 armor per plate, up to 2 plates *(dev)*, usable only while a plate slot is empty (a partially damaged plate keeps its slot). Damage after posture scaling hits the most damaged plate first, overflows into the next plate, then health in the same hit; zone damage bypasses armor. A distinct sound plays when a plate breaks. Armor is private to its owner and their spectators, persists through down, revive and respawn, and resets at round start and final elimination.
+- **Weapons:** pistol, assault rifle and machine gun.
 - **Airdrops:** each map entry has `InitialCrates` / `CratesPerDrop` *(dev)*: Town **6 / 3**, Battlefield and Test Arena **2 / 1**. New entries default to **4 / 2**; there is no global initial count. The interval stays host-controlled (30 s default), including during the final zone stage while safe landing area exists. No authored pickup spawn points or individual slot respawns.
 - Every crate in a wave has an independent bounded landing search. Same-wave landing centers are at least `CrateWaveSpacing` *(dev)* apart (20 m default), never less than twice the maximum scatter radius or 170 cm for crate-body clearance. Crowded or tiny zones may place fewer crates, with skipped drops and actual placed counts logged.
 - Each crate contains exactly 1 pistol, 1–2 ARs, a 50% MG chance, 3–8 health pickups (20/50/100 weighted 60/30/10), 3–8 ammo pickups (not rounds), 2–4 grenades and 2–8 armor plates. Counts, weights, chance and definition references are developer settings.

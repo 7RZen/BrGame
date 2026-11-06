@@ -334,7 +334,6 @@ void ABrCharacter::ApplyLifeMeshPose(bool bPreserveSmoothing)
 void ABrCharacter::ApplyLifePresentation()
 {
 	const bool bAlive = Life->IsAlive();
-	if (bAlive) RequestAutoPickupRetry(); // BeginPlay, revive, respawn and restored Alive state.
 	Inventory->CancelCombat();
 	ConsumeMovementInputVector();
 	GetCharacterMovement()->StopMovementImmediately();
@@ -648,36 +647,11 @@ void ABrCharacter::PossessedBy(AController* NewController)
 	Super::PossessedBy(NewController);
 	Armor->RestoreFromPlayerState();
 	ApplyTeamColor();
-	RequestAutoPickupRetry(); // Initial overlaps can happen before possession.
-}
-
-void ABrCharacter::RequestAutoPickupRetry()
-{
-	if (!HasAuthority() || !GetWorld() || GetWorld()->bIsTearingDown ||
-		IsActorBeingDestroyed() || bAutoPickupRetryQueued) return;
-	bAutoPickupRetryQueued = true;
-	AutoPickupRetryTimer = GetWorld()->GetTimerManager().SetTimerForNextTick(this, &ABrCharacter::RetryAutoPickups);
-}
-
-void ABrCharacter::RetryAutoPickups()
-{
-	bAutoPickupRetryQueued = false;
-	if (!HasAuthority() || !HasActorBegunPlay() || IsActorBeingDestroyed() ||
-		!GetController() || !Life->IsAlive() || Health->Health <= 0) return;
-	TArray<AActor*> OverlappingPickups;
-	GetCapsuleComponent()->GetOverlappingActors(OverlappingPickups, ABrPickup::StaticClass());
-	for (AActor* Actor : OverlappingPickups)
-	{
-		ABrPickup* Pickup = Cast<ABrPickup>(Actor);
-		if (IsValid(Pickup)) Pickup->TryAutoCollect(this); // Preserve availability/application/re-entrancy guards.
-	}
 }
 
 void ABrCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorld()->GetTimerManager().ClearTimer(FootstepTimer);
-	GetWorld()->GetTimerManager().ClearTimer(AutoPickupRetryTimer);
-	bAutoPickupRetryQueued = false;
 	Super::EndPlay(EndPlayReason);
 }
 

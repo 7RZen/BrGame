@@ -20,8 +20,6 @@ bool UBrPickupDefinition::CanApply(const ABrCharacter* Character, const FBrPicku
 
 FText UBrPickupDefinition::GetLabel(const FBrPickupPayload& Payload) const { return Label.IsEmpty() ? DisplayName : Label; }
 
-UBrQuestPickupDefinition::UBrQuestPickupDefinition() { bRequiresInteract = true; }
-
 FText UBrQuestPickupDefinition::DescribeOffer(const FBrQuestOffer& Offer)
 {
 	switch (Offer.Objective)
@@ -122,8 +120,6 @@ bool UBrGrenadePickupDefinition::Apply(ABrCharacter* Character, FBrPickupPayload
 	Payload.Feedback = TEXT("+1 grenade");
 	return true;
 }
-
-UBrWeaponPickupDefinition::UBrWeaponPickupDefinition() { bRequiresInteract = true; }
 
 UBrWeaponDefinition* UBrWeaponPickupDefinition::GetWeapon(const FBrPickupPayload& Payload) const
 {

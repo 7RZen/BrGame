@@ -4,13 +4,137 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "BrPickup.h"
+#include "BrArmorComponent.h"
+#include "BrCharacter.h"
+#include "BrCharacterMovementComponent.h"
+#include "BrDeveloperSettings.h"
+#include "BrGameMode.h"
+#include "BrGameState.h"
+#include "BrHealthComponent.h"
+#include "BrInventoryComponent.h"
+#include "BrLifeComponent.h"
+#include "BrPlayerController.h"
+#include "BrPlayerState.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/UnrealType.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrPickupInteractTest, "BrGame.Pickups.UserInitiatedCollection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrPickupInteractTest::RunTest(const FString& Parameters)
+{
+	struct FWorldFixture
+	{
+		UWorld* World;
+		UGameInstance* Instance;
+		FWorldFixture()
+		{
+			const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false)
+				.CreatePhysicsScene(true).CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false);
+			World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::SM5, &Values);
+			FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Context.SetCurrentWorld(World);
+			Instance = NewObject<UGameInstance>(GEngine);
+			Context.OwningGameInstance = Instance;
+			World->SetGameInstance(Instance);
+			Instance->Init();
+			FURL URL;
+			URL.AddOption(TEXT("game=/Script/BrGame.BrGameMode"));
+			World->SetGameMode(URL);
+			World->InitializeActorsForPlay(URL);
+		}
+		~FWorldFixture()
+		{
+			World->DestroyWorld(false);
+			Instance->Shutdown();
+			GEngine->DestroyWorldContext(World);
+		}
+	} Fixture;
+	UWorld* World = Fixture.World;
+	ABrPlayerController* PC = World->SpawnActor<ABrPlayerController>();
+	ABrPlayerState* PS = World->SpawnActor<ABrPlayerState>();
+	ABrCharacter* Pawn = World->SpawnActor<ABrCharacter>();
+	if (!TestNotNull(TEXT("Controller"), PC) || !TestNotNull(TEXT("PlayerState"), PS) ||
+		!TestNotNull(TEXT("Pawn"), Pawn)) return false;
+	PC->PlayerState = PS;
+	PS->SetOwner(PC);
+	PC->Possess(Pawn);
+	Pawn->DispatchBeginPlay();
+	Pawn->GetBrMovement()->DisableMovement();
+	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
+	TestEqual(TEXT("Interaction radius remains 150 cm"), Settings->InteractRadius, 150.f);
+	UBrInventoryComponent* Inventory = Pawn->GetInventory();
+	UBrWeaponDefinition* Weapon = Settings->StartingWeapon.LoadSynchronous();
+	if (!TestNotNull(TEXT("Starting weapon"), Weapon) || !TestNotNull(TEXT("Ammo type"), Weapon->AmmoType.Get())) return false;
+	Inventory->Weapon = Weapon;
+	Inventory->Ammo.Reset();
+	UBrPickupDefinition* Cosmetic = Settings->DroppedWeaponPickup.LoadSynchronous();
+	if (!TestNotNull(TEXT("Pickup cosmetics"), Cosmetic)) return false;
+	UBrAmmoPickupDefinition* Ammo = NewObject<UBrAmmoPickupDefinition>(World);
+	UBrHealthPickupDefinition* Health = NewObject<UBrHealthPickupDefinition>(World);
+	UBrArmorPickupDefinition* Armor = NewObject<UBrArmorPickupDefinition>(World);
+	const auto Spawn = [&](UBrPickupDefinition* Definition, float Distance)
+	{
+		Definition->Mesh = Cosmetic->Mesh;
+		Definition->Material = Cosmetic->Material;
+		ABrPickup* Item = ABrPickup::Spawn(World, FTransform(Pawn->GetActorLocation() + FVector(Distance, 0, 0)), Definition, {});
+		if (Item) Item->DispatchBeginPlay();
+		return Item;
+	};
+	ABrPickup* HealthItem = Spawn(Health, 0);
+	ABrPickup* AmmoItem = Spawn(Ammo, 20);
+	ABrPickup* ArmorItem = Spawn(Armor, 40);
+	if (!HealthItem || !AmmoItem || !ArmorItem) return false;
+	Pawn->GetHealth()->SetHealth(50);
+	Pawn->GetCapsuleComponent()->UpdateOverlaps();
+	World->Tick(LEVELTICK_All, .05f);
+	TestEqual(TEXT("Touch/tick does not grant ammo"), Inventory->GetReserve(), 0);
+	TestEqual(TEXT("Touch/tick does not heal"), Pawn->GetHealth()->Health, 50.f);
+	TestTrue(TEXT("Touch/tick does not grant armor"), Pawn->GetArmor()->GetPlates().IsEmpty());
+	TestFalse(TEXT("Trigger never generates overlap events"), AmmoItem->FindComponentByClass<USphereComponent>()->GetGenerateOverlapEvents());
+	TestTrue(TEXT("Nearest usable health targets"), ABrPickup::FindInteractPickup(Pawn) == HealthItem);
+	Pawn->GetHealth()->SetHealth(Pawn->GetHealth()->MaxHealth);
+	TestTrue(TEXT("Full health skipped in favor of usable ammo"), ABrPickup::FindInteractPickup(Pawn) == AmmoItem);
+	Pawn->GetLife()->StartInteract();
+	TestEqual(TEXT("Interact grants one ammo pickup"), Inventory->GetReserve(), Weapon->MagazineSize);
+	TestTrue(TEXT("One press leaves armor available"), ArmorItem->CanCollect(Pawn));
+	World->Tick(LEVELTICK_All, .05f);
+	TestTrue(TEXT("Holding interact never vacuums next item"), Pawn->GetArmor()->GetPlates().IsEmpty());
+	TestTrue(TEXT("Next press targets armor"), ABrPickup::FindInteractPickup(Pawn) == ArmorItem);
+
+	// A valid revive wins over an otherwise usable pickup.
+	ABrCharacter* Target = World->SpawnActor<ABrCharacter>(FVector(100, 0, 0), FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("Revive target"), Target)) return false;
+	Target->GetLife()->State = EBrLifeState::Downed;
+	Target->GetLife()->DownedEndTime = Pawn->GetLife()->ServerTime() + 30;
+	ABrGameState* GS = World->GetGameState<ABrGameState>();
+	if (!TestNotNull(TEXT("Game state"), GS)) return false;
+	GS->bLobby = GS->bResults = false;
+	GS->MatchSettings.ReviveRule = EBrReviveRule::Anyone;
+	Pawn->GetLife()->StartInteract();
+	TestTrue(TEXT("Interact prioritizes revive"), Pawn->GetLife()->ReviveTarget == Target);
+	TestTrue(TEXT("Revive leaves pickup available"), ArmorItem->CanCollect(Pawn));
+	Pawn->GetLife()->StopInteract();
+	Target->Destroy();
+	Pawn->GetLife()->StartInteract();
+	TestEqual(TEXT("Next press grants one plate"), Pawn->GetArmor()->GetPlates().Num(), 1);
+	Pawn->GetHealth()->SetHealth(50);
+	TestTrue(TEXT("Health becomes targetable without re-entering"), ABrPickup::FindInteractPickup(Pawn) == HealthItem);
+	Pawn->GetLife()->StartInteract();
+	TestTrue(TEXT("Interact heals"), Pawn->GetHealth()->Health > 50);
+	TestNull(TEXT("Consumed items no longer targetable"), ABrPickup::FindInteractPickup(Pawn));
+	ABrPickup* Outside = Spawn(Armor, Settings->InteractRadius + 1);
+	if (!TestNotNull(TEXT("Outside-radius pickup"), Outside)) return false;
+	TestNull(TEXT("Trigger edge does not extend center-based interaction radius"), ABrPickup::FindInteractPickup(Pawn));
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrWeaponPlaceholderLengthTest, "BrGame.Pickups.WeaponPlaceholderLengths",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

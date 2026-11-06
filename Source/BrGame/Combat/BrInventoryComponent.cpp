@@ -168,7 +168,6 @@ void UBrInventoryComponent::OnRep_Weapon()
 	if (ABrCharacter* Character = Cast<ABrCharacter>(GetOwner()))
 	{
 		Character->UpdateWeaponVisual();
-		Character->RequestAutoPickupRetry(); // Also covers inventory snapshot restoration.
 	}
 }
 
@@ -375,7 +374,6 @@ void UBrInventoryComponent::ServerFire_Implementation(FVector_NetQuantizeNormal 
 #endif
 	Character->GetBrMovement()->ApplyAcceptedCombatAim(Aim, MoveTimeStamp);
 	Character->GetLife()->Fired();
-	Character->RequestAutoPickupRetry();
 	FBrServerBullet& Bullet = Bullets.AddDefaulted_GetRef();
 	// Center origin prevents a client/muzzle offset from spawning a shot beyond a wall.
 	Bullet.Position = Character->GetActorLocation();
@@ -416,10 +414,6 @@ void UBrInventoryComponent::FinishReload()
 			{
 				Pool.Count -= Rounds;
 				Loaded += Rounds;
-				if (Rounds > 0)
-				{
-					if (ABrCharacter* Character = Cast<ABrCharacter>(GetOwner())) Character->RequestAutoPickupRetry();
-				}
 				break;
 			}
 		}
@@ -504,7 +498,6 @@ void UBrInventoryComponent::ServerGrenade_Implementation(FVector_NetQuantizeNorm
 	Character->GetBrMovement()->ApplyAcceptedCombatAim(Aim, MoveTimeStamp);
 	Character->GetLife()->Fired();
 	--Grenades;
-	Character->RequestAutoPickupRetry();
 	NextGrenade = GetWorld()->GetTimeSeconds() + 0.25;
 }
 

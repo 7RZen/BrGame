@@ -61,8 +61,6 @@ public:
 	void UpdatePostureWeaponPose();
 	/** Synchronously publish the current pose while still fog-hidden, before any primitive is unhidden. */
 	void PrepareForFogReveal();
-	/** Coalesced server-only retry of cached auto-pickup overlaps, after state mutation completes. */
-	void RequestAutoPickupRetry();
 	void PlayTracer(const FVector& Origin, const FVector& Direction, float Speed, float Range);
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastTracer(FVector_NetQuantize Origin, FVector_NetQuantizeNormal Direction, float Speed, float Range);
@@ -145,9 +143,6 @@ private:
 	TObjectPtr<UBrInputConfig> LoadedInputConfig;
 
 	float TargetOrthoWidth = 0.0f;
-	FTimerHandle AutoPickupRetryTimer;
-	bool bAutoPickupRetryQueued = false;
-	void RetryAutoPickups();
 
 	float ClampCameraWidth(float Width) const;
 	void InitializeCameraZoom();

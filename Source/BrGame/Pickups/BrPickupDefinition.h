@@ -36,8 +36,6 @@ public:
 	FText DisplayName;
 	UPROPERTY(EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundBase> PickupSound;
-	UPROPERTY(EditAnywhere, Category="Pickup")
-	bool bRequiresInteract = false;
 	UPROPERTY(EditAnywhere, Category="Visual")
 	TObjectPtr<UStaticMesh> Mesh;
 	UPROPERTY(EditAnywhere, Category="Visual")
@@ -58,7 +56,6 @@ class BRGAME_API UBrQuestPickupDefinition : public UBrPickupDefinition
 {
 	GENERATED_BODY()
 public:
-	UBrQuestPickupDefinition();
 	static FText DescribeOffer(const FBrQuestOffer& Offer);
 	virtual bool CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const override;
 	virtual bool Apply(ABrCharacter* Character, FBrPickupPayload& Payload) const override;
@@ -108,7 +105,6 @@ class BRGAME_API UBrWeaponPickupDefinition : public UBrPickupDefinition
 {
 	GENERATED_BODY()
 public:
-	UBrWeaponPickupDefinition();
 	UPROPERTY(EditAnywhere, Category="Pickup")
 	TObjectPtr<UBrWeaponDefinition> Weapon;
 	UBrWeaponDefinition* GetWeapon(const FBrPickupPayload& Payload) const;

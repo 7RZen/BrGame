@@ -105,8 +105,16 @@ namespace
 		const auto Collect = [World, Character](UBrPickupDefinition* Definition)
 		{
 			ABrPickup* Pickup = ABrPickup::Spawn(World,
-				FTransform(Character->GetActorLocation() + FVector(0, 0, 250)), Definition, FBrPickupPayload());
-			return Pickup && Pickup->TryCollect(Character);
+				FTransform(Character->GetActorLocation()), Definition, FBrPickupPayload());
+			if (!Pickup || ABrPickup::FindInteractPickup(Character) != Pickup)
+			{
+				if (Pickup) Pickup->Destroy();
+				return false;
+			}
+			Character->GetLife()->StartInteract();
+			const bool bCollected = !Pickup->CanCollect(Character) && Pickup->IsActorBeingDestroyed();
+			if (!bCollected) Pickup->Destroy();
+			return bCollected;
 		};
 		const TSoftObjectPtr<UBrWeaponDefinition>* RifleEntry = Settings->WeaponRegistry.Find(TEXT("AssaultRifle"));
 		UBrWeaponDefinition* Rifle = RifleEntry ? RifleEntry->LoadSynchronous() : nullptr;
@@ -122,8 +130,10 @@ namespace
 		Inventory->GiveGrenades(1);
 		if (!Collect(FindPickup(TEXT("Grenade"))) || Inventory->Grenades != 2) return false;
 		ABrPickup* AtCap = ABrPickup::Spawn(World,
-			FTransform(Character->GetActorLocation() + FVector(0, 0, 250)), FindPickup(TEXT("Grenade")), FBrPickupPayload());
-		const bool bAtCapRejected = AtCap && !AtCap->TryCollect(Character) && Inventory->Grenades == 2;
+			FTransform(Character->GetActorLocation()), FindPickup(TEXT("Grenade")), FBrPickupPayload());
+		Character->GetLife()->StartInteract();
+		const bool bAtCapRejected = AtCap && !AtCap->IsActorBeingDestroyed() &&
+			!AtCap->CanCollect(Character) && ABrPickup::FindInteractPickup(Character) != AtCap && Inventory->Grenades == 2;
 		if (AtCap) AtCap->Destroy();
 		return bAtCapRejected;
 	}
@@ -979,8 +989,7 @@ void ABrGameMode::ServiceMatchSmoke()
 			return;
 		}
 		UE_LOG(LogBr, Display, TEXT("E2E PICKUPS PASS: weapon swap, health cap and grenade cap"));
-		// Collection was tested above. Isolate subsequent exact gear-retention
-		// assertions from random live map pickups at respawn destinations.
+		// Collection was tested above. Remove map loot before subsequent combat probes.
 		// Each new round still creates/tests its normal pickup population.
 		if (PickupManager) PickupManager->ClearRoundPickups();
 

@@ -18,7 +18,6 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Net/UnrealNetwork.h"
 #include "Kismet/GameplayStatics.h"
-#include "TimerManager.h"
 
 ABrPickup::ABrPickup()
 {
@@ -35,6 +34,7 @@ ABrPickup::ABrPickup()
 	Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Trigger->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Trigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	// Interact uses an explicit object query; touching items never collects them.
 	Trigger->SetGenerateOverlapEvents(false);
 	Visual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Visual"));
 	Visual->SetupAttachment(Trigger);
@@ -87,18 +87,10 @@ void ABrPickup::BeginPlay()
 {
 	Super::BeginPlay();
 	OnRep_State();
-	if (HasAuthority())
-	{
-		Trigger->OnComponentBeginOverlap.AddDynamic(this, &ABrPickup::Overlap);
-		// Let the manager bind its slot delegate before an initial overlap can consume this actor.
-		ActivationTimer = GetWorld()->GetTimerManager().SetTimerForNextTick(this, &ABrPickup::EnableCollection);
-	}
 }
 
 void ABrPickup::EndPlay(const EEndPlayReason::Type Reason)
 {
-	GetWorld()->GetTimerManager().ClearTimer(ActivationTimer);
-	Trigger->OnComponentBeginOverlap.RemoveDynamic(this, &ABrPickup::Overlap);
 	OnConsumed.Clear();
 	Super::EndPlay(Reason);
 }
@@ -107,15 +99,6 @@ void ABrPickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ABrPickup, State);
-}
-
-void ABrPickup::EnableCollection()
-{
-	if (HasAuthority() && State.bAvailable)
-	{
-		Trigger->SetGenerateOverlapEvents(true);
-		Trigger->UpdateOverlaps();
-	}
 }
 
 FText ABrPickup::GetPickupLabel() const
@@ -203,7 +186,6 @@ bool ABrPickup::TryCollect(ABrCharacter* Character)
 			Mode->ProgressQuest(Character->GetController(), EBrQuestObjective::CollectWeapon, Weapon->GetWeapon(State.Payload));
 	}
 	State.bAvailable = false;
-	Trigger->SetGenerateOverlapEvents(false);
 	OnRep_State();
 	ForceNetUpdate();
 	if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character->GetController()))
@@ -221,27 +203,14 @@ bool ABrPickup::TryCollect(ABrCharacter* Character)
 	return true;
 }
 
-bool ABrPickup::TryAutoCollect(ABrCharacter* Character)
-{
-	return HasAuthority() && State.Definition && !State.Definition->bRequiresInteract && TryCollect(Character);
-}
-
-void ABrPickup::Overlap(UPrimitiveComponent* Component, AActor* Other, UPrimitiveComponent* OtherComponent,
-	int32 BodyIndex, bool bFromSweep, const FHitResult& Sweep)
-{
-	if (ABrCharacter* Character = Cast<ABrCharacter>(Other)) TryAutoCollect(Character);
-}
-
 void ABrPickup::ResetPickup(UBrPickupDefinition* Definition)
 {
 	if (!HasAuthority() || !Definition) return;
-	Trigger->SetGenerateOverlapEvents(false);
 	State.Definition = Definition;
 	State.Payload = FBrPickupPayload();
 	State.bAvailable = true;
 	OnRep_State();
 	ForceNetUpdate();
-	EnableCollection();
 }
 
 ABrPickup* ABrPickup::FindInteractPickup(const ABrCharacter* Character)
@@ -257,7 +226,7 @@ ABrPickup* ABrPickup::FindInteractPickup(const ABrCharacter* Character)
 	for (const FOverlapResult& Result : Overlaps)
 	{
 		ABrPickup* Pickup = Cast<ABrPickup>(Result.GetActor());
-		if (!Pickup || !Pickup->State.Definition || !Pickup->State.Definition->bRequiresInteract || !Pickup->CanCollect(Character)) continue;
+		if (!Pickup || !Pickup->CanCollect(Character)) continue;
 		const double Distance = FVector::DistSquared(Character->GetActorLocation(), Pickup->GetActorLocation());
 		if (Distance <= BestDistance) { Best = Pickup; BestDistance = Distance; }
 	}

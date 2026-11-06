@@ -207,10 +207,12 @@ bool FBrQuestRuntimeTest::RunTest(const FString&)
 	Definition->Material = Cosmetic->Material;
 	FBrPickupPayload Payload;
 	Payload.QuestOffer = QuestOffer(EBrQuestObjective::CollectGrenade);
-	ABrPickup* Token = ABrPickup::Spawn(World, FTransform(FVector(1000, 0, 35)), Definition, Payload);
+	ABrPickup* Token = ABrPickup::Spawn(World, FTransform(Pawns[0]->GetActorLocation()), Definition, Payload);
 	if (!TestNotNull(TEXT("Quest token"), Token)) return false;
-	TestFalse(TEXT("Offers never auto-collect"), Token->TryAutoCollect(Pawns[0]));
-	TestTrue(TEXT("First E collection accepts"), Token->TryCollect(Pawns[0]));
+	TestTrue(TEXT("Offer targets through Interact"), ABrPickup::FindInteractPickup(Pawns[0]) == Token);
+	Pawns[0]->GetLife()->StartInteract();
+	TestEqual(TEXT("First E collection accepts one offer"), States[0]->Quests.Num(), 1);
+	TestFalse(TEXT("Collected offer is unavailable"), Token->CanCollect(Pawns[0]));
 	TestFalse(TEXT("Same token cannot be consumed twice"), Token->TryCollect(Pawns[1]));
 	TestFalse(TEXT("Same identity globally consumed"), Mode->AcceptQuest(Players[1], Payload.QuestOffer));
 	TestEqual(TEXT("Acceptance awards nothing"), States[0]->RoundScore, 0);
