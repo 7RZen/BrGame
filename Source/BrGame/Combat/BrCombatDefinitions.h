@@ -56,6 +56,9 @@ public:
 	FVector VisualScale = FVector(0.5f, 0.08f, 0.08f);
 	UPROPERTY(EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundBase> FireSound;
+	/** FireSound identifies this gain on remote listeners; shared sounds should use equal gains. */
+	UPROPERTY(EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="2"))
+	float FireVolume = 1.f;
 	UPROPERTY(EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundBase> ReloadSound;
 };

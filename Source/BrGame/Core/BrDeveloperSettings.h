@@ -200,10 +200,35 @@ public:
 	/** Fraction of hearing radius with full volume, followed by linear falloff. */
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="0.9"))
 	float AudioInnerRadiusFraction = 0.1f;
-	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="1", ClampMax="3"))
-	float SprintStepVolume = 1.3f;
-	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="1"))
-	float CrouchStepVolume = 0.2f;
+	/** Per-event developer gains, read on each playback (including PIE tuning). */
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float FireVolume = 1.f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float ExplosionVolume = 1.f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float DownedVolume = 0.9f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float VoiceLineVolume = 1.f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float RunStepVolume = 0.35f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float SprintStepVolume = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float CrouchStepVolume = 0.1f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float SlideVolume = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float ReloadVolume = 0.6f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float DryFireVolume = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float PainVolume = 0.7f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float PainArmorVolume = 0.6f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float PickupVolume = 0.6f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Volume", meta=(ClampMin="0", ClampMax="2"))
+	float ArmorBreakVolume = 0.8f;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="0.2"))
 	float FirePitchVariation = 0.04f;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", ClampMax="0.2"))

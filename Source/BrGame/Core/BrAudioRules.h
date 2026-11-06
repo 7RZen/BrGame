@@ -98,6 +98,36 @@ struct FBrAudioVoicePolicy
 /** Shared by authority targeting, local attenuation and automation. Distances are cm. */
 struct FBrAudioRules
 {
+	/** Developer gain is independent of the player's 0..1 comfort sliders. */
+	static float Gain(float Value) { return FMath::IsFinite(Value) ? FMath::Clamp(Value, 0.f, 2.f) : 1.f; }
+	template<typename SettingsType>
+	static float KindVolume(const SettingsType& S, EBrSoundKind Kind)
+	{
+		switch (Kind)
+		{
+		case EBrSoundKind::Fire: return Gain(S.FireVolume);
+		case EBrSoundKind::Explosion: return Gain(S.ExplosionVolume);
+		case EBrSoundKind::Downed: return Gain(S.DownedVolume);
+		case EBrSoundKind::RunStep: return Gain(S.RunStepVolume);
+		case EBrSoundKind::SprintStep: return Gain(S.SprintStepVolume);
+		case EBrSoundKind::CrouchStep: return Gain(S.CrouchStepVolume);
+		case EBrSoundKind::Pickup: return Gain(S.PickupVolume);
+		case EBrSoundKind::Slide: return Gain(S.SlideVolume);
+		case EBrSoundKind::ArmorBreak: return Gain(S.ArmorBreakVolume);
+		case EBrSoundKind::Reload: return Gain(S.ReloadVolume);
+		case EBrSoundKind::DryFire: return Gain(S.DryFireVolume);
+		case EBrSoundKind::Pain: return Gain(S.PainVolume);
+		case EBrSoundKind::PainArmor: return Gain(S.PainArmorVolume);
+		case EBrSoundKind::VoiceLine: return Gain(S.VoiceLineVolume);
+		default: return 1.f;
+		}
+	}
+	static float FireVolume(float KindGain, float WeaponGain, float Variation)
+	{
+		// Clamp inputs, not the product: two 2x gains deliberately produce 4x.
+		return Gain(KindGain) * Gain(WeaponGain) *
+			(1.f + (FMath::IsFinite(Variation) ? FMath::Clamp(Variation, -0.2f, 0.2f) : 0.f));
+	}
 	static EBrSoundKind StepKind(EBrPosture Posture, bool bSprinting)
 	{
 		return Posture == EBrPosture::Crouching ? EBrSoundKind::CrouchStep :

@@ -45,7 +45,8 @@ bool FBrSprintRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Crouch ignores sprint"), FBrAudioRules::StepKind(EBrPosture::Crouching, true), EBrSoundKind::CrouchStep);
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
 	TestEqual(TEXT("20 metre sprint"), S->SprintStepHearingRange, 2000.f);
-	TestTrue(TEXT("Louder than run"), S->SprintStepVolume > 1);
+	TestTrue(TEXT("Sprint louder than run, quieter than gunfire"),
+		S->SprintStepVolume > S->RunStepVolume && S->SprintStepVolume < S->FireVolume);
 	TestEqual(TEXT("Prone silent"), FBrAudioRules::StepRange(EBrPosture::Prone, true, 1500, 2000, 300), 0.f);
 	TestFalse(TEXT("Active sprint forbids fire, even with grace"), FBrSprintState::CanFire(true, 10, 0, .03f));
 	TestFalse(TEXT("Recovery window rejects"), FBrSprintState::CanFire(false, 10.1, 10.2, .03f));

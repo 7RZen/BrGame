@@ -1,8 +1,12 @@
 #include "BrAudioRules.h"
 #include "BrDeveloperSettings.h"
 #include "BrGameInstance.h"
+#include "BrAudioSubsystem.h"
+#include "BrCombatDefinitions.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
+#include <limits>
 #include "Kismet/GameplayStatics.h"
 #include "UObject/CoreNet.h"
 #include "Sound/SoundBase.h"
@@ -155,6 +159,116 @@ bool FBrAudioVoiceTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Scream priority"), Scream->Priority, S->DownedVoice.Priority);
 		TestTrue(TEXT("Scream retains priority at range"), !!Scream->bBypassVolumeScaleForPriority);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioKindGainTest, "BrGame.Audio.PerKindVolume",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBrAudioKindGainTest::RunTest(const FString& Parameters)
+{
+	UBrDeveloperSettings* S = NewObject<UBrDeveloperSettings>();
+	struct FMapping
+	{
+		EBrSoundKind Kind;
+		float UBrDeveloperSettings::* Member;
+	};
+	const FMapping Mappings[] = {
+		{EBrSoundKind::Fire, &UBrDeveloperSettings::FireVolume},
+		{EBrSoundKind::Explosion, &UBrDeveloperSettings::ExplosionVolume},
+		{EBrSoundKind::Downed, &UBrDeveloperSettings::DownedVolume},
+		{EBrSoundKind::RunStep, &UBrDeveloperSettings::RunStepVolume},
+		{EBrSoundKind::SprintStep, &UBrDeveloperSettings::SprintStepVolume},
+		{EBrSoundKind::CrouchStep, &UBrDeveloperSettings::CrouchStepVolume},
+		{EBrSoundKind::Pickup, &UBrDeveloperSettings::PickupVolume},
+		{EBrSoundKind::Slide, &UBrDeveloperSettings::SlideVolume},
+		{EBrSoundKind::ArmorBreak, &UBrDeveloperSettings::ArmorBreakVolume},
+		{EBrSoundKind::Reload, &UBrDeveloperSettings::ReloadVolume},
+		{EBrSoundKind::DryFire, &UBrDeveloperSettings::DryFireVolume},
+		{EBrSoundKind::Pain, &UBrDeveloperSettings::PainVolume},
+		{EBrSoundKind::PainArmor, &UBrDeveloperSettings::PainArmorVolume},
+		{EBrSoundKind::VoiceLine, &UBrDeveloperSettings::VoiceLineVolume}
+	};
+	TestEqual(TEXT("Coverage includes every wire kind"), UE_ARRAY_COUNT(Mappings),
+		static_cast<size_t>(EBrSoundKind::VoiceLine) + 1);
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Mappings); ++Index)
+		S->*(Mappings[Index].Member) = (Index + 1) * 0.11f;
+	for (const FMapping& Mapping : Mappings)
+	{
+		const float Original = S->*(Mapping.Member);
+		TestEqual(TEXT("Independent setting, not a shared category gain"),
+			FBrAudioRules::KindVolume(*S, Mapping.Kind), Original);
+		for (const auto& Probe : {TPair<float, float>(-0.5f, 0.f), TPair<float, float>(3.f, 2.f),
+			TPair<float, float>(0.f, 0.f), TPair<float, float>(1.7f, 1.7f),
+			TPair<float, float>(std::numeric_limits<float>::quiet_NaN(), 1.f)})
+		{
+			S->*(Mapping.Member) = Probe.Key;
+			TestEqual(TEXT("Live-read clamped gain"), FBrAudioRules::KindVolume(*S, Mapping.Kind), Probe.Value);
+			for (const FMapping& Other : Mappings)
+				if (Other.Kind != Mapping.Kind)
+					TestEqual(TEXT("Editing one kind does not change others"),
+						FBrAudioRules::KindVolume(*S, Other.Kind), S->*(Other.Member));
+		}
+		S->*(Mapping.Member) = Original;
+	}
+	TestEqual(TEXT("Invalid kind neutral"), FBrAudioRules::KindVolume(*S, static_cast<EBrSoundKind>(255)), 1.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAudioWeaponGainTest, "BrGame.Audio.WeaponFireVolume",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBrAudioWeaponGainTest::RunTest(const FString& Parameters)
+{
+	UBrDeveloperSettings* Settings = GetMutableDefault<UBrDeveloperSettings>();
+	const auto SavedRegistry = Settings->WeaponRegistry;
+	ON_SCOPE_EXIT { Settings->WeaponRegistry = SavedRegistry; };
+	Settings->WeaponRegistry.Empty();
+	UBrWeaponDefinition* Weapon = NewObject<UBrWeaponDefinition>();
+	Weapon->FireSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_Fire_Pistol.SW_Fire_Pistol")));
+	Weapon->FireVolume = 0.4f;
+	Settings->WeaponRegistry.Add(TEXT("TestWeapon"), TSoftObjectPtr<UBrWeaponDefinition>(Weapon));
+	UBrAudioSubsystem* Predicted = NewObject<UBrAudioSubsystem>();
+	UBrAudioSubsystem* Remote = NewObject<UBrAudioSubsystem>();
+	FBrSoundType Source;
+	Source.Kind = EBrSoundKind::Fire;
+	Source.Sound = Weapon->FireSound;
+	FNetBitWriter Writer(nullptr, 4096);
+	bool bSuccess = false;
+	Source.NetSerialize(Writer, nullptr, bSuccess);
+	TestTrue(TEXT("Unchanged RPC type serializes"), bSuccess);
+	FNetBitReader Reader(nullptr, Writer.GetData(), Writer.GetNumBits());
+	FBrSoundType Received;
+	Received.NetSerialize(Reader, nullptr, bSuccess);
+	TestTrue(TEXT("Remote type deserializes"), bSuccess);
+	const FSoftObjectPath Path = Weapon->FireSound.ToSoftObjectPath();
+	TestEqual(TEXT("Predicted path resolves weapon gain"), Predicted->WeaponFireVolume(Path), Weapon->FireVolume);
+	TestEqual(TEXT("Remote RPC path resolves same gain"),
+		Remote->WeaponFireVolume(Received.Sound.ToSoftObjectPath()), Predicted->WeaponFireVolume(Path));
+	TestTrue(TEXT("Developer x weapon x randomized variation"),
+		FMath::IsNearlyEqual(FBrAudioRules::FireVolume(0.75f, Remote->WeaponFireVolume(Path), -0.05f),
+			0.75f * Weapon->FireVolume * 0.95f));
+	Weapon->FireVolume = 1.6f;
+	TestEqual(TEXT("Cached definition still reads live asset gain"), Predicted->WeaponFireVolume(Path), 1.6f);
+	Weapon->FireVolume = 3.f;
+	TestEqual(TEXT("Weapon gain upper clamp"), Remote->WeaponFireVolume(Path), 2.f);
+	Weapon->FireVolume = -1.f;
+	TestEqual(TEXT("Weapon gain lower clamp"), Remote->WeaponFireVolume(Path), 0.f);
+	const FSoftObjectPath Unknown(TEXT("/Game/BrGame/Audio/Unknown.Unknown"));
+	TestEqual(TEXT("Unknown sound neutral"), Remote->WeaponFireVolume(Unknown), 1.f);
+	TestEqual(TEXT("Null sound neutral"), Remote->WeaponFireVolume(FSoftObjectPath()), 1.f);
+	TestTrue(TEXT("Unknown sound preserves developer gain and variation"),
+		FMath::IsNearlyEqual(FBrAudioRules::FireVolume(0.75f, Remote->WeaponFireVolume(Unknown), 0.05f), 0.75f * 1.05f));
+	Weapon->FireSound = TSoftObjectPtr<USoundBase>(Unknown);
+	Weapon->FireVolume = 0.8f;
+	TestEqual(TEXT("Changed fire path picked up next shot"), Remote->WeaponFireVolume(Unknown), 0.8f);
+	TestEqual(TEXT("Old fire path now unknown"), Remote->WeaponFireVolume(Path), 1.f);
+	Settings->WeaponRegistry.Empty();
+	TestEqual(TEXT("Removed registry entry not resolved from stale cache"), Predicted->WeaponFireVolume(Unknown), 1.f);
+	TestTrue(TEXT("Clamp factors, not effective product"),
+		FMath::IsNearlyEqual(FBrAudioRules::FireVolume(3.f, 3.f, 0.2f), 4.f * 1.2f));
+	TestEqual(TEXT("Muted weapon stays muted"), FBrAudioRules::FireVolume(1.f, -1.f, 0.05f), 0.f);
 	return true;
 }
 

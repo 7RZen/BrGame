@@ -29,6 +29,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 9 | Slide | Predicted authoritative crouch-capsule slide, pose/audio/input/HUD; validation: Scripts/SlideValidation.md |
 | GitHub #25 | Player-initiated pickups | All pickup types require E; touch/overlap collection removed; validation: Scripts/Issue25InteractPickupValidation.md |
 | GitHub #26 | Narrower play area with side-panel HUD | 4:3 engine-constrained play area, black side panels holding all HUD text, no world text; automation 35/35, shot/flow smokes and 16:9 / 5:4 screenshots passed; validation: Scripts/Issue26SidePanelValidation.md |
+| GitHub #16 | Movement louder than gunfire | Per-sound developer volumes (Audio \| Volume) plus per-weapon FireVolume; footsteps rebalanced below gunfire; automation 31/31 and live-device audio smoke passed; listening check pending; validation: Scripts/Issue16SoundVolumeValidation.md |
 | GitHub #24 | Reduce crate spread | Contents scatter halved to 250–500 cm; wave spacing kept at 20 m via `CrateWaveSpacing`; validation: Scripts/Issue24CrateSpreadValidation.md |
 | Issue 16 | Airdrop crates | Implemented; navigation-independent ground checks, per-map waves and public markers; standalone nav data repaired; evidence: Scripts/Issue16CrateValidation.md |
 
@@ -293,9 +294,9 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
   original scream-like downed vocal (not the Wilhelm recording), running/soft footsteps and
   distinct weapon/ammo/health/grenade pickups.
 - Spatial linear falloff *(dev, Audio settings)*: gunshots 50 m, explosions 80 m,
-  downed scream 40 m, running 15 m, sprinting 20 m at 130% volume, crouching 3 m at
-  20% volume; prone is silent. Listener distance/orientation follows the viewed pawn
+  downed scream 40 m, running 15 m, sprinting 20 m, crouching 3 m; prone is silent. Listener distance/orientation follows the viewed pawn
   and camera yaw, not the elevated orthographic camera.
+- Volume mix *(dev, Audio | Volume, 0–2 each, applied to the next sound played)*: fire 1.0, explosion 1.0, downed 0.9, voice line 1.0, run step 0.35, sprint step 0.5, crouch step 0.1, slide 0.5, reload 0.6, empty click 0.5, pain 0.7, armor thud 0.6, pickup 0.6, armor break 0.8, so movement stays below gunfire. Each weapon data asset also has a `FireVolume` (default 1.0) multiplied into its gunshots; remote listeners resolve it locally from the fire sound (weapons sharing a fire sound must share this value). Player sliders scale on top.
 - Combat sounds *(dev ranges)*: per-weapon reloads (pistol light, AR medium, MG heavy; 15 m) stop for every listener when the reload is cancelled; an empty-weapon click (15 m, throttled) plays only when no reserve ammo remains, since an empty magazine with reserve auto-reloads. Non-zone hits that do not down a character play a pain grunt (10 m, at most one per 0.5 s); hits fully absorbed by armor play a muted armor thud instead. The downing hit keeps the downed scream.
 - Down voice lines: when a player downs an opponent (not self, zone or teammate), the attacker says a random server-chosen line from their voice set (no immediate repeat), heard within 20 m. Voice sets (`UBrVoiceSet`, listed in `VoiceSets` *(dev)*) are built by `Scripts\Content\import_voice_lines.py` from WAV folders in `Scripts\Content\Audio\Voice\<Voice>\`; English Windows TTS placeholders (David, Mark, Zira) ship until real recordings replace them. Each player chooses their own voice in Settings; the choice is saved locally and validated by the server.
 - All nearby players can hear fire, explosions, screams and footsteps through fog.

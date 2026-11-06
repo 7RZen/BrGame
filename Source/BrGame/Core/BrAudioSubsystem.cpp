@@ -63,6 +63,9 @@ void UBrAudioSubsystem::Deinitialize()
 	Sounds.Empty();
 	Attenuations.Empty();
 	FailedSounds.Empty();
+	AudioWeapons.Empty();
+	FailedAudioWeapons.Empty();
+	ConflictingFireSounds.Empty();
 	Super::Deinitialize();
 }
 
@@ -276,6 +279,48 @@ void UBrAudioSubsystem::Flush()
 	Pending.Reset();
 }
 
+float UBrAudioSubsystem::WeaponFireVolume(const FSoftObjectPath& SoundPath)
+{
+	if (SoundPath.IsNull()) return 1.f;
+	const auto& Registry = UBrDeveloperSettings::Get()->WeaponRegistry;
+	TArray<FName> Keys;
+	Registry.GetKeys(Keys);
+	Keys.Sort(FNameLexicalLess());
+	float Volume = 1.f;
+	bool bFound = false;
+	// Cache loaded definitions, not gains or fire paths: asset/registry PIE edits apply next shot.
+	// Registry order is deterministic if multiple weapons share the same sound path.
+	for (const FName Key : Keys)
+	{
+		const auto& SoftWeapon = Registry.FindChecked(Key);
+		const FSoftObjectPath WeaponPath = SoftWeapon.ToSoftObjectPath();
+		if (FailedAudioWeapons.Contains(WeaponPath)) continue;
+		UBrWeaponDefinition* Weapon = AudioWeapons.FindRef(WeaponPath);
+		if (!Weapon)
+		{
+			Weapon = SoftWeapon.LoadSynchronous();
+			if (!Weapon)
+			{
+				FailedAudioWeapons.Add(WeaponPath);
+				UE_LOG(LogBr, Warning, TEXT("Audio weapon definition missing: %s (Registry=%s); using 1x for unknown fire sounds"),
+					*WeaponPath.ToString(), *Key.ToString());
+				continue;
+			}
+			AudioWeapons.Add(WeaponPath, Weapon);
+		}
+		if (Weapon->FireSound.ToSoftObjectPath() != SoundPath) continue;
+		const float Gain = FBrAudioRules::Gain(Weapon->FireVolume);
+		if (!bFound) { Volume = Gain; bFound = true; }
+		else if (!FMath::IsNearlyEqual(Volume, Gain) && !ConflictingFireSounds.Contains(SoundPath))
+		{
+			ConflictingFireSounds.Add(SoundPath);
+			UE_LOG(LogBr, Warning, TEXT("Weapons sharing fire sound %s have different FireVolume values; using first lexical registry key on all listeners"),
+				*SoundPath.ToString());
+		}
+	}
+	return Volume;
+}
+
 UAudioComponent* UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound, const FVector& Location)
 {
 	UWorld* World = GetWorld();
@@ -304,6 +349,16 @@ UAudioComponent* UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoun
 		Sounds.Add(Path, Wave);
 	}
 	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	float Volume = FBrAudioRules::KindVolume(*S, Kind);
+	float Pitch = 1.f;
+	if (Kind == EBrSoundKind::Fire)
+	{
+		const float PitchVariation = FMath::Clamp(S->FirePitchVariation, 0.f, 0.2f);
+		const float VolumeVariation = FMath::Clamp(S->FireVolumeVariation, 0.f, 0.2f);
+		Pitch += FMath::FRandRange(-PitchVariation, PitchVariation);
+		Volume = FBrAudioRules::FireVolume(Volume, WeaponFireVolume(Path),
+			FMath::FRandRange(-VolumeVariation, VolumeVariation));
+	}
 	const FBrAudioVoicePolicy& Policy = S->VoicePolicy(Kind);
 	const EBrSoundKind Category = Kind == EBrSoundKind::SprintStep || Kind == EBrSoundKind::CrouchStep ||
 		Kind == EBrSoundKind::Slide ? EBrSoundKind::RunStep :
@@ -330,7 +385,7 @@ UAudioComponent* UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoun
 	}
 	if (Kind == EBrSoundKind::Pickup || Kind == EBrSoundKind::ArmorBreak)
 	{
-		UGameplayStatics::PlaySound2D(World, Wave, 1, 1, 0, Concurrency);
+		UGameplayStatics::PlaySound2D(World, Wave, Volume, 1, 0, Concurrency);
 		return nullptr;
 	}
 	USoundAttenuation* Attenuation = Attenuations.FindRef(Kind);
@@ -344,14 +399,6 @@ UAudioComponent* UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoun
 		A.AttenuationShapeExtents = FVector(Range(Kind) * FMath::Clamp(S->AudioInnerRadiusFraction, 0.f, 0.9f), 0, 0);
 		A.FalloffDistance = Range(Kind) - A.AttenuationShapeExtents.X;
 		Attenuations.Add(Kind, Attenuation);
-	}
-	float Volume = Kind == EBrSoundKind::SprintStep ? S->SprintStepVolume :
-		Kind == EBrSoundKind::CrouchStep ? S->CrouchStepVolume : 1.f;
-	float Pitch = 1.f;
-	if (Kind == EBrSoundKind::Fire)
-	{
-		Pitch += FMath::FRandRange(-S->FirePitchVariation, S->FirePitchVariation);
-		Volume *= 1.f + FMath::FRandRange(-S->FireVolumeVariation, S->FireVolumeVariation);
 	}
 	FVector GroundLocation = Location;
 	GroundLocation.Z = ListenerPosition(Cast<ABrPlayerController>(World->GetFirstPlayerController())).Z;

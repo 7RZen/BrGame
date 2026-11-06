@@ -38,6 +38,8 @@ public:
 	static ABrCharacter* ListenerPawn(const ABrPlayerController* PC);
 	static FVector ListenerPosition(const ABrPlayerController* PC);
 	TSoftObjectPtr<USoundBase> StepSound(EBrSoundKind Kind) const;
+	/** Same local path lookup for predicted fire and remote Kind + Sound RPCs. Unknown sounds use 1x. */
+	float WeaponFireVolume(const FSoftObjectPath& SoundPath);
 private:
 	struct FPendingListener
 	{
@@ -70,6 +72,10 @@ private:
 	UPROPERTY(Transient)
 	TMap<EBrSoundKind, TObjectPtr<USoundConcurrency>> Concurrencies;
 	TSet<FSoftObjectPath> FailedSounds;
+	UPROPERTY(Transient)
+	TMap<FSoftObjectPath, TObjectPtr<class UBrWeaponDefinition>> AudioWeapons;
+	TSet<FSoftObjectPath> FailedAudioWeapons;
+	TSet<FSoftObjectPath> ConflictingFireSounds;
 	UPROPERTY(Transient)
 	TMap<FSoftObjectPath, TObjectPtr<UBrVoiceSet>> VoiceLibrary;
 	TSet<FSoftObjectPath> FailedVoiceSets;
