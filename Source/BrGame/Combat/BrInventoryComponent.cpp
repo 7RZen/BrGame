@@ -1,4 +1,5 @@
 #include "BrInventoryComponent.h"
+#include "BrSoundEventRules.h"
 #include "BrPlayerController.h"
 #include "BrAudioSubsystem.h"
 #include "BrCharacter.h"
@@ -354,7 +355,14 @@ void UBrInventoryComponent::ServerFire_Implementation(FVector_NetQuantizeNormal 
 	if (!FBrCombatMath::CanFire(Now, NextAllowedFire)) return;
 	if (Loaded <= 0)
 	{
-		ServerReload_Implementation();
+		if (FBrSoundEventRules::DryFire(Loaded, GetReserve()))
+		{
+			NextAllowedFire = FBrCombatMath::NextFireTime(Now, NextAllowedFire, Weapon->FireRate);
+			if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
+				Audio->Emit(Character, EBrSoundKind::DryFire, UBrDeveloperSettings::Get()->DryFireSound,
+					Character->GetActorLocation(), nullptr, true);
+		}
+		else ServerReload_Implementation();
 		return;
 	}
 	NextAllowedFire = FBrCombatMath::NextFireTime(Now, NextAllowedFire, Weapon->FireRate);
@@ -389,9 +397,11 @@ void UBrInventoryComponent::RequestReload() { ServerReload(); }
 
 void UBrInventoryComponent::ServerReload_Implementation()
 {
-	if (!IsAlive() || !Weapon || bReloading ||
+	if (!GetOwner()->HasAuthority() || !CombatRequestsAllowed() || !IsAlive() || !Weapon || bReloading ||
 		FBrCombatMath::ReloadRounds(Loaded, Weapon->MagazineSize, GetReserve()) == 0) return;
 	bReloading = true;
+	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
+		ReloadSoundId = Audio->StartReload(GetOwner(), Weapon->ReloadSound);
 	GetWorld()->GetTimerManager().SetTimer(ReloadTimer, this, &UBrInventoryComponent::FinishReload, Weapon->ReloadTime, false);
 }
 
@@ -415,11 +425,19 @@ void UBrInventoryComponent::FinishReload()
 		}
 	}
 	bReloading = false;
+	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>()) Audio->ForgetReload(ReloadSoundId);
+	ReloadSoundId = 0;
 }
 
 void UBrInventoryComponent::CancelReload()
 {
-	GetWorld()->GetTimerManager().ClearTimer(ReloadTimer);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReloadTimer);
+		if (ReloadSoundId != 0)
+			if (UBrAudioSubsystem* Audio = World->GetSubsystem<UBrAudioSubsystem>()) Audio->StopReload(GetOwner(), ReloadSoundId);
+	}
+	ReloadSoundId = 0;
 	bReloading = false;
 }
 

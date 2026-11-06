@@ -1,4 +1,6 @@
 #include "BrPlayerState.h"
+#include "BrDeveloperSettings.h"
+#include "BrSoundEventRules.h"
 #include "Net/UnrealNetwork.h"
 #include "BrCharacter.h"
 #include "BrArmorComponent.h"
@@ -80,6 +82,14 @@ void ABrPlayerState::RestoreLifeBookkeeping(const FBrLifeBookkeeping& Life)
 	ForceNetUpdate();
 }
 
+void ABrPlayerState::SetVoiceIndex(int32 Index)
+{
+	if (!HasAuthority()) return;
+	const int32 Valid = FBrSoundEventRules::VoiceIndex(Index, UBrDeveloperSettings::Get()->VoiceSets.Num());
+	if (Valid != VoiceIndex) LastDownLine.Reset();
+	VoiceIndex = Valid;
+}
+
 void ABrPlayerState::CopyProperties(APlayerState* PlayerState)
 {
 	Super::CopyProperties(PlayerState);
@@ -93,6 +103,8 @@ void ABrPlayerState::CopyProperties(APlayerState* PlayerState)
 		Other->RoundScore = RoundScore;
 		Other->Quests = Quests;
 		Other->StoreArmorPlates(ArmorPlates);
+		Other->SetVoiceIndex(VoiceIndex);
+		Other->LastDownLine = LastDownLine;
 	}
 }
 
@@ -102,6 +114,8 @@ void ABrPlayerState::OverrideWith(APlayerState* PlayerState)
 	if (const ABrPlayerState* Other = Cast<ABrPlayerState>(PlayerState))
 	{
 		RestoreLifeBookkeeping(FBrReconnectRules::Merge(GetLifeBookkeeping(), Other->GetLifeBookkeeping()));
+		SetVoiceIndex(Other->VoiceIndex);
+		LastDownLine = Other->LastDownLine;
 		if (Other->Team >= 0) SetTeam(Other->Team, Other->TeamColor);
 		DownsInflicted = FMath::Max(DownsInflicted, Other->DownsInflicted);
 		// Retain signed score/quest history here. PreparePlayer replaces it from the

@@ -2,6 +2,7 @@
 #include "Animation/AnimInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "BrInputConfig.h"
+#include "BrVoiceSet.h"
 
 UBrDeveloperSettings::UBrDeveloperSettings()
 {
@@ -17,6 +18,14 @@ UBrDeveloperSettings::UBrDeveloperSettings()
 	Voice(DownedVoice, 4, 100, TEXT("Downed"));
 	Voice(FootstepVoice, 16, 90, TEXT("Footstep"));
 	Voice(PickupVoice, 4, 70, TEXT("Pickup"));
+	// Null concurrency references use a transient category budget from this policy.
+	ReloadVoice.MaxCount = 12; ReloadVoice.Priority = 40;
+	DryFireVoice.MaxCount = 12; DryFireVoice.Priority = 30;
+	PainVoice.MaxCount = 8; PainVoice.Priority = 70;
+	VoiceLineVoice.MaxCount = 8; VoiceLineVoice.Priority = 80;
+	for (const TCHAR* Name : {TEXT("David"), TEXT("Mark"), TEXT("Zira")})
+		VoiceSets.Add(TSoftObjectPtr<UBrVoiceSet>(FSoftObjectPath(FString::Printf(
+			TEXT("/Game/BrGame/Audio/Voice/DA_Voice_%s.DA_Voice_%s"), Name, Name))));
 	ZoneStages = { {90, 60, 0.6f, 2}, {60, 45, 0.55f, 3}, {45, 30, 0.5f, 5},
 		{30, 20, 0.45f, 7}, {20, 20, 0, 10} };
 	CrouchingHitChance.Standing = 80;
@@ -42,6 +51,11 @@ const FBrAudioVoicePolicy& UBrDeveloperSettings::VoicePolicy(EBrSoundKind Kind) 
 	case EBrSoundKind::Downed: return DownedVoice;
 	case EBrSoundKind::Pickup: return PickupVoice;
 	case EBrSoundKind::ArmorBreak: return PickupVoice;
+	case EBrSoundKind::Reload: return ReloadVoice;
+	case EBrSoundKind::DryFire: return DryFireVoice;
+	case EBrSoundKind::Pain:
+	case EBrSoundKind::PainArmor: return PainVoice;
+	case EBrSoundKind::VoiceLine: return VoiceLineVoice;
 	default: return FootstepVoice;
 	}
 }

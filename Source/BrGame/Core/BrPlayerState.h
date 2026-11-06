@@ -10,6 +10,10 @@ class BRGAME_API ABrPlayerState : public APlayerState
 {
 	GENERATED_BODY()
 public:
+	int32 GetVoiceIndex() const { return VoiceIndex; }
+	void SetVoiceIndex(int32 Index);
+	/** Authority-only history follows the player, never a pawn or a public replication stream. */
+	FSoftObjectPath LastDownLine;
 	UPROPERTY(ReplicatedUsing=OnRep_Team, BlueprintReadOnly, Category="Team")
 	int32 Team = INDEX_NONE;
 	UPROPERTY(ReplicatedUsing=OnRep_Team, BlueprintReadOnly, Category="Team")
@@ -43,6 +47,7 @@ public:
 	FBrLifeBookkeeping GetLifeBookkeeping() const;
 	void RestoreLifeBookkeeping(const FBrLifeBookkeeping& Life);
 private:
+	int32 VoiceIndex = 0;
 	UPROPERTY(Transient)
 	TArray<float> ArmorPlates;
 	UFUNCTION()

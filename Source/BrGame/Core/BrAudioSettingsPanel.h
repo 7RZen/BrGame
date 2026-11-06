@@ -49,6 +49,12 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<USlider> Effects;
 	UPROPERTY(Transient)
+	TObjectPtr<USlider> Voice;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> VoiceLabel;
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> VoiceSelectionLabel;
+	UPROPERTY(Transient)
 	TObjectPtr<USlider> Sensitivity;
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> SensitivityLabel;
@@ -60,6 +66,10 @@ private:
 	void MasterChanged(float Value);
 	UFUNCTION()
 	void EffectsChanged(float Value);
+	UFUNCTION()
+	void VoiceChanged(float Value);
+	UFUNCTION()
+	void NextVoice();
 	UFUNCTION()
 	void SensitivityChanged(float Value);
 };

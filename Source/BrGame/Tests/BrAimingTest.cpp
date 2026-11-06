@@ -148,7 +148,7 @@ bool FBrAimingSettingsTest::RunTest(const FString& Parameters)
 	const UBrAudioProfile* Loaded = Cast<UBrAudioProfile>(UGameplayStatics::LoadGameFromMemory(Bytes));
 	if (TestNotNull(TEXT("Settings round trip"), Loaded))
 	{
-		TestEqual(TEXT("Version"), Loaded->Version, 2);
+		TestEqual(TEXT("Version"), Loaded->Version, 3);
 		TestEqual(TEXT("Sensitivity persists"), Loaded->MouseSensitivity, 0.73f);
 	}
 	const UBrInputConfig* Config = UBrDeveloperSettings::Get()->InputConfig.LoadSynchronous();

@@ -1,5 +1,8 @@
 #include "BrAudioSettingsPanel.h"
 #include "BrGameInstance.h"
+#include "BrAudioSubsystem.h"
+#include "BrVoiceSet.h"
+#include "Engine/World.h"
 #include "BrLog.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/VerticalBox.h"
@@ -33,6 +36,19 @@ void UBrAudioSettingsPanel::NativeOnInitialized()
 	Effects = WidgetTree->ConstructWidget<USlider>();
 	Effects->SetStepSize(0.01f);
 	Box->AddChildToVerticalBox(Effects);
+	VoiceLabel = WidgetTree->ConstructWidget<UTextBlock>();
+	VoiceLabel->SetFont(SmallFont);
+	Box->AddChildToVerticalBox(VoiceLabel);
+	Voice = WidgetTree->ConstructWidget<USlider>();
+	Voice->SetStepSize(0.01f);
+	Box->AddChildToVerticalBox(Voice);
+	Voice->OnValueChanged.AddDynamic(this, &UBrAudioSettingsPanel::VoiceChanged);
+	UButton* VoiceSelection = WidgetTree->ConstructWidget<UButton>();
+	VoiceSelectionLabel = WidgetTree->ConstructWidget<UTextBlock>();
+	VoiceSelectionLabel->SetFont(SmallFont);
+	VoiceSelection->AddChild(VoiceSelectionLabel);
+	VoiceSelection->OnClicked.AddDynamic(this, &UBrAudioSettingsPanel::NextVoice);
+	Box->AddChildToVerticalBox(VoiceSelection);
 	SensitivityLabel = WidgetTree->ConstructWidget<UTextBlock>();
 	SensitivityLabel->SetFont(SmallFont);
 	Box->AddChildToVerticalBox(SensitivityLabel);
@@ -65,6 +81,12 @@ void UBrAudioSettingsPanel::RefreshValues()
 	}
 	Master->SetValue(GI->GetMasterVolume());
 	Effects->SetValue(GI->GetEffectsVolume());
+	Voice->SetValue(GI->GetVoiceVolume());
+	VoiceLabel->SetText(FText::FromString(FString::Printf(TEXT("Voice: %.0f%%"), GI->GetVoiceVolume() * 100)));
+	UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>();
+	UBrVoiceSet* Set = Audio ? Audio->VoiceSet(GI->GetVoiceIndex()) : nullptr;
+	const FString Name = Set ? Set->DisplayName.ToString() : FString::Printf(TEXT("Voice %d (unavailable)"), GI->GetVoiceIndex() + 1);
+	VoiceSelectionLabel->SetText(FText::FromString(TEXT("My voice: ") + Name + TEXT("  (click to cycle)")));
 	Sensitivity->SetValue(GI->GetMouseSensitivity());
 	SensitivityLabel->SetText(FText::FromString(FString::Printf(TEXT("Mouse sensitivity: %.2f"), GI->GetMouseSensitivity())));
 	MasterLabel->SetText(FText::FromString(FString::Printf(TEXT("Master: %.0f%%"), GI->GetMasterVolume() * 100)));
@@ -84,6 +106,22 @@ void UBrAudioSettingsPanel::EffectsChanged(float Value)
 void UBrAudioSettingsPanel::SensitivityChanged(float Value)
 {
 	if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>()) GI->SetMouseSensitivity(Value);
+	RefreshValues();
+}
+
+void UBrAudioSettingsPanel::VoiceChanged(float Value)
+{
+	if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>()) GI->SetVoiceVolume(Value);
+	RefreshValues();
+}
+
+void UBrAudioSettingsPanel::NextVoice()
+{
+	if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>())
+	{
+		const int32 Count = UBrDeveloperSettings::Get()->VoiceSets.Num();
+		GI->SetVoiceIndex(Count > 0 ? (GI->GetVoiceIndex() + 1) % Count : 0);
+	}
 	RefreshValues();
 }
 

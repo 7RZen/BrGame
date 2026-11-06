@@ -63,6 +63,65 @@ void ABrPlayerController::GetAudioListenerPosition(FVector& Location, FVector& F
 	}
 }
 
+void ABrPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	ClientRequestVoicePreference();
+}
+
+void ABrPlayerController::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	SendVoicePreference();
+}
+
+void ABrPlayerController::SendVoicePreference()
+{
+	if (!IsLocalController()) return;
+	if (const UBrGameInstance* GI = GetGameInstance<UBrGameInstance>())
+		ServerSetVoiceIndex(GI->GetVoiceIndex());
+}
+
+void ABrPlayerController::ServerSetVoiceIndex_Implementation(int32 Index)
+{
+	if (ABrPlayerState* PS = GetPlayerState<ABrPlayerState>())
+	{
+		PS->SetVoiceIndex(Index);
+#if !UE_BUILD_SHIPPING
+		if (Index == 1 && PS->GetVoiceIndex() == 1 && FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
+			++SoundSmokeVoiceRpcCount;
+#endif
+	}
+}
+
+void ABrPlayerController::ClientRequestVoicePreference_Implementation() { SendVoicePreference(); }
+
+void ABrPlayerController::ClientReloadSound_Implementation(uint32 Id, const TSoftObjectPtr<USoundBase>& Sound, FVector_NetQuantize Location)
+{
+#if !UE_BUILD_SHIPPING
+	if (SoundProbeStage >= 1 && SoundProbeStage <= 3 && FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
+	{
+		++SoundProbeReload;
+		SoundProbeReloadId = Id;
+		bSoundProbeBad |= Id == 0 || Sound != SoundProbeReloadSound || !FVector(Location).Equals(SoundProbeOrigin, 2);
+		ServerSoundSmokeResult(SoundProbeStage, 1);
+	}
+#endif
+	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>()) Audio->PlayReload(Id, Sound, Location);
+}
+
+void ABrPlayerController::ClientStopReloadSound_Implementation(uint32 Id)
+{
+#if !UE_BUILD_SHIPPING
+	if (SoundProbeStage >= 1 && SoundProbeStage <= 3 && FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
+	{
+		++SoundProbeStop;
+		bSoundProbeBad |= Id != SoundProbeReloadId || SoundProbeReload != 1;
+	}
+#endif
+	if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>()) Audio->StopLocalReload(Id);
+}
+
 void ABrPlayerController::ClientSounds_Implementation(const TArray<FBrSoundType>& Types, const TArray<FBrSoundEvent>& Events)
 {
 	if (!UBrAudioSubsystem::ListenerPawn(this)) return;
@@ -83,6 +142,7 @@ void ABrPlayerController::ClientSound_Implementation(EBrSoundKind Kind, const TS
 	FVector_NetQuantize Location)
 {
 #if !UE_BUILD_SHIPPING
+	TrackSoundSmokeEvent(Kind, Sound, Location);
 	if (Kind == EBrSoundKind::ArmorBreak && FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
 		++ArmorSmokeBreakSounds; // Real received sound route, including -nosound headless runs.
 	if (FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) &&
@@ -139,6 +199,7 @@ void ABrPlayerController::BeginPlay()
 
 	if (IsLocalController())
 	{
+		SendVoicePreference();
 		if (UBrGameInstance* GI = GetGameInstance<UBrGameInstance>()) GI->ApplyAudioVolumes();
 		ClientEnterFlow_Implementation();
 #if !UE_BUILD_SHIPPING

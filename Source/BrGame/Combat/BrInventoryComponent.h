@@ -143,6 +143,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
+#if !UE_BUILD_SHIPPING
+	friend class ABrGameMode; // Bounded authority smoke exercises the real fire-rate gate.
+#endif
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBrServerAimTest;
 	friend class FBrSprintIntegrationTest;
@@ -153,6 +156,7 @@ private:
 	TArray<FBrServerBullet> Bullets;
 	FTimerHandle FireTimer;
 	FTimerHandle ReloadTimer;
+	uint32 ReloadSoundId = 0;
 	FTimerHandle SprintFireTimer;
 	FTimerHandle SprintGrenadeTimer;
 

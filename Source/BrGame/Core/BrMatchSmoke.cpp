@@ -13,6 +13,11 @@
 #include "BrCombatDefinitions.h"
 #include "BrHealthComponent.h"
 #include "BrArmorComponent.h"
+#include "BrAudioSubsystem.h"
+#include "BrVoiceSet.h"
+#include "BrZoneDamageType.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundClass.h"
 #include "BrHitFeedbackComponent.h"
 #include "BrFogComponent.h"
 #include "BrVisibilitySubsystem.h"
@@ -168,7 +173,351 @@ void ABrPlayerController::ServerArmorSmokeResult_Implementation(int32 Stage, int
 #endif
 }
 
+void ABrPlayerController::ClientSoundSmokeVoice_Implementation(int32 Index)
+{
 #if !UE_BUILD_SHIPPING
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || HasAuthority() || !IsLocalController()) return;
+	// Production validated preference RPC, without writing the user's local save.
+	ServerSetVoiceIndex(Index);
+#endif
+}
+
+void ABrPlayerController::ClientSoundSmokeProbe_Implementation(int32 Stage, FVector_NetQuantize Origin,
+	const TSoftObjectPtr<USoundBase>& ReloadSound, bool bCheck)
+{
+#if !UE_BUILD_SHIPPING
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || HasAuthority() || !IsLocalController() ||
+		Stage < 1 || Stage > 8) return;
+	if (!bCheck)
+	{
+		SoundProbeStage = Stage;
+		SoundProbeOrigin = Origin;
+		SoundProbeReloadSound = ReloadSound;
+		SoundProbeReloadId = 0;
+		SoundProbeReload = SoundProbeStop = SoundProbeDry = SoundProbePain = SoundProbeArmor = SoundProbeVoice = 0;
+		bSoundProbeBad = bSoundProbeVoiceClass = false;
+		ServerSoundSmokeResult(Stage, 0); // Armed: server cannot emit before this acknowledgement.
+		return;
+	}
+	if (Stage != SoundProbeStage) return;
+	bool bPass = !bSoundProbeBad;
+	bPass &= SoundProbeReload == (Stage <= 3 ? 1 : 0) && SoundProbeStop == (Stage <= 3 ? 1 : 0);
+	bPass &= SoundProbeDry == (Stage == 4 ? 2 : 0);
+	bPass &= SoundProbePain == (Stage == 5 ? 1 : 0) && SoundProbeArmor == (Stage == 5 ? 1 : 0);
+	bPass &= SoundProbeVoice == (Stage == 8 ? 1 : 0) && (Stage != 8 || bSoundProbeVoiceClass);
+	if (!bPass)
+	{
+		UE_LOG(LogBr, Error, TEXT("E2E SOUND PROBE FAIL Stage=%d Reload=%d Stop=%d Dry=%d Pain=%d PainArmor=%d Voice=%d Class=%d Bad=%d"),
+			Stage, SoundProbeReload, SoundProbeStop, SoundProbeDry, SoundProbePain, SoundProbeArmor,
+			SoundProbeVoice, bSoundProbeVoiceClass, bSoundProbeBad);
+	}
+	else if (Stage <= 3)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS Reload=1 Stop=1 Stage=%d Sound=%s Handle=%u"),
+			Stage, *ReloadSound.ToString(), SoundProbeReloadId);
+	}
+	else if (Stage == 4)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS DryFire=2 Attempts=2 Throttled=1"));
+	}
+	else if (Stage == 5)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS Pain=1 PainArmor=1 NonDowning=1"));
+	}
+	else if (Stage == 6)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS Zone=1 Pain=0 PainArmor=0"));
+	}
+	else if (Stage == 7)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS OutOfRange=1 Pain=0 PainArmor=0"));
+	}
+	else
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS VoiceLine=1 VoiceIndex=1 VoiceClass=1 AttackerOrigin=1"));
+	}
+	ServerSoundSmokeResult(Stage, bPass ? 2 : 3);
+	SoundProbeStage = 0;
+#endif
+}
+
+void ABrPlayerController::ServerSoundSmokeResult_Implementation(int32 Stage, int32 Ack)
+{
+#if !UE_BUILD_SHIPPING
+	const ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>();
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || IsLocalController() ||
+		!Mode || !Mode->IsAdmitted(this) || Stage != SoundSmokeExpectedStage || Ack < 0 || Ack > 3) return;
+	// Acknowledgements only report assertions; never mutate gameplay or select the next fixture.
+	if (Ack == 3)
+		UE_LOG(LogBr, Error, TEXT("E2E SOUND PROBE FAIL: remote assertion Stage=%d"), Stage);
+	SoundSmokeAck = Ack;
+#endif
+}
+
+#if !UE_BUILD_SHIPPING
+void ABrPlayerController::BeginSoundSmokeProbe(int32 Stage, const FVector& Origin, TSoftObjectPtr<USoundBase> ReloadSound)
+{
+	if (!HasAuthority() || IsLocalController() || !FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke"))) return;
+	SoundSmokeExpectedStage = Stage;
+	SoundSmokeAck = -1;
+	SoundProbeOrigin = Origin;
+	SoundProbeReloadSound = ReloadSound;
+	ClientSoundSmokeProbe(Stage, Origin, ReloadSound, false);
+}
+
+void ABrPlayerController::CheckSoundSmokeProbe(int32 Stage)
+{
+	ClientSoundSmokeProbe(Stage, SoundProbeOrigin, SoundProbeReloadSound, true);
+}
+
+void ABrPlayerController::TrackSoundSmokeEvent(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound, const FVector& Location)
+{
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || SoundProbeStage == 0) return;
+	if (Kind == EBrSoundKind::DryFire) ++SoundProbeDry;
+	else if (Kind == EBrSoundKind::Pain) ++SoundProbePain;
+	else if (Kind == EBrSoundKind::PainArmor) ++SoundProbeArmor;
+	else if (Kind == EBrSoundKind::VoiceLine) ++SoundProbeVoice;
+	else return;
+	bSoundProbeBad |= !Location.Equals(SoundProbeOrigin, 2);
+	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	if (Kind == EBrSoundKind::DryFire) bSoundProbeBad |= Sound != S->DryFireSound;
+	if (Kind == EBrSoundKind::Pain) bSoundProbeBad |= Sound != S->PainSound;
+	if (Kind == EBrSoundKind::PainArmor) bSoundProbeBad |= Sound != S->PainArmorSound;
+	if (Kind == EBrSoundKind::VoiceLine)
+	{
+		UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>();
+		UBrVoiceSet* Set = Audio ? Audio->VoiceSet(1) : nullptr;
+		USoundBase* Line = Sound.LoadSynchronous();
+		USoundClass* Class = S->VoiceSoundClass.LoadSynchronous();
+		bSoundProbeBad |= !Set || !Set->DownLines.Contains(Sound) || !Line;
+		// Same class resolver used by production UAudioComponent::SoundClassOverride.
+		// -nosound validates routing/assets, not audible playback or a live component.
+		bSoundProbeVoiceClass = Class && Audio && Audio->SoundClass(Kind) == Class && Line && Line->SoundClassObject == Class;
+	}
+}
+
+bool ABrGameMode::ServiceSoundSmoke(ABrPlayerController* Host, ABrPlayerController* Observer)
+{
+	if (SoundSmokeStage == 9) return true;
+	ABrCharacter* Source = Host ? Cast<ABrCharacter>(Host->GetPawn()) : nullptr;
+	ABrCharacter* Receiver = Observer ? Cast<ABrCharacter>(Observer->GetPawn()) : nullptr;
+	UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>();
+	const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (!Source || !Receiver || !Audio || !Observer || Observer->IsLocalController())
+	{
+		FailSmoke(TEXT("E2E SOUND PROBE FAIL: missing source/remote listener"));
+		return false;
+	}
+	if (SoundSmokeStage == 0)
+	{
+		ABrCharacter* Attacker = HitSmokeVictim.Get();
+		ABrPlayerController* PC = Attacker ? Cast<ABrPlayerController>(Attacker->GetController()) : nullptr;
+		if (!PC || PC->IsLocalController() || PC == Observer || !Audio->VoiceSet(1) ||
+			!Source->GetArmor()->GetPlates().IsEmpty())
+		{
+			FailSmoke(TEXT("E2E SOUND PROBE FAIL: remote attacker/voice set 1/empty host armor required"));
+			return false;
+		}
+		SoundSmokeAttacker = Attacker;
+		SoundSmokeAttackerPC = PC;
+		SoundSmokeVoiceIndex = PC->GetPlayerState<ABrPlayerState>()->GetVoiceIndex();
+		SoundSmokeVoiceRpcBaseline = PC->GetSoundSmokeVoiceRpcCount();
+		SoundSmokeGear = Source->GetInventory()->CaptureState();
+		SoundSmokeHealth = Source->GetHealth()->Health;
+		SoundSmokeHostLocation = Source->GetActorLocation();
+		SoundSmokeObserverLocation = Receiver->GetActorLocation();
+		SoundSmokeAttackerLocation = Attacker->GetActorLocation();
+		SoundSmokeHostTeam = Source->GetPlayerState<ABrPlayerState>()->Team;
+		SoundSmokeObserverTeam = Receiver->GetPlayerState<ABrPlayerState>()->Team;
+		SoundSmokeAttackerTeam = Attacker->GetPlayerState<ABrPlayerState>()->Team;
+		SoundSmokeReviveRule = GetGameState<ABrGameState>()->MatchSettings.ReviveRule;
+		SoundSmokeHostMode = Source->GetBrMovement()->MovementMode;
+		SoundSmokeObserverMode = Receiver->GetBrMovement()->MovementMode;
+		SoundSmokeAttackerMode = Attacker->GetBrMovement()->MovementMode;
+		SoundSmokeHostCustomMode = Source->GetBrMovement()->CustomMovementMode;
+		SoundSmokeObserverCustomMode = Receiver->GetBrMovement()->CustomMovementMode;
+		SoundSmokeAttackerCustomMode = Attacker->GetBrMovement()->CustomMovementMode;
+		Source->GetPlayerState<ABrPlayerState>()->Team = 11001;
+		Receiver->GetPlayerState<ABrPlayerState>()->Team = 11002;
+		Attacker->GetPlayerState<ABrPlayerState>()->Team = 11003;
+		for (ABrCharacter* Pawn : {Source, Receiver, Attacker})
+		{
+			Pawn->GetBrMovement()->DisableMovement();
+			Pawn->GetBrMovement()->Velocity = FVector::ZeroVector;
+		}
+		Source->SetActorLocation(FVector(-6000, -6000, 100), false, nullptr, ETeleportType::TeleportPhysics);
+		Receiver->SetActorLocation(Source->GetActorLocation() + FVector(300, 0, 0), false, nullptr, ETeleportType::TeleportPhysics);
+		Attacker->SetActorLocation(Source->GetActorLocation() + FVector(100, 0, 0), false, nullptr, ETeleportType::TeleportPhysics);
+		for (ABrCharacter* Pawn : {Source, Receiver, Attacker}) Pawn->ForceNetUpdate();
+		PC->ClientSoundSmokeVoice(1);
+		SoundSmokeStage = 1;
+		SoundSmokePhase = 0;
+		SoundSmokeNext = Now + 1;
+		SoundSmokeDeadline = Now + 7;
+		return false;
+	}
+	ABrCharacter* Attacker = SoundSmokeAttacker.Get();
+	ABrPlayerController* AttackerPC = SoundSmokeAttackerPC.Get();
+	if (!Attacker || !AttackerPC || Now > SoundSmokeDeadline || Observer->GetSoundSmokeAck() == 3)
+	{
+		FailSmoke(FString::Printf(TEXT("E2E SOUND PROBE FAIL: bounded fixture Stage=%d Phase=%d Ack=%d"),
+			SoundSmokeStage, SoundSmokePhase, Observer->GetSoundSmokeAck()));
+		return false;
+	}
+	if (Now < SoundSmokeNext) return false;
+	UBrInventoryComponent* Inv = Source->GetInventory();
+	TSoftObjectPtr<USoundBase> ReloadSound;
+	if (SoundSmokeStage <= 3)
+	{
+		const FName Names[] = {TEXT("Pistol"), TEXT("AssaultRifle"), TEXT("MachineGun")};
+		const auto* Entry = S->WeaponRegistry.Find(Names[SoundSmokeStage - 1]);
+		UBrWeaponDefinition* Weapon = Entry ? Entry->LoadSynchronous() : nullptr;
+		if (!Weapon || Weapon->ReloadSound.IsNull() || !Weapon->ReloadSound.LoadSynchronous())
+		{
+			FailSmoke(TEXT("E2E SOUND PROBE FAIL: per-weapon reload asset missing"));
+			return false;
+		}
+		ReloadSound = Weapon->ReloadSound;
+		if (SoundSmokePhase == 0)
+		{
+			FBrInventoryState Gear = SoundSmokeGear;
+			Gear.Weapon = Weapon;
+			Gear.Loaded = 0;
+			Gear.Ammo.Reset();
+			Inv->RestoreState(Gear);
+			Inv->GiveAmmo(10);
+		}
+	}
+	if (SoundSmokePhase == 0)
+	{
+		if (AttackerPC->GetPlayerState<ABrPlayerState>()->GetVoiceIndex() != 1 ||
+			AttackerPC->GetSoundSmokeVoiceRpcCount() <= SoundSmokeVoiceRpcBaseline) return false;
+		const FVector Origin = SoundSmokeStage == 8 ? Attacker->GetActorLocation() : Source->GetActorLocation();
+		Observer->BeginSoundSmokeProbe(SoundSmokeStage, Origin, ReloadSound);
+		SoundSmokePhase = 1;
+		SoundSmokeDeadline = Now + 7;
+		return false;
+	}
+	if (SoundSmokePhase == 1)
+	{
+		if (Observer->GetSoundSmokeAck() != 0) return false;
+		if (SoundSmokeStage <= 3)
+		{
+			Inv->RequestReload();
+			if (!Inv->bReloading) { FailSmoke(TEXT("E2E SOUND PROBE FAIL: authoritative reload rejected")); return false; }
+			SoundSmokeNext = Now + 0.1f;
+		}
+		else if (SoundSmokeStage == 4)
+		{
+			FBrInventoryState Gear = Inv->CaptureState();
+			Gear.Loaded = 0; Gear.Ammo.Reset();
+			Inv->RestoreState(Gear);
+			for (int32 Attempt = 0; Attempt < 20; ++Attempt)
+				Inv->ServerFire_Implementation(Source->GetActorForwardVector(), Source->GetBrMovement()->GetCombatMoveTimeStamp());
+			SoundSmokeNext = Now + 1.f / Inv->Weapon->FireRate + 0.1f;
+		}
+		else if (SoundSmokeStage >= 5 && SoundSmokeStage <= 7)
+		{
+			Source->GetArmor()->Clear();
+			const bool bZone = SoundSmokeStage == 6;
+			const FBrDamageEvent Event(CaptureDamageSource(AttackerPC),
+				bZone ? UBrZoneDamageType::StaticClass() : UBrBulletDamageType::StaticClass(), Attacker->GetActorLocation());
+			const float Before = Source->GetHealth()->Health;
+			const float Applied = Source->TakeDamage(bZone ? 1 : 1 / S->StandingDamageMultiplier, Event, AttackerPC, Attacker);
+			if (Applied <= 0 || Source->GetHealth()->Health >= Before || !Source->GetLife()->IsAlive())
+			{ FailSmoke(TEXT("E2E SOUND PROBE FAIL: non-downing damage rejected")); return false; }
+			SoundSmokeNext = Now + FMath::Max(0.6f, S->PainSoundMinInterval + 0.1f);
+		}
+		else if (SoundSmokeStage == 8)
+		{
+			GetGameState<ABrGameState>()->MatchSettings.ReviveRule = EBrReviveRule::Anyone;
+			const FBrDamageEvent Event(CaptureDamageSource(AttackerPC), UBrBulletDamageType::StaticClass(), Attacker->GetActorLocation());
+			const int32 Downs = AttackerPC->GetPlayerState<ABrPlayerState>()->DownsInflicted;
+			Source->TakeDamage(Source->GetHealth()->MaxHealth * 2 / S->StandingDamageMultiplier, Event, AttackerPC, Attacker);
+			UBrVoiceSet* Set = Audio->VoiceSet(AttackerPC->GetPlayerState<ABrPlayerState>()->GetVoiceIndex());
+			const FSoftObjectPath Line = AttackerPC->GetPlayerState<ABrPlayerState>()->LastDownLine;
+			if (Source->GetLife()->State != EBrLifeState::Downed ||
+				AttackerPC->GetPlayerState<ABrPlayerState>()->DownsInflicted != Downs + 1 || !Set ||
+				!Set->DownLines.Contains(TSoftObjectPtr<USoundBase>(Line)))
+			{ FailSmoke(TEXT("E2E SOUND PROBE FAIL: CreditDown did not use RPC-selected voice")); return false; }
+			UE_LOG(LogBr, Display, TEXT("E2E SOUND PROBE PASS Authority=1 VoiceIndex=1 RPC=1 OpponentDown=1 Line=%s"), *Line.ToString());
+			Attacker->GetLife()->StartInteract(); // Real revive keeps the existing round/life checks intact.
+			SoundSmokeNext = Now + 2;
+		}
+		SoundSmokePhase = 2;
+		return false;
+	}
+	if (SoundSmokePhase == 2)
+	{
+		if (SoundSmokeStage <= 3)
+		{
+			if (Observer->GetSoundSmokeAck() != 1) return false;
+			Inv->RestoreState(SoundSmokeGear); // Real cancellation path, original received handle must stop.
+		}
+		else if (SoundSmokeStage == 4)
+		{
+			for (int32 Attempt = 0; Attempt < 20; ++Attempt)
+				Inv->ServerFire_Implementation(Source->GetActorForwardVector(), Source->GetBrMovement()->GetCombatMoveTimeStamp());
+		}
+		else if (SoundSmokeStage == 5 || SoundSmokeStage == 7)
+		{
+			Source->GetArmor()->AddPlate();
+			const float Before = Source->GetHealth()->Health;
+			const FBrDamageEvent Event(CaptureDamageSource(AttackerPC), UBrBulletDamageType::StaticClass(), Attacker->GetActorLocation());
+			const float Applied = Source->TakeDamage(1 / S->StandingDamageMultiplier, Event, AttackerPC, Attacker);
+			if (Applied <= 0 || Source->GetHealth()->Health != Before)
+			{ FailSmoke(TEXT("E2E SOUND PROBE FAIL: full armor absorption rejected")); return false; }
+			Source->GetArmor()->Clear();
+		}
+		if (SoundSmokeStage == 8 && !Source->GetLife()->IsAlive()) return false;
+		SoundSmokeNext = Now + 1;
+		SoundSmokePhase = 3;
+		return false;
+	}
+	if (SoundSmokePhase == 3)
+	{
+		Observer->CheckSoundSmokeProbe(SoundSmokeStage);
+		SoundSmokePhase = 4;
+		return false;
+	}
+	if (SoundSmokePhase == 4 && Observer->GetSoundSmokeAck() == 2)
+	{
+		if (SoundSmokeStage == 8)
+		{
+			Attacker->GetLife()->StopInteract();
+			GetGameState<ABrGameState>()->MatchSettings.ReviveRule = SoundSmokeReviveRule;
+			Source->GetHealth()->SetHealth(SoundSmokeHealth);
+			Source->GetLife()->InvulnerabilityEndTime = 0;
+			Inv->RestoreState(SoundSmokeGear);
+			Source->GetPlayerState<ABrPlayerState>()->Team = SoundSmokeHostTeam;
+			Receiver->GetPlayerState<ABrPlayerState>()->Team = SoundSmokeObserverTeam;
+			Attacker->GetPlayerState<ABrPlayerState>()->Team = SoundSmokeAttackerTeam;
+			Source->SetActorLocation(SoundSmokeHostLocation, false, nullptr, ETeleportType::TeleportPhysics);
+			Receiver->SetActorLocation(SoundSmokeObserverLocation, false, nullptr, ETeleportType::TeleportPhysics);
+			Attacker->SetActorLocation(SoundSmokeAttackerLocation, false, nullptr, ETeleportType::TeleportPhysics);
+			Source->GetBrMovement()->SetMovementMode(static_cast<EMovementMode>(SoundSmokeHostMode), SoundSmokeHostCustomMode);
+			Receiver->GetBrMovement()->SetMovementMode(static_cast<EMovementMode>(SoundSmokeObserverMode), SoundSmokeObserverCustomMode);
+			Attacker->GetBrMovement()->SetMovementMode(static_cast<EMovementMode>(SoundSmokeAttackerMode), SoundSmokeAttackerCustomMode);
+			AttackerPC->ClientSoundSmokeVoice(SoundSmokeVoiceIndex);
+			for (ABrCharacter* Pawn : {Source, Receiver, Attacker}) Pawn->ForceNetUpdate();
+			RecordPlayer(Host); // Replace the transient downed round snapshot with the restored living state.
+			SoundSmokeStage = 9;
+			return true;
+		}
+		++SoundSmokeStage;
+		if (SoundSmokeStage == 7)
+			Receiver->SetActorLocation(Source->GetActorLocation() + FVector(S->PainHearingRange + 500, 0, 0), false, nullptr, ETeleportType::TeleportPhysics);
+		else
+			Receiver->SetActorLocation(Source->GetActorLocation() + FVector(300, 0, 0), false, nullptr, ETeleportType::TeleportPhysics);
+		Receiver->ForceNetUpdate();
+		SoundSmokePhase = 0;
+		SoundSmokeNext = Now + 1;
+		SoundSmokeDeadline = Now + 7;
+	}
+	return false;
+}
+
 void ABrPlayerController::BeginArmorSmokeProbe(int32 Stage, ABrCharacter* Target)
 {
 	if (!HasAuthority() || IsLocalController() || !Target ||
@@ -590,6 +939,7 @@ void ABrGameMode::ServiceMatchSmoke()
 				if (!ServiceAudioSmoke(Host, Observer)) return;
 				if (!ServiceSprintSmoke(Observer)) return;
 				if (!ServiceArmorSmoke(Host, Observer)) return;
+				if (!ServiceSoundSmoke(Host, Observer)) return;
 			}
 		for (APlayerState* Entry : GS->PlayerArray)
 		{

@@ -158,7 +158,8 @@ to leave processes running for interactive use.
 - [ ] **Combat/life/pickups:** compare pistol/AR/MG, explode a grenade, down/revive,
   and collect each pickup type. Expected: distinct fire with slight variation,
   boom and original generated vocal; no scream replay on fog entry/late join;
-  pickup sound only on the picker's machine. Empty/reload audio is not implemented.
+  pickup sound only on the picker's machine.
+- [ ] **Reload/empty/pain/voice:** reload each weapon (light/medium/heavy) and cancel mid-reload by swapping or sprinting; empty all ammo and pull the trigger; take hits with and without armor; down an opponent. Expected: a nearby player hears the reload stop on cancel, one click per pull, grunts within 10 m (muted thud when armor absorbs the hit, no grunt from zone damage), and a random line in the attacker's chosen voice within 20 m. The Voice slider changes only voice lines, and the voice choice persists after restart.
 - [ ] **Hearing/fog:** compare running (15 m), sprinting (louder, 20 m), crouching
   (very quiet, 3 m) and prone (silent). Hide opponents behind walls and cross fog
   boundaries while moving/firing. Expected: footsteps from anyone in range,

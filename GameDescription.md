@@ -22,6 +22,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | GitHub #21 | Compass and coordinates | Top-center heading strip and live world X/Y readout; validation: Scripts/Issue21CompassValidation.md |
 | GitHub #20 | Quests and round score | Implemented; quest/crate automation 12/12 and packaged smoke passed; manual interaction pending; validation: Scripts/Issue20QuestValidation.md |
 | GitHub #23 | Armor plates | Implemented; armor automation 5/5, crate 8/8, placement check and Town match smoke (armor privacy/absorption probe) passed; manual HUD/audio playtest pending; validation: Scripts/Issue23ArmorValidation.md |
+| GitHub #1 | Missing sounds and selectable player voices | C++ and content implemented; automation 22/22, two-round Town network sound probes and live-device audio smoke passed; human listening/multiplayer voice-volume checks pending; evidence: Scripts/Issue1SoundsValidation.md |
 | Issue 10 | Maps and lobby map selector | Implemented: developer allowlist, Town/Test Arena/Random, replicated host choice, previews and browser map; validation: Scripts/MapSelectorValidation.md |
 | Issue 12 | Tactical sprint replaces walking | Implemented; developer tuning, predicted authoritative stamina, recovery gate and HUD; validation: Scripts/SprintValidation.md |
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
@@ -291,13 +292,15 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
   downed scream 40 m, running 15 m, sprinting 20 m at 130% volume, crouching 3 m at
   20% volume; prone is silent. Listener distance/orientation follows the viewed pawn
   and camera yaw, not the elevated orthographic camera.
+- Combat sounds *(dev ranges)*: per-weapon reloads (pistol light, AR medium, MG heavy; 15 m) stop for every listener when the reload is cancelled; an empty-weapon click (15 m, throttled) plays only when no reserve ammo remains, since an empty magazine with reserve auto-reloads. Non-zone hits that do not down a character play a pain grunt (10 m, at most one per 0.5 s); hits fully absorbed by armor play a muted armor thud instead. The downing hit keeps the downed scream.
+- Down voice lines: when a player downs an opponent (not self, zone or teammate), the attacker says a random server-chosen line from their voice set (no immediate repeat), heard within 20 m. Voice sets (`UBrVoiceSet`, listed in `VoiceSets` *(dev)*) are built by `Scripts\Content\import_voice_lines.py` from WAV folders in `Scripts\Content\Audio\Voice\<Voice>\`; English Windows TTS placeholders (David, Mark, Zira) ship until real recordings replace them. Each player chooses their own voice in Settings; the choice is saved locally and validated by the server.
 - All nearby players can hear fire, explosions, screams and footsteps through fog.
   All non-owner sources send batched anonymous sound type/position events, not enemy
   actors or velocity; routing does not depend on fog actor channels.
   Own shots/footsteps are immediate; pickups are heard only by their picker.
   Spectators hear only at a valid selected target; category voice limits prioritize
   screams and footsteps over sustained gunfire *(dev, Audio settings)*.
-- Start-page Settings has Master and Effects sliders (0–100%), saved locally per
+- Start-page Settings has Master, Effects and Voice sliders (0–100%) and a voice picker, saved locally per
   machine. These are player preferences, unlike developer hearing/combat tuning.
   The same panel, including locally persisted key bindings, is reused by the ESC menu.
 

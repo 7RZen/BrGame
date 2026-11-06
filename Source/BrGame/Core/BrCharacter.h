@@ -82,6 +82,7 @@ protected:
 	float OrthoWidth = 2500.0f;
 
 private:
+	double LastPainSoundTime = -DBL_MAX;
 	friend class FBrSprintIntegrationTest;
 	friend class FBrSprintPickupRetryTest;
 	friend class FBrArmorRuntimeTest;

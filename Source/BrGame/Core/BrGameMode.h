@@ -5,6 +5,7 @@
 #include "BrRoundRecord.h"
 #include "BrMatchSettings.h"
 #include "BrDamageSource.h"
+#include "BrInventoryComponent.h"
 #include "BrGameMode.generated.h"
 
 class ABrPlayerController;
@@ -60,7 +61,7 @@ public:
 	virtual bool CanDamage(AController* InstigatorController, const AActor* Victim) const;
 	bool CanDamageSource(const FBrDamageSource& Source, const AActor* Victim, bool bZoneDamage = false) const;
 	FBrDamageSource CaptureDamageSource(AController* Controller) const;
-	void CreditDown(const FBrDamageSource& Source);
+	void CreditDown(const FBrDamageSource& Source, const ABrCharacter* Victim = nullptr);
 	FString CaptureOpponentDowner(const FBrDamageSource& Source, const ABrCharacter* Victim, bool bZone) const;
 	void CommitQuestDown(AController* Victim, const FString& DownerKey);
 	void ClearQuestDown(AController* Player);
@@ -162,6 +163,18 @@ private:
 	bool ServiceAudioSmoke(ABrPlayerController* Host, ABrPlayerController* Listener);
 	bool ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
 	bool ServiceArmorSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
+	bool ServiceSoundSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
+	int32 SoundSmokeStage = 0, SoundSmokePhase = 0;
+	float SoundSmokeDeadline = 0, SoundSmokeNext = 0;
+	TWeakObjectPtr<ABrCharacter> SoundSmokeAttacker;
+	TWeakObjectPtr<ABrPlayerController> SoundSmokeAttackerPC;
+	FVector SoundSmokeHostLocation, SoundSmokeObserverLocation, SoundSmokeAttackerLocation;
+	int32 SoundSmokeHostTeam = -1, SoundSmokeObserverTeam = -1, SoundSmokeAttackerTeam = -1, SoundSmokeVoiceIndex = 0;
+	uint8 SoundSmokeHostMode = 0, SoundSmokeObserverMode = 0, SoundSmokeAttackerMode = 0;
+	uint8 SoundSmokeHostCustomMode = 0, SoundSmokeObserverCustomMode = 0, SoundSmokeAttackerCustomMode = 0;
+	float SoundSmokeHealth = 0;
+	int32 SoundSmokeVoiceRpcBaseline = 0;
+	EBrReviveRule SoundSmokeReviveRule = EBrReviveRule::Anyone;
 	void ServiceArmorSpectatorSmoke(ABrPlayerController* Host);
 	int32 ArmorSmokeStage = 0;
 	float ArmorSmokeDeadline = 0, ArmorSmokeHealth = 0;
@@ -184,6 +197,8 @@ private:
 	int32 AudioSmokeOriginalTeam = -1;
 	uint8 AudioSmokeReceiverMovementMode = 0, AudioSmokeReceiverCustomMode = 0;
 #endif
+	UPROPERTY(Transient)
+	FBrInventoryState SoundSmokeGear;
 	void AssignPlayer(APlayerController* Player);
 	void FlowService();
 	void CheckWinner();

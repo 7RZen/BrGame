@@ -43,13 +43,14 @@ The BR game lives in four folders under `Source/BrGame/`:
   - `UBrDeveloperSettings`, the developer tuning shown in *Project Settings → BrGame* and stored in `DefaultGame.ini`
 - `Combat/` holds `BrCombatDefinitions` (weapon/grenade data), `BrCombatMath`, `BrHealthComponent`, `BrInventoryComponent` (shared ammo), `BrGrenade` and the damage types.
 - `Life/` holds the downed, revive, respawn, death-limit and elimination flow (`BrLifeComponent`), along with `BrCorpse`, `BrSupinePose` and `BrRoundRecord`.
-- `Pickups/` holds pickup definitions, pure `FBrCrateRules`, the always-relevant `BrSupplyCrate` and server-only `BrPickupManager` (initial/periodic airdrop waves, scatter and round cleanup). No pickup spawn-point actors or per-slot respawns remain. Host `CrateDropInterval` replaces `PickupRespawnTime`; session protocol is 15. Armor plates (`UBrArmorComponent`, pure `FBrArmorRules`) are crate loot appended as the last `FBrCrateRules` type. Developer crate tuning/soft definition references live in `DefaultGame.ini`; counts are per `FBrMapEntry` (`InitialCrates` / `CratesPerDrop`, defaults 4 / 2), not global. Same-wave landing centers are spaced by `CrateWaveSpacing` (20 m), never less than twice the scatter max radius (scatter 250–500 cm).
+- `Pickups/` holds pickup definitions, pure `FBrCrateRules`, the always-relevant `BrSupplyCrate` and server-only `BrPickupManager` (initial/periodic airdrop waves, scatter and round cleanup). No pickup spawn-point actors or per-slot respawns remain. Host `CrateDropInterval` replaces `PickupRespawnTime`; session protocol is 16. Armor plates (`UBrArmorComponent`, pure `FBrArmorRules`) are crate loot appended as the last `FBrCrateRules` type. Developer crate tuning/soft definition references live in `DefaultGame.ini`; counts are per `FBrMapEntry` (`InitialCrates` / `CratesPerDrop`, defaults 4 / 2), not global. Same-wave landing centers are spaced by `CrateWaveSpacing` (20 m), never less than twice the scatter max radius (scatter 250–500 cm).
 - `Tests/` holds the automation tests (`Br*Test.cpp`), roughly one per feature.
 
 Other code and content:
 
 - The root `BrGame*` classes and `Variant_TwinStick/` / `Variant_Strategy/` are leftover UE Top-Down template code. Leave them alone unless a task targets them.
 - Content lives under `Content/BrGame/` (Audio, Feedback, Fog, Input, Maps, Minimap, Pickups, Throwables, Town, Weapons, Zone). The maps are `L_MainMenu` (`GameDefaultMap`), `L_Town` (the main match map) and Test Arena. The lobby map list is a developer allowlist.
+- Voice lines: per-voice WAV folders in `Scripts\Content\Audio\Voice\<Voice>\` are imported by `import_voice_lines.py` into `/Game/BrGame/Audio/Voice/` `UBrVoiceSet` assets listed in `VoiceSets`. `create_sound_assets.py` accepts `BR_SOUND_ONLY=<keys>` so you can regenerate selected placeholders without re-saving every existing `SW_` asset.
 - Plugins: OnlineSubsystem, OnlineSubsystemNull, OnlineSubsystemSteam, SteamSockets, StateTree, GameplayStateTree, PythonScriptPlugin (editor only) and ModelingToolsEditorMode (editor only). Steam currently uses test App ID 480 (`SteamDevAppId` in `DefaultEngine.ini`).
 
 ## Conventions

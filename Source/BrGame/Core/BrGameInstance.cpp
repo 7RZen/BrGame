@@ -2,6 +2,8 @@
 #include "BrAimingRules.h"
 #include "BrDeveloperSettings.h"
 #include "BrAudioRules.h"
+#include "BrSoundEventRules.h"
+#include "BrPlayerController.h"
 #include "AudioDevice.h"
 #include "Sound/SoundMix.h"
 #include "Sound/SoundClass.h"
@@ -21,12 +23,17 @@ void UBrGameInstance::Init()
 	if (UGameplayStatics::DoesSaveGameExist(TEXT("BrAudio"), 0))
 	{
 		const UBrAudioProfile* Audio = Cast<UBrAudioProfile>(UGameplayStatics::LoadGameFromSlot(TEXT("BrAudio"), 0));
-		if (Audio && (Audio->Version == 1 || Audio->Version == 2))
+		if (Audio && Audio->Version >= 1 && Audio->Version <= 3)
 		{
 			MasterVolume = FBrAudioRules::Volume(Audio->Master);
 			EffectsVolume = FBrAudioRules::Volume(Audio->Effects);
 			// Version 1 had no sensitivity: retain the developer default.
 			if (Audio->Version >= 2) MouseSensitivity = FBrAimingRules::Sensitivity(Audio->MouseSensitivity);
+			if (Audio->Version >= 3)
+			{
+				VoiceVolume = FBrAudioRules::Volume(Audio->Voice);
+				VoiceIndex = FBrSoundEventRules::VoiceIndex(Audio->VoiceIndex, UBrDeveloperSettings::Get()->VoiceSets.Num());
+			}
 		}
 		else UE_LOG(LogBr, Error, TEXT("Local audio settings cannot be loaded (unsupported version or invalid save)"));
 	}
@@ -65,12 +72,29 @@ void UBrGameInstance::SetMouseSensitivity(float Value)
 	SaveLocalSettings();
 }
 
+void UBrGameInstance::SetVoiceVolume(float Value)
+{
+	VoiceVolume = FBrAudioRules::Volume(Value);
+	ApplyAudioVolumes();
+	SaveLocalSettings();
+}
+
+void UBrGameInstance::SetVoiceIndex(int32 Index)
+{
+	VoiceIndex = FBrSoundEventRules::VoiceIndex(Index, UBrDeveloperSettings::Get()->VoiceSets.Num());
+	SaveLocalSettings();
+	if (ABrPlayerController* PC = Cast<ABrPlayerController>(GetFirstLocalPlayerController()))
+		PC->SendVoicePreference();
+}
+
 void UBrGameInstance::SaveLocalSettings()
 {
 	UBrAudioProfile* Profile = Cast<UBrAudioProfile>(UGameplayStatics::CreateSaveGameObject(UBrAudioProfile::StaticClass()));
 	if (!Profile) { UE_LOG(LogBr, Error, TEXT("Cannot allocate audio profile")); return; }
 	Profile->Master = MasterVolume;
 	Profile->Effects = EffectsVolume;
+	Profile->Voice = VoiceVolume;
+	Profile->VoiceIndex = VoiceIndex;
 	Profile->MouseSensitivity = MouseSensitivity;
 	if (!UGameplayStatics::SaveGameToSlot(Profile, TEXT("BrAudio"), 0))
 		UE_LOG(LogBr, Error, TEXT("Cannot save local volume/sensitivity settings"));
@@ -91,6 +115,16 @@ void UBrGameInstance::ApplyAudioVolumes()
 	}
 	UGameplayStatics::SetSoundMixClassOverride(World, LoadedVolumeMix, LoadedMasterClass, MasterVolume, 1, 0, true);
 	UGameplayStatics::SetSoundMixClassOverride(World, LoadedVolumeMix, LoadedEffectsClass, EffectsVolume, 1, 0, true);
+	if (!bTriedVoiceClass)
+	{
+		bTriedVoiceClass = true;
+		LoadedVoiceClass = S->VoiceSoundClass.LoadSynchronous();
+		if (!LoadedVoiceClass)
+			UE_LOG(LogBr, Warning, TEXT("Voice volume class missing: %s; voice lines use effects volume until content is installed"),
+				*S->VoiceSoundClass.ToString());
+	}
+	if (LoadedVoiceClass)
+		UGameplayStatics::SetSoundMixClassOverride(World, LoadedVolumeMix, LoadedVoiceClass, VoiceVolume, 1, 0, true);
 	// Base mix is device-owned and idempotent across travel; no modifier stack accumulates.
 	UGameplayStatics::SetBaseSoundMix(World, LoadedVolumeMix);
 	UE_LOG(LogBr, Verbose, TEXT("Audio volumes applied: Master=%.2f Effects=%.2f"), MasterVolume, EffectsVolume);

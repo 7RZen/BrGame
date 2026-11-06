@@ -25,6 +25,17 @@ class BRGAME_API ABrPlayerController : public APlayerController
 
 public:
 	ABrPlayerController();
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnRep_PlayerState() override;
+	void SendVoicePreference();
+	UFUNCTION(Server, Reliable)
+	void ServerSetVoiceIndex(int32 Index);
+	UFUNCTION(Client, Reliable)
+	void ClientRequestVoicePreference();
+	UFUNCTION(Client, Reliable)
+	void ClientReloadSound(uint32 Id, const TSoftObjectPtr<USoundBase>& Sound, FVector_NetQuantize Location);
+	UFUNCTION(Client, Reliable)
+	void ClientStopReloadSound(uint32 Id);
 	virtual void GetAudioListenerPosition(FVector& Location, FVector& Front, FVector& Right) const override;
 	UFUNCTION(Client, Unreliable)
 	void ClientSound(EBrSoundKind Kind, const TSoftObjectPtr<USoundBase>& Sound, FVector_NetQuantize Location);
@@ -39,6 +50,13 @@ public:
 	void ClientArmorSmokeProbe(int32 Stage, int32 TargetId, bool bOwner);
 	UFUNCTION(Server, Reliable)
 	void ServerArmorSmokeResult(int32 Stage, int32 TargetId, bool bPass);
+	/** Bounded development probes; inert in Shipping and without BrMatchSmoke. */
+	UFUNCTION(Client, Reliable)
+	void ClientSoundSmokeProbe(int32 Stage, FVector_NetQuantize Origin, const TSoftObjectPtr<USoundBase>& ReloadSound, bool bCheck);
+	UFUNCTION(Client, Reliable)
+	void ClientSoundSmokeVoice(int32 Index);
+	UFUNCTION(Server, Reliable)
+	void ServerSoundSmokeResult(int32 Stage, int32 Ack);
 	UFUNCTION(Client, Reliable)
 	void ClientSprintSmoke(bool bStart, FVector Location);
 	/** Development fixture only; normal predicted CMC input carries posture to authority. */
@@ -122,6 +140,10 @@ public:
 	bool IsMatchSmokeReady() const { return MatchSmokeReadyPawn.IsValid() && MatchSmokeReadyPawn.Get() == GetPawn(); }
 	void BeginArmorSmokeProbe(int32 Stage, ABrCharacter* Target);
 	bool HasArmorSmokePassed(int32 Stage) const { return ArmorSmokeExpectedStage == Stage && bArmorSmokePassed; }
+	void BeginSoundSmokeProbe(int32 Stage, const FVector& Origin, TSoftObjectPtr<USoundBase> ReloadSound = {});
+	void CheckSoundSmokeProbe(int32 Stage);
+	int32 GetSoundSmokeAck() const { return SoundSmokeAck; }
+	int32 GetSoundSmokeVoiceRpcCount() const { return SoundSmokeVoiceRpcCount; }
 #endif
 	UFUNCTION(Client, Reliable)
 	void ClientPickupFeedback(const FString& Feedback);
@@ -166,6 +188,16 @@ private:
 	float ArmorSmokeProbeDeadline = 0, ArmorSmokeStableSince = -1, ArmorSmokeHealth = 0;
 	uint32 ArmorSmokeHitBaseline = 0, ArmorSmokeSoundBaseline = 0, ArmorSmokeBreakSounds = 0;
 	void ServiceArmorSmokeProbe();
+	int32 SoundSmokeExpectedStage = 0, SoundSmokeAck = -1;
+	int32 SoundSmokeVoiceRpcCount = 0;
+	int32 SoundProbeStage = 0;
+	FVector SoundProbeOrigin = FVector::ZeroVector;
+	TSoftObjectPtr<USoundBase> SoundProbeReloadSound;
+	uint32 SoundProbeReloadId = 0;
+	int32 SoundProbeReload = 0, SoundProbeStop = 0, SoundProbeDry = 0;
+	int32 SoundProbePain = 0, SoundProbeArmor = 0, SoundProbeVoice = 0;
+	bool bSoundProbeBad = false, bSoundProbeVoiceClass = false;
+	void TrackSoundSmokeEvent(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound, const FVector& Location);
 #endif
 	UPROPERTY(VisibleAnywhere, Category="Fog")
 	TObjectPtr<UBrFogComponent> Fog;

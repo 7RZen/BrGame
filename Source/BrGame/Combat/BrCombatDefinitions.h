@@ -56,6 +56,8 @@ public:
 	FVector VisualScale = FVector(0.5f, 0.08f, 0.08f);
 	UPROPERTY(EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundBase> FireSound;
+	UPROPERTY(EditAnywhere, Category="Audio")
+	TSoftObjectPtr<USoundBase> ReloadSound;
 };
 
 UCLASS(BlueprintType)

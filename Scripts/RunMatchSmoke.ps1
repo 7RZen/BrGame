@@ -3,7 +3,9 @@
 [CmdletBinding()]
 param(
     [int]$Port = 18177,
-    [ValidateRange(60, 300)][int]$TimeoutSeconds = 180,
+    # Two rounds now include eight acknowledged sound stages each; individual
+    # C++ probe stages still have a strict seven-second deadline.
+    [ValidateRange(60, 300)][int]$TimeoutSeconds = 300,
     [switch]$Grouped,
     [ValidatePattern('^[a-zA-Z0-9_-]*$')][string]$RunLabel = ""
 )
@@ -44,7 +46,7 @@ function WaitLog([string]$Role, [string]$Pattern, [int]$Minimum = 1) {
             if ($Process.HasExited) { throw "Launched PID $($Process.Id) exited early: $($Process.ExitCode)" }
         }
         foreach ($ProbeLog in Get-ChildItem -LiteralPath $Logs -Filter *.log) {
-            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E HIT PROBE FAIL|E2E ARMOR PROBE FAIL|E2E SPRINT (CLIENT|SERVER) FAIL|E2E SLIDE .*FAIL" | Select-Object -Last 1
+            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E SOUND PROBE FAIL|E2E HIT PROBE FAIL|E2E ARMOR PROBE FAIL|E2E SPRINT (CLIENT|SERVER) FAIL|E2E SLIDE .*FAIL" | Select-Object -Last 1
             if ($Failure) { throw "$($ProbeLog.Name) E2E assertion failed: $($Failure.Line)" }
         }
         if (Test-Path -LiteralPath $File) {
@@ -96,6 +98,17 @@ try {
     foreach ($Stage in 1..5) {
         WaitLog "Client3" "E2E AUDIO PROBE PASS Stage=$Stage " 2
     }
+    foreach ($Weapon in @("Pistol", "AssaultRifle", "MachineGun")) {
+        WaitLog "Client3" "E2E SOUND PROBE PASS Reload=1 Stop=1 .*Sound=/Game/BrGame/Audio/SW_Reload_$Weapon\.SW_Reload_$Weapon " 2
+    }
+    foreach ($Pattern in @(
+        "E2E SOUND PROBE PASS DryFire=2 Attempts=2 Throttled=1",
+        "E2E SOUND PROBE PASS Pain=1 PainArmor=1 NonDowning=1",
+        "E2E SOUND PROBE PASS Zone=1 Pain=0 PainArmor=0",
+        "E2E SOUND PROBE PASS OutOfRange=1 Pain=0 PainArmor=0",
+        "E2E SOUND PROBE PASS VoiceLine=1 VoiceIndex=1 VoiceClass=1 AttackerOrigin=1"
+    )) { WaitLog "Client3" $Pattern 2 }
+    WaitLog "Host" "E2E SOUND PROBE PASS Authority=1 VoiceIndex=1 RPC=1 OpponentDown=1" 2
     foreach ($Stage in 1..2) {
         WaitLog "Client3" "E2E ARMOR PROBE PASS Owner=0 Private=1 Stage=$Stage Visible=1" 2
         $ArmorOwners = @(Get-ChildItem -LiteralPath $Logs -Filter "Client*.log" |
@@ -134,7 +147,7 @@ try {
         if ($Count -lt $Minimum) { throw "Expected $Minimum '$Pattern' assertions in host log, found $Count." }
     }
     foreach ($File in Get-ChildItem -LiteralPath $Logs -Filter *.log) {
-        $Errors = @(Select-String -Path $File.FullName -Pattern "LogBr: Error|Fatal error|Assertion failed|Ensure condition failed|LogScript: Warning|E2E MATCH SMOKE FAIL|E2E ARMOR PROBE FAIL")
+        $Errors = @(Select-String -Path $File.FullName -Pattern "LogBr: Error|Fatal error|Assertion failed|Ensure condition failed|LogScript: Warning|E2E MATCH SMOKE FAIL|E2E ARMOR PROBE FAIL|E2E SOUND PROBE FAIL")
         if ($Errors.Count) {
             $Errors | ForEach-Object { Write-Output $_.Line }
             throw "Smoke log errors in $($File.Name)"

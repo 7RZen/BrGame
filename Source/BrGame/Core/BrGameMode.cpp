@@ -1,4 +1,5 @@
 #include "BrGameMode.h"
+#include "BrAudioSubsystem.h"
 #include "BrSafeZone.h"
 #include "BrCharacter.h"
 #include "BrGameState.h"
@@ -207,7 +208,7 @@ bool ABrGameMode::CanDamageSource(const FBrDamageSource& Source, const AActor* V
 		(Character->GetLife()->IsAlive() && (bZoneDamage || !Character->GetLife()->IsInvulnerable())));
 }
 
-void ABrGameMode::CreditDown(const FBrDamageSource& Source)
+void ABrGameMode::CreditDown(const FBrDamageSource& Source, const ABrCharacter* Victim)
 {
 	if (!HasAuthority() || !Source.IsValid())
 	{
@@ -225,6 +226,9 @@ void ABrGameMode::CreditDown(const FBrDamageSource& Source)
 		{
 			PS->DownsInflicted = Record->DownsInflicted;
 			PS->ForceNetUpdate();
+			if (Victim && !CaptureOpponentDowner(Source, Victim, false).IsEmpty())
+				if (ABrCharacter* Attacker = Cast<ABrCharacter>(Controller->GetPawn()))
+					if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>()) Audio->SpeakDown(Attacker);
 		}
 	}
 }

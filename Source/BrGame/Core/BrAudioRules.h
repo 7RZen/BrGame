@@ -7,7 +7,8 @@
 UENUM()
 enum class EBrSoundKind : uint8
 {
-	Fire, Explosion, Downed, RunStep, SprintStep, CrouchStep, Pickup, Slide, ArmorBreak
+	Fire, Explosion, Downed, RunStep, SprintStep, CrouchStep, Pickup, Slide, ArmorBreak,
+	Reload, DryFire, Pain, PainArmor, VoiceLine
 };
 
 USTRUCT()
@@ -29,7 +30,7 @@ struct FBrSoundType
 			Kind = static_cast<EBrSoundKind>(Value);
 			Sound = TSoftObjectPtr<USoundBase>(Path);
 		}
-		bOutSuccess = Value <= static_cast<uint8>(EBrSoundKind::ArmorBreak) && !Ar.IsError();
+		bOutSuccess = Value <= static_cast<uint8>(EBrSoundKind::VoiceLine) && !Ar.IsError();
 		return true;
 	}
 };

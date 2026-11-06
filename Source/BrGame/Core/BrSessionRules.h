@@ -21,7 +21,7 @@ struct FBrSessionRules
 		if (Visibility == EBrSessionVisibility::Public || bMember) return EAdmission::Accept;
 		return WaitSeconds < 5.0 ? EAdmission::Wait : EAdmission::Reject;
 	}
-	static constexpr int32 Protocol = 15; // 14 already shipped quest layout; armor adds private state/audio.
+	static constexpr int32 Protocol = 16; // New sound kinds, reload handles and voice-selection RPC.
 	static constexpr const TCHAR* MapIdKey = TEXT("BRMAP");
 	static constexpr const TCHAR* MapNameKey = TEXT("BRMAPNAME");
 	static void AdvertiseMap(FOnlineSessionSettings& Settings, FName Id, const FText& Name)

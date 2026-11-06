@@ -110,7 +110,7 @@ bool FBrAudioVolumeTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Profile round trip"), Loaded);
 	if (Loaded)
 	{
-		TestEqual(TEXT("Version"), Loaded->Version, 2);
+		TestEqual(TEXT("Version"), Loaded->Version, 3);
 		TestEqual(TEXT("Master persisted"), Loaded->Master, 0.37f);
 		TestEqual(TEXT("Effects persisted"), Loaded->Effects, 0.62f);
 	}

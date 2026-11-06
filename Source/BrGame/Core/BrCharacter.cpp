@@ -1,4 +1,5 @@
 #include "BrCharacter.h"
+#include "BrSoundEventRules.h"
 #include "BrCharacterAnimInstance.h"
 #include "BrHitFeedbackComponent.h"
 #include "BrAimingRules.h"
@@ -492,7 +493,18 @@ float ABrCharacter::TakeDamage(float Damage, const FDamageEvent& Event, AControl
 	if ((bBullet || bExplosion) && Event.IsOfType(FBrDamageEvent::ClassID))
 		HitFeedback->ServerDamage(ArmorDamage.Absorbed + BeforeHealth - Health->Health,
 			static_cast<const FBrDamageEvent&>(Event).Origin, bExplosion);
-	if (Applied > 0 && Life->State == EBrLifeState::Downed && !bSelf && !bZone) Mode->CreditDown(Source);
+	if (Applied > 0 && Life->State == EBrLifeState::Downed && !bSelf && !bZone) Mode->CreditDown(Source, this);
+	const EBrPainSound PainKind = FBrSoundEventRules::Pain(bZone, Life->State != EBrLifeState::Alive,
+		Applied, BeforeHealth - Health->Health);
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (PainKind != EBrPainSound::None && FBrSoundEventRules::PainReady(Now, LastPainSoundTime, Settings->PainSoundMinInterval))
+	{
+		LastPainSoundTime = Now;
+		if (UBrAudioSubsystem* Audio = GetWorld()->GetSubsystem<UBrAudioSubsystem>())
+			Audio->Emit(this, PainKind == EBrPainSound::Armor ? EBrSoundKind::PainArmor : EBrSoundKind::Pain,
+				PainKind == EBrPainSound::Armor ? Settings->PainArmorSound : Settings->PainSound,
+				GetActorLocation(), nullptr, true);
+	}
 	if (Applied > 0) Life->DamageReceived();
 	return Applied;
 }

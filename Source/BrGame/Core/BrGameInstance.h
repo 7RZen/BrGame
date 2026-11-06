@@ -21,11 +21,15 @@ class BRGAME_API UBrAudioProfile : public USaveGame
 	GENERATED_BODY()
 public:
 	UPROPERTY(SaveGame)
-	int32 Version = 2;
+	int32 Version = 3;
 	UPROPERTY(SaveGame)
 	float Master = 1;
 	UPROPERTY(SaveGame)
 	float Effects = 1;
+	UPROPERTY(SaveGame)
+	float Voice = 1;
+	UPROPERTY(SaveGame)
+	int32 VoiceIndex = 0;
 	UPROPERTY(SaveGame)
 	float MouseSensitivity = 0.2f;
 };
@@ -52,6 +56,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Settings|Audio")
 	float GetEffectsVolume() const { return EffectsVolume; }
 	void ApplyAudioVolumes();
+	float GetVoiceVolume() const { return VoiceVolume; }
+	void SetVoiceVolume(float Value);
+	int32 GetVoiceIndex() const { return VoiceIndex; }
+	void SetVoiceIndex(int32 Index);
 	float GetMouseSensitivity() const { return MouseSensitivity; }
 	void SetMouseSensitivity(float Value);
 	void Host();
@@ -72,6 +80,8 @@ public:
 	bool bSmokeFinished = false;
 private:
 	float MasterVolume = 1, EffectsVolume = 1;
+	float VoiceVolume = 1;
+	int32 VoiceIndex = 0;
 	float MouseSensitivity = 0.2f;
 	void SaveLocalSettings();
 	UPROPERTY(Transient)
@@ -80,6 +90,9 @@ private:
 	TObjectPtr<class USoundClass> LoadedMasterClass;
 	UPROPERTY(Transient)
 	TObjectPtr<class USoundClass> LoadedEffectsClass;
+	UPROPERTY(Transient)
+	TObjectPtr<class USoundClass> LoadedVoiceClass;
+	bool bTriedVoiceClass = false;
 	FDelegateHandle NetworkHandle, TravelHandle;
 	bool bReturning = false;
 	void NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& Error);

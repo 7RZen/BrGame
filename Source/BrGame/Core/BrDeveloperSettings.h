@@ -21,6 +21,7 @@ class UMaterialInterface;
 class USoundBase;
 class USoundClass;
 class USoundMix;
+class UBrVoiceSet;
 
 UCLASS(Config=Game, DefaultConfig, meta=(DisplayName="BrGame"))
 class BRGAME_API UBrDeveloperSettings : public UDeveloperSettings
@@ -151,6 +152,38 @@ public:
 	FBrAudioVoicePolicy FootstepVoice;
 	UPROPERTY(Config, EditAnywhere, Category="Audio")
 	FBrAudioVoicePolicy PickupVoice;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	FBrAudioVoicePolicy ReloadVoice;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	FBrAudioVoicePolicy DryFireVoice;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	FBrAudioVoicePolicy PainVoice;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	FBrAudioVoicePolicy VoiceLineVoice;
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
+	float ReloadHearingRange = 1500;
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
+	float DryFireHearingRange = 1500;
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
+	float PainHearingRange = 1000;
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
+	float VoiceLineHearingRange = 2000;
+	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="s"))
+	float PainSoundMinInterval = 0.5f;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	TSoftObjectPtr<USoundBase> DryFireSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_DryFire.SW_DryFire")));
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	TSoftObjectPtr<USoundBase> PainSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_Pain.SW_Pain")));
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	TSoftObjectPtr<USoundBase> PainArmorSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_PainArmor.SW_PainArmor")));
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Voice")
+	TArray<TSoftObjectPtr<UBrVoiceSet>> VoiceSets;
+	UPROPERTY(Config, EditAnywhere, Category="Audio|Voice")
+	TSoftObjectPtr<USoundClass> VoiceSoundClass = TSoftObjectPtr<USoundClass>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SC_Voice.SC_Voice")));
 	const FBrAudioVoicePolicy& VoicePolicy(EBrSoundKind Kind) const;
 	UPROPERTY(Config, EditAnywhere, Category="Audio", meta=(ClampMin="0", Units="cm"))
 	float GunshotHearingRange = 5000;
