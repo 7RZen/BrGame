@@ -12,7 +12,6 @@
 #include "BrPlayerController.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -40,14 +39,6 @@ ABrPickup::ABrPickup()
 	Visual->SetupAttachment(Trigger);
 	Visual->SetCollisionProfileName(TEXT("NoCollision"));
 	Visual->SetCastShadow(false);
-	Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Label"));
-	Label->SetupAttachment(Trigger);
-	Label->SetAbsolute(false, true, false);
-	Label->SetRelativeRotation(FRotator(90, 0, 0));
-	Label->SetRelativeLocation(FVector(0, 0, 65));
-	Label->SetHorizontalAlignment(EHTA_Center);
-	Label->SetWorldSize(25);
-	Label->SetCollisionProfileName(TEXT("NoCollision"));
 }
 
 ABrPickup* ABrPickup::Spawn(UWorld* World, const FTransform& Transform, UBrPickupDefinition* Definition,
@@ -150,8 +141,6 @@ void ABrPickup::OnRep_State()
 			MID->SetVectorParameterValue(TEXT("PickupColor"), State.Definition->Color);
 	}
 	else UE_LOG(LogBr, Warning, TEXT("Pickup cosmetic material missing: %s"), *GetNameSafe(State.Definition));
-	Label->SetText(GetPickupLabel());
-	Label->SetTextRenderColor(State.Definition->Color.ToFColor(true));
 }
 
 void ABrPickup::Tick(float DeltaSeconds)

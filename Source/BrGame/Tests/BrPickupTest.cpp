@@ -188,8 +188,8 @@ bool FBrPickupVisualResolutionTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	UStaticMeshComponent* Visual = Pickup->FindComponentByClass<UStaticMeshComponent>();
-	UTextRenderComponent* Label = Pickup->FindComponentByClass<UTextRenderComponent>();
-	if (TestNotNull(TEXT("Visual component"), Visual) && TestNotNull(TEXT("Label component"), Label))
+	TestNull(TEXT("No floating pickup text"), Pickup->FindComponentByClass<UTextRenderComponent>());
+	if (TestNotNull(TEXT("Visual component"), Visual))
 	{
 		UBrWeaponDefinition* Pistol = NewObject<UBrWeaponDefinition>(World);
 		Pistol->Mesh = Cube;
@@ -220,7 +220,6 @@ bool FBrPickupVisualResolutionTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Dropped pickup uses payload mesh, not template pistol"), Visual->GetStaticMesh() == Sphere);
 		TestEqual(TEXT("Dropped pickup uses payload scale"), Visual->GetRelativeScale3D(), DroppedWeapon->VisualScale);
 		TestEqual(TEXT("Dropped label uses payload weapon"), Pickup->GetPickupLabel().ToString(), FString(TEXT("Machine Gun (7 loaded)")));
-		TestEqual(TEXT("Weapon pickup retains label color"), Label->TextRenderColor, Template->Color.ToFColor(true));
 		if (TestNotNull(TEXT("Weapon pickup retains material"), Visual->GetMaterial(0)))
 			TestTrue(TEXT("Weapon pickup material derives from pickup definition"), Visual->GetMaterial(0)->GetBaseMaterial() == Material->GetBaseMaterial());
 
@@ -234,7 +233,6 @@ bool FBrPickupVisualResolutionTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Nonweapon mesh unchanged"), Visual->GetStaticMesh() == Cube);
 		TestEqual(TEXT("Nonweapon scale unchanged"), Visual->GetRelativeScale3D(), Ammo->VisualScale);
 		TestEqual(TEXT("Nonweapon label unchanged"), Pickup->GetPickupLabel().ToString(), FString(TEXT("Ammo")));
-		TestEqual(TEXT("Nonweapon label color unchanged"), Label->TextRenderColor, Ammo->Color.ToFColor(true));
 	}
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);

@@ -7,7 +7,6 @@
 
 class USphereComponent;
 class UStaticMeshComponent;
-class UTextRenderComponent;
 
 USTRUCT()
 struct FBrPickupState
@@ -48,8 +47,6 @@ private:
 	TObjectPtr<USphereComponent> Trigger;
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Visual;
-	UPROPERTY()
-	TObjectPtr<UTextRenderComponent> Label;
 	UPROPERTY(ReplicatedUsing=OnRep_State)
 	FBrPickupState State;
 	bool bManagedSlot = false;

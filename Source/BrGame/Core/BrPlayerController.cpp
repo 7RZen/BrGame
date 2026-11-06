@@ -6,6 +6,9 @@
 #include "EngineUtils.h"
 #include "BrSafeZone.h"
 #include "BrDeveloperSettings.h"
+#include "BrViewLayoutRules.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "BrInputConfig.h"
 #include "BrLog.h"
 #include "BrCheatManager.h"
@@ -48,6 +51,24 @@ ABrPlayerController::ABrPlayerController()
 	Fog = CreateDefaultSubobject<UBrFogComponent>(TEXT("Fog"));
 	bShowMouseCursor = false;
 	CheatClass = UBrCheatManager::StaticClass();
+}
+
+void ABrPlayerController::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	Super::CalcCamera(DeltaTime, OutResult);
+	// When no living spectator target exists, the controller is the view target.
+	// Keep that gameplay camera constrained too; flow/menu overlays stay viewport-wide.
+	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
+	if (!GS || GS->bLobby || GS->bResults) return;
+	FIntPoint Size(1280, 720);
+	if (const UGameViewportClient* Client = GetWorld()->GetGameViewport())
+		if (Client->Viewport && Client->Viewport->GetSizeXY().X > 0 && Client->Viewport->GetSizeXY().Y > 0)
+			Size = Client->Viewport->GetSizeXY();
+	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
+	const auto Layout = FBrViewLayoutRules::Make(Size, Settings->PlayAreaAspectRatio,
+		Settings->MinSidePanelWidth, FBrViewLayoutRules::Scale(Size.Y));
+	OutResult.bConstrainAspectRatio = true;
+	OutResult.AspectRatio = Layout.AspectRatio();
 }
 
 void ABrPlayerController::GetAudioListenerPosition(FVector& Location, FVector& Front, FVector& Right) const

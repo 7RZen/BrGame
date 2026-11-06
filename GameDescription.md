@@ -19,7 +19,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | 11 | Further tests and playtesting | Automated suite done; manual playtest pending |
 | Issue 7 | Hit flinch / directional damage feedback | Implemented; validation and manual checks: Scripts/FlinchValidation.md |
 | GitHub #7 | Weapon models | Placeholder held/pickup/dropped visuals; validation: Scripts/Issue7WeaponVisualValidation.md |
-| GitHub #21 | Compass and coordinates | Top-center heading strip and live world X/Y readout; validation: Scripts/Issue21CompassValidation.md |
+| GitHub #21 | Compass and coordinates | Heading strip and live world X/Y readout (now in the right side panel, #26); validation: Scripts/Issue21CompassValidation.md |
 | GitHub #20 | Quests and round score | Implemented; quest/crate automation 12/12 and packaged smoke passed; manual interaction pending; validation: Scripts/Issue20QuestValidation.md |
 | GitHub #23 | Armor plates | Implemented; armor automation 5/5, crate 8/8, placement check and Town match smoke (armor privacy/absorption probe) passed; manual HUD/audio playtest pending; validation: Scripts/Issue23ArmorValidation.md |
 | GitHub #1 | Missing sounds and selectable player voices | C++ and content implemented; automation 22/22, two-round Town network sound probes and live-device audio smoke passed; human listening/multiplayer voice-volume checks pending; evidence: Scripts/Issue1SoundsValidation.md |
@@ -28,6 +28,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | Issue 14 | Crouch/prone visuals | Native procedural crouch-walk and face-down crawl over existing unarmed locomotion; validation: Scripts/PostureVisualValidation.md |
 | Issue 9 | Slide | Predicted authoritative crouch-capsule slide, pose/audio/input/HUD; validation: Scripts/SlideValidation.md |
 | GitHub #25 | Player-initiated pickups | All pickup types require E; touch/overlap collection removed; validation: Scripts/Issue25InteractPickupValidation.md |
+| GitHub #26 | Narrower play area with side-panel HUD | 4:3 engine-constrained play area, black side panels holding all HUD text, no world text; automation 35/35, shot/flow smokes and 16:9 / 5:4 screenshots passed; validation: Scripts/Issue26SidePanelValidation.md |
 | GitHub #24 | Reduce crate spread | Contents scatter halved to 250–500 cm; wave spacing kept at 20 m via `CrateWaveSpacing`; validation: Scripts/Issue24CrateSpreadValidation.md |
 | Issue 16 | Airdrop crates | Implemented; navigation-independent ground checks, per-map waves and public markers; standalone nav data repaired; evidence: Scripts/Issue16CrateValidation.md |
 
@@ -93,7 +94,9 @@ Joining a different session leaves the previous session first. Browser joins and
 
 ## View and controls
 - Orthographic top-down camera: CameraPitchAngle defaults to 65° below the horizon *(dev; range 30–90)*.
-- The pawn origin is 25% of view height below centre *(dev: PlayerScreenOffset)*, independent of aspect ratio, pitch and zoom.
+- The world renders only in a centered play area with a `PlayAreaAspectRatio` of 4:3 *(dev)*; the sides are black panels. Each panel is at least `MinSidePanelWidth` *(dev, 160 px at 720p reference, scaled)* wide, so screens near 4:3 get a narrower play area and ultrawide screens get wider panels. Settings are identical for every player. Zoom (ortho width) is the play-area width, so you see more ahead than to the sides (about 15.5 m ahead at default zoom, matching vision range).
+- HUD text lives only in the side panels: left for your status (health, armor, weapon/ammo, grenades, stamina, life/respawn/revive, interact prompt, pickup and unstuck messages), right for the match (compass and coordinates, minimap, zone, mode/group, round score, quests, spectating). Only text-free hit-direction indicators draw over the play area, and there is no floating world text (no pickup labels or downed "HELP!" signs). The full map and menus use the whole screen. A movement debug line is available to developers via `bShowMovementDebugHud` *(dev, off; not in Shipping)*.
+- The pawn origin is 25% of play-area height below its centre *(dev: PlayerScreenOffset)*, independent of aspect ratio, pitch and zoom.
 - Implemented issue 8: captured/hidden relative mouse X turns facing and camera together instantly; the player faces screen-up. Mouse Y does nothing. No crosshair, cursor aiming, smoothing, or quick-turn key.
 - Mouse sensitivity is a machine-local comfort setting in Settings, saved with volume settings; its initial default is developer-configurable. The Look axis is not rebindable; other bindings remain rebindable.
 - Downed players may turn but cannot move/fire. Spectators use the watched pawn's replicated, visually smoothed facing. Minimap and listener orientation follow rendered camera yaw.
@@ -194,7 +197,7 @@ Base running speed is 600.
   no footsteps. HUD gait reads “Slide”.
 
 ### Downed (dying)
-- When health reaches 0 the player is downed for 30 s *(dev)*. They can't move, shoot or be damaged, and they call for help (a pulsing "HELP!" sign above them).
+- When health reaches 0 the player is downed for 30 s *(dev)*. They can't move, shoot or be damaged, and they call for help (the downed pose and the minimap red cross mark them; there is no floating text).
 - Downed players lie on their back, face up, with their head toward their current facing. Turning rotates this grounded pose; the help sign remains overhead. This is separate from the living face-down prone/crawl animation.
 - **Revive:** another player stands within about 150 cm and holds E for 5 s *(dev)*. It is cancelled if they let go, move away or take damage. The revived player gets 30% of their max health *(dev)*. A revive is not a death and has no penalty.
 - **Respawn by choice:** hold Space. Each respawn by choice permanently lowers max health by 10% for the round: 1 time = 90, 2 times = 80, and so on.
@@ -322,7 +325,7 @@ Only IDs are accepted from the lobby; the authoritative server resolves the dest
 See [How to add a new map](Docs/AddingMaps.md) for authoring, cooking, previews and validation.
 
 ### Minimap
-- Circular top-right minimap (220 reference pixels, 60 m radius, developer settings), rotating with the camera: screen-up is camera forward.
+- Circular minimap in the right side panel, below the compass and fitted to the panel width (220 reference pixels max, 60 m radius, developer settings), rotating with the camera: screen-up is camera forward.
 - M toggles a centered north-up (+X) full map; the yellow line shows camera direction. M/Esc closes it; movement/combat continue.
 - One static-world, unlit top-down capture per map load provides a lighting/exposure-independent background. Existing world-XY fog masks render unknown black, explored dim and current vision clear; no pickups.
 - Self has a direction arrow. In grouped mode teammates use group colors, downed friends pulse a red cross, and only enemies currently visible to the shared vision group have markers. In all-vs-all **no enemy markers appear**, even for visible enemies.

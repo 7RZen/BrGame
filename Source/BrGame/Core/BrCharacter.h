@@ -14,7 +14,6 @@ class UBrHealthComponent;
 class UBrArmorComponent;
 class UStaticMeshComponent;
 class UBrLifeComponent;
-class UTextRenderComponent;
 class USoundBase;
 struct FInputActionValue;
 
@@ -129,8 +128,6 @@ private:
 	TArray<TObjectPtr<class UMaterialInstanceDynamic>> TeamMaterials;
 	UPROPERTY(VisibleAnywhere, Category="Life")
 	TObjectPtr<UBrLifeComponent> Life;
-	UPROPERTY(VisibleAnywhere, Category="Life")
-	TObjectPtr<UTextRenderComponent> HelpText;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
 	TObjectPtr<UBrInventoryComponent> Inventory;
 	UPROPERTY(VisibleAnywhere, Category="Combat")

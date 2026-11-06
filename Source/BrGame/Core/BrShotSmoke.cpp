@@ -18,6 +18,8 @@
 #include "BrFogComponent.h"
 #include "BrLifeComponent.h"
 #include "BrSafeZone.h"
+#include "BrPickup.h"
+#include "BrPickupDefinition.h"
 #include "AIController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -268,6 +270,26 @@ void ABrGameMode::ServiceMinimapShot()
 			UE_LOG(LogBr, Error, TEXT("Minimap screenshot fixture spawn failed."));
 			ShotSmokeStage = 11;
 			return;
+		}
+		if (FParse::Param(FCommandLine::Get(), TEXT("BrViewLayoutShot")))
+		{
+			// Optional issue-26 fixture: real nearby loot and downed presentation,
+			// without changing the existing shared-vision smoke's geometry.
+			const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+			const TSoftObjectPtr<UBrPickupDefinition>* Ref = S->PickupRegistry.Find(TEXT("Ammo"));
+			UBrPickupDefinition* Definition = Ref ? Ref->LoadSynchronous() : nullptr;
+			ABrCharacter* Downed = Spawn(0, 912, Pawn->GetActorLocation() + FVector(250, 120, 0));
+			ABrPickup* Pickup = ABrPickup::Spawn(GetWorld(),
+				FTransform(Pawn->GetActorLocation() + FVector(70, -70, -70)), Definition, FBrPickupPayload());
+			if (!Downed || !Pickup)
+			{
+				UE_LOG(LogBr, Error, TEXT("View-layout screenshot fixture requires downed pawn and Ammo registry asset."));
+				ShotSmokeStage = 11;
+				return;
+			}
+			Downed->GetLife()->State = EBrLifeState::Downed;
+			Downed->GetLife()->DownedEndTime = Now + 1000;
+			Downed->ApplyLifePresentation();
 		}
 		if (SafeZone)
 		{

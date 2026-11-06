@@ -1,4 +1,5 @@
 #include "BrAimingRules.h"
+#include "BrViewLayoutRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
@@ -9,18 +10,21 @@
 #include "BrPlayerState.h"
 #include "OnlineSubsystemTypes.h"
 #include "BrPlayerController.h"
+#include "BrGameState.h"
 #include "BrLifeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "BrDeveloperSettings.h"
 #include "BrGameInstance.h"
 #include "BrInputConfig.h"
 #include "Camera/CameraTypes.h"
+#include "Camera/PlayerCameraManager.h"
 #include "SceneView.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include <limits>
 
@@ -77,6 +81,74 @@ bool FBrAimingMoveTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrNarrowPlayAreaTest, "BrGame.Aiming.NarrowPlayAreaProjection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrNarrowPlayAreaTest::RunTest(const FString& Parameters)
+{
+	for (FIntPoint Size : {FIntPoint(200, 720), FIntPoint(82, 720), FIntPoint(81, 720), FIntPoint(1, 720)})
+		for (float Width : {1200.f, 2500.f, 4000.f})
+			for (float Pitch : {30.f, 65.f, 90.f})
+			{
+				const auto Layout = FBrViewLayoutRules::Make(Size, 4.f / 3.f, 160, FBrViewLayoutRules::Scale(Size.Y));
+				FMinimalViewInfo View;
+				View.ProjectionMode = ECameraProjectionMode::Orthographic;
+				View.OrthoWidth = Width;
+				View.AspectRatio = Layout.AspectRatio();
+				View.bConstrainAspectRatio = true;
+				View.bAutoCalculateOrthoPlanes = false;
+				View.OrthoNearClipPlane = -10000000;
+				View.OrthoFarClipPlane = 10000000;
+				View.Rotation = FRotator(-Pitch, 0, 0);
+				View.Location = -View.Rotation.Vector() * 1500 +
+					FVector::ForwardVector * FBrAimingRules::ForwardOffset(Width, View.AspectRatio, Pitch, 0.25f);
+				FSceneViewProjectionData Projection;
+				Projection.ViewOrigin = View.Location;
+				Projection.ViewRotationMatrix = FInverseRotationMatrix(View.Rotation) * FMatrix(
+					FPlane(0, 0, 1, 0), FPlane(1, 0, 0, 0), FPlane(0, 1, 0, 0), FPlane(0, 0, 0, 1));
+				Projection.SetViewRectangle(FIntRect(0, 0, Size.X, Size.Y));
+				FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(View, AspectRatio_MaintainXFOV, Layout.Play, Projection);
+				const FVector4 Clip = Projection.ComputeViewProjectionMatrix().TransformFVector4(FVector4(0, 0, 0, 1));
+				TestTrue(TEXT("Tiny play aspect keeps pawn at 75% height"), FMath::IsNearlyEqual(
+					0.5 - Clip.Y / Clip.W * 0.5, 0.75, 0.0001));
+			}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrFallbackCameraTest, "BrGame.Aiming.NoSpectatorTargetCameraConstraint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrFallbackCameraTest::RunTest(const FString& Parameters)
+{
+	const UWorld::InitializationValues Values = UWorld::InitializationValues()
+		.AllowAudioPlayback(false).CreatePhysicsScene(true).CreateNavigation(false)
+		.CreateAISystem(false).ShouldSimulatePhysics(false);
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::SM5, &Values);
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	World->InitializeActorsForPlay(FURL());
+	ABrGameState* GS = World->SpawnActor<ABrGameState>();
+	World->SetGameState(GS);
+	ABrPlayerController* PC = World->SpawnActor<ABrPlayerController>();
+	PC->Player = NewObject<ULocalPlayer>(GEngine);
+	PC->SetViewTarget(PC);
+	if (TestNotNull(TEXT("Fallback camera manager"), PC->PlayerCameraManager.Get()))
+	{
+		PC->PlayerCameraManager->UpdateCamera(0);
+		const FMinimalViewInfo& View = PC->PlayerCameraManager->GetCameraCacheView();
+		const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+		const auto Layout = FBrViewLayoutRules::Make({1280, 720}, S->PlayAreaAspectRatio, S->MinSidePanelWidth, 1);
+		TestTrue(TEXT("No pawn/target gameplay view stays constrained"), View.bConstrainAspectRatio);
+		TestEqual(TEXT("Fallback uses shared panel aspect"), View.AspectRatio, Layout.AspectRatio());
+		TestTrue(TEXT("Both status panels remain nonempty"), Layout.Left.Width() > 0 && Layout.Right.Width() > 0);
+	}
+	GS->bLobby = true;
+	FMinimalViewInfo LobbyView;
+	LobbyView.bConstrainAspectRatio = false;
+	PC->CalcCamera(0, LobbyView);
+	TestFalse(TEXT("Lobby camera not constrained by gameplay override"), LobbyView.bConstrainAspectRatio);
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrAimingCameraTest, "BrGame.Aiming.CameraFollowsReplicatedFacing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FBrAimingCameraTest::RunTest(const FString& Parameters)
@@ -90,12 +162,14 @@ bool FBrAimingCameraTest::RunTest(const FString& Parameters)
 	ABrCharacter* Character = World->SpawnActor<ABrCharacter>();
 	if (TestNotNull(TEXT("Unpossessed spectator target"), Character))
 	{
+		TestNull(TEXT("No floating downed help text"), Character->FindComponentByClass<UTextRenderComponent>());
 		for (float Yaw : {0.f, 37.f, 90.f, -179.f})
 		{
 			Character->SetActorRotation(FRotator(0, Yaw, 0));
 			FMinimalViewInfo View;
 			Character->SetSpectatorCameraActive();
 			Character->CalcCamera(0, View);
+			TestTrue(TEXT("Spectator camera constrains the scene"), View.bConstrainAspectRatio);
 			TestTrue(TEXT("Camera uses watched pawn facing without local controller"),
 				FMath::IsNearlyZero(FMath::FindDeltaAngleDegrees(View.Rotation.Yaw, Yaw), 0.001f));
 			TestTrue(TEXT("Minimap yaw matches rendered yaw"),
@@ -108,11 +182,14 @@ bool FBrAimingCameraTest::RunTest(const FString& Parameters)
 				FPlane(0, 0, 1, 0), FPlane(1, 0, 0, 0), FPlane(0, 1, 0, 0), FPlane(0, 0, 0, 1));
 			const FIntRect Rect(0, 0, 1280, 720);
 			Projection.SetViewRectangle(Rect);
-			FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(View, AspectRatio_MaintainXFOV, Rect, Projection);
+			const auto Layout = FBrViewLayoutRules::Make({1280, 720}, UBrDeveloperSettings::Get()->PlayAreaAspectRatio,
+				UBrDeveloperSettings::Get()->MinSidePanelWidth, FBrViewLayoutRules::Scale(720));
+			FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(View, AspectRatio_MaintainXFOV, Layout.Play, Projection);
 			const FVector4 Clip = Projection.ComputeViewProjectionMatrix().TransformFVector4(FVector4(Character->GetActorLocation(), 1));
 			const float ScreenY = 0.5f - Clip.Y / Clip.W * 0.5f;
 			TestTrue(TEXT("Engine ortho correction preserves screen offset"),
 				FMath::IsNearlyEqual(ScreenY, 0.5f + UBrDeveloperSettings::Get()->PlayerScreenOffset, 0.0001f));
+			TestTrue(TEXT("Pawn stays horizontally centered in play area"), FMath::IsNearlyZero(Clip.X / Clip.W, 0.0001));
 		}
 		// Model CMC's visual smoothing offset, not a second camera interpolation.
 		Character->GetMesh()->SetRelativeRotation((FQuat(FVector::UpVector, FMath::DegreesToRadians(12.f)) *
@@ -123,6 +200,8 @@ bool FBrAimingCameraTest::RunTest(const FString& Parameters)
 		ABrPlayerController* PC = World->SpawnActor<ABrPlayerController>();
 		// UE 5.8 classifies no-net-driver PCs by their ULocalPlayer, not net mode alone.
 		PC->Player = NewObject<ULocalPlayer>(GEngine);
+		PC->PlayerState = World->SpawnActor<ABrPlayerState>();
+		PC->PlayerState->SetOwner(PC);
 		PC->Possess(Character);
 		PC->SetControlRotation(FRotator(0, 83, 0));
 		TestEqual(TEXT("Local camera instantly follows control yaw"), Character->GetCameraYaw(), 83.f);

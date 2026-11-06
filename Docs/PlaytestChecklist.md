@@ -86,6 +86,7 @@ count and test both modes.
   Respawn/elimination/forfeit/offline timeout must leave a grounded, arms-out,
   bone-white face-up corpse at the victim's last facing; check a late joiner too.
   Living prone/crawl stays face down. Capture command: `Scripts/RunShotSmoke.ps1 -Skeletons`.
+- [ ] **Side panels (16:9, ultrawide, 4:3/5:4, windowed resize):** black bars both sides, world only in the centre; all text in the panels with no overlap or clipping into the play area during dense states (downed + respawn hold, revive, outside zone, sudden death, several quests, spectating). No pickup labels or HELP text in the world. Zoom limits feel right; the full map (M) and menus use the whole screen. Check host, remote client and a spectator.
 - [ ] **Armor plates:** collect up to 2 plates from a crate; a third is refused until one breaks. Hits drain the most damaged plate first, then health; zone damage skips armor. Hear the break sound; the HUD armor bar shows for owner and spectator only; armor survives revive/respawn and clears next round.
 - [ ] **E-only pickups (host + remote):** walk and sprint over ammo, health, grenade, armor, weapon and quest-token pickups: nothing is collected on touch. The HUD prompts `Press E to pick up <item>` for the nearest usable item; each E press picks up exactly one. Full health/armor/ammo items get no prompt. With a downed teammate in range, E revives instead.
 - [OK] **Pickups/zone:** collect health, ammo, grenade and weapon pickups; watch

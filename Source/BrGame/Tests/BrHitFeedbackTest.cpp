@@ -9,6 +9,7 @@
 #include "Components/CapsuleComponent.h"
 #include "BrLifeComponent.h"
 #include "BrDeveloperSettings.h"
+#include "BrPlayerState.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -66,6 +67,8 @@ bool FBrHitFeedbackCameraTest::RunTest(const FString& Parameters)
 	ABrCharacter* C = World->SpawnActor<ABrCharacter>();
 	APlayerController* PC = World->SpawnActor<APlayerController>();
 	PC->Player = NewObject<ULocalPlayer>(GEngine);
+	PC->PlayerState = World->SpawnActor<ABrPlayerState>();
+	PC->PlayerState->SetOwner(PC);
 	PC->Possess(C);
 	PC->SetViewTarget(C);
 	PC->SetControlRotation(FRotator(0, 37, 0));

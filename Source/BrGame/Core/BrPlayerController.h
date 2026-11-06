@@ -88,6 +88,7 @@ public:
 	ABrCharacter* GetFlowSpectatorPawn() const { return FlowSpectatorPawn; }
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void GetPlayerViewPoint(FVector& Location, FRotator& Rotation) const override;
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
 	bool IsFlowSpectating() const;
 	void ToggleMap();
 	void CloseMap();

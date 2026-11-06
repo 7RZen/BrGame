@@ -143,7 +143,7 @@ void UBrHitFeedbackComponent::Draw(AHUD* HUD, UCanvas* Canvas) const
 	}
 	APlayerController* PC = Cast<APlayerController>(Character()->GetController());
 	FVector2D PawnScreen;
-	if (!PC->ProjectWorldLocationToScreen(Character()->GetActorLocation(), PawnScreen)) return;
+	if (!PC->ProjectWorldLocationToScreen(Character()->GetActorLocation(), PawnScreen, true)) return;
 	const FRotator CameraRotation = PC->PlayerCameraManager->GetCameraRotation();
 	for (const FBrHitIndicator& I : Indicators)
 	{

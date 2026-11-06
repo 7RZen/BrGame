@@ -22,24 +22,15 @@ void ABrHUD::DrawCompass()
 	const double Yaw = Viewed->GetCameraYaw();
 	if (Position.ContainsNaN() || !FMath::IsFinite(Yaw)) return;
 
-	// Match the minimap's physical-pixel scaling. Coordinates occupy the unused
-	// 280-320px band in the existing (unscaled) left status stack.
-	const float Scale = FMath::Clamp(Canvas->SizeY / 720.f, 0.65f, 2.f);
-	const float CoordinateScale = FMath::Min(Scale, 1.f);
+	const float Scale = HudScale;
 	const FString Coordinates = FString::Printf(TEXT("X: %s\nY: %s"),
 		*FBrCompassRules::FormatCoordinate(Position.X), *FBrCompassRules::FormatCoordinate(Position.Y));
+	float CoordinateY = 64 * Scale;
+	PanelText(Coordinates, FLinearColor::White, true, CoordinateY, 2);
 	float TextWidth = 0, TextHeight = 0;
-	GetTextSize(Coordinates, TextWidth, TextHeight, nullptr, CoordinateScale);
-	DrawRect(FLinearColor(0, 0, 0, 0.65f), 16, 280, TextWidth + 8, TextHeight + 4);
-	DrawText(Coordinates, FLinearColor::White, 20, 282, nullptr, CoordinateScale);
-
-	// Reserve the compact minimap footprint even when it is unavailable/fullscreen.
-	// Keep the ribbon centered, shrinking symmetrically rather than covering it.
-	const float MinimapSize = FMath::Min(
-		FMath::Clamp(UBrDeveloperSettings::Get()->MinimapSize, 100.f, 500.f) * Scale, Canvas->SizeY * 0.45f);
-	const float CenterX = Canvas->SizeX * 0.5f;
-	const float HalfWidth = FMath::Min(210 * Scale, CenterX - MinimapSize - 32 * Scale);
-	if (HalfWidth < 40 * Scale) return; // No usable ribbon space on an extremely narrow view.
+	const float CenterX = ViewLayout.Right.Min.X + ViewLayout.Right.Width() * 0.5f;
+	const float HalfWidth = (ViewLayout.Right.Width() - 20 * Scale) / 2;
+	if (HalfWidth < 10 * Scale) return;
 
 	const float Top = 8 * Scale;
 	const float Baseline = Top + 40 * Scale;

@@ -120,6 +120,10 @@ bool ABrHUD::InitializeMap()
 
 void ABrHUD::DrawMinimap()
 {
+	const float PanelSize = FMath::Max(0.f, FMath::Min3(
+		FMath::Clamp(UBrDeveloperSettings::Get()->MinimapSize, 100.f, 500.f) * HudScale,
+		Canvas ? Canvas->SizeY * 0.30f : 0.f, ViewLayout.Right.Width() - 20 * HudScale));
+	RightStatusY = 114 * HudScale + PanelSize + 12 * HudScale;
 	const ABrPlayerController* PC = Cast<ABrPlayerController>(PlayerOwner);
 	const ABrGameState* GS = GetWorld()->GetGameState<ABrGameState>();
 	if (!Canvas || !PC || !PC->IsLocalController() || PC->IsMenuOpen() || !GS || GS->bLobby || GS->bResults || !FApp::CanEverRender()) return;
@@ -137,19 +141,25 @@ void ABrHUD::DrawMinimap()
 		bMapFailed = false;
 	}
 	if (!MapMaterial && !bMapFailed) bMapFailed = !InitializeMap();
-	if (bMapFailed) { DrawText(TEXT("Map unavailable (see log)"), FLinearColor::Red, Canvas->SizeX - 240, 30); return; }
+	if (bMapFailed)
+	{
+		float Y = 114 * HudScale;
+		PanelText(TEXT("Map unavailable (see log)"), FLinearColor::Red, true, Y, 2);
+		return;
+	}
 	const bool bFog = UBrVisibilitySubsystem::Active(GetWorld());
 	// Do not render a clear map during mask initialization/reset.
 	if (bFog && (!Fog->GetVisibleMask() || !Fog->GetExploredMask())) return;
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
 	const bool bFull = PC->IsMapOpen();
 	// Canvas uses physical pixels. Reference 720p, bounded on tiny/large views.
-	const float Scale = FMath::Clamp(Canvas->SizeY / 720.f, 0.65f, 2.f);
+	const float Scale = HudScale;
 	const float Size = bFull ? FMath::Min(Canvas->SizeX, Canvas->SizeY) *
 		FMath::Clamp(Settings->FullMapViewportFraction, 0.3f, 0.9f) :
-		FMath::Min(FMath::Clamp(Settings->MinimapSize, 100.f, 500.f) * Scale, Canvas->SizeY * 0.45f);
+		PanelSize;
+	if (Size < 1) return;
 	const FVector2D Top = bFull ? FVector2D((Canvas->SizeX - Size) / 2, (Canvas->SizeY - Size) / 2) :
-		FVector2D(Canvas->SizeX - Size - 16 * Scale, 16 * Scale);
+		FVector2D(ViewLayout.Right.Min.X + (ViewLayout.Right.Width() - Size) / 2, 114 * Scale);
 	const FVector2D Center = Top + FVector2D(Size / 2, Size / 2);
 	const double Radius = bFull ? FBrMinimapRules::FitRadius(MapBounds) : FMath::Max(100.f, Settings->MinimapRadius);
 	const FVector Origin = bFull ? MapBounds.GetCenter() : Viewed->GetActorLocation();
@@ -176,16 +186,18 @@ void ABrHUD::DrawMinimap()
 	MapMaterial->SetVectorParameterValue(TEXT("Zone"), FLinearColor(Current.Center.X, Current.Center.Y, Current.Radius, Zone ? 1 : 0));
 	MapMaterial->SetVectorParameterValue(TEXT("TargetZone"), FLinearColor(Target.Center.X, Target.Center.Y, Target.Radius, 0));
 	DrawMaterial(MapMaterial, Top.X, Top.Y, Size, Size, 0, 0, 1, 1);
-	const float Marker = FMath::Clamp(Settings->MinimapMarkerSize, 2.f, 16.f) * Scale;
+	const float Marker = FBrMinimapRules::MarkerPixels(Size, Settings->MinimapMarkerSize, Scale);
+	const float Stroke = FMath::Min(Scale, Marker / 3.f);
+	const double Inset = FBrMinimapRules::MarkerInset(Size, Marker);
 	auto Arrow = [&](FVector2D P, FVector2D Direction, FLinearColor Color)
 	{
 		Direction.Normalize();
 		const FVector2D Tip = P + Direction * Marker * 1.8;
 		const FVector2D Back = P - Direction * Marker;
 		const FVector2D Side(-Direction.Y * Marker, Direction.X * Marker);
-		DrawLine(Tip.X, Tip.Y, Back.X + Side.X, Back.Y + Side.Y, Color, 2 * Scale);
-		DrawLine(Tip.X, Tip.Y, Back.X - Side.X, Back.Y - Side.Y, Color, 2 * Scale);
-		DrawLine(Back.X + Side.X, Back.Y + Side.Y, Back.X - Side.X, Back.Y - Side.Y, Color, Scale);
+		DrawLine(Tip.X, Tip.Y, Back.X + Side.X, Back.Y + Side.Y, Color, 2 * Stroke);
+		DrawLine(Tip.X, Tip.Y, Back.X - Side.X, Back.Y - Side.Y, Color, 2 * Stroke);
+		DrawLine(Back.X + Side.X, Back.Y + Side.Y, Back.X - Side.X, Back.Y - Side.Y, Color, Stroke);
 	};
 	for (TActorIterator<ABrCharacter> It(GetWorld()); It; ++It)
 	{
@@ -196,17 +208,15 @@ void ABrHUD::DrawMinimap()
 		const FVector2D Offset = FBrMinimapRules::Offset(It->GetActorLocation(), Origin, Yaw, Radius);
 		if (!FBrMinimapRules::Inside(Offset, !bFull)) continue;
 		// Keep exact world alignment except icons touching the perimeter.
-		const double Inset = 1 - Marker * 2 / (Size / 2);
-		const FVector2D IconOffset = FBrMinimapRules::Inside(Offset / Inset, !bFull) ?
-			Offset : FBrMinimapRules::Edge(Offset, !bFull) * Inset;
+		const FVector2D IconOffset = FBrMinimapRules::InsetOffset(Offset, !bFull, Inset);
 		const FVector2D P = Center + IconOffset * (Size / 2);
 		const bool bFriend = UBrVisibilitySubsystem::Friendly(Viewer, PS);
 		const FLinearColor Color = *It == Viewed ? FLinearColor::White : bFriend ? PS->TeamColor : FLinearColor::Red;
 		if (It->GetLife()->State == EBrLifeState::Downed && bFriend)
 		{
 			const float Pulse = Marker * (1 + 0.25f * FMath::Sin(GetWorld()->GetTimeSeconds() * 5));
-			DrawLine(P.X - Pulse, P.Y, P.X + Pulse, P.Y, FLinearColor::Red, 3 * Scale);
-			DrawLine(P.X, P.Y - Pulse, P.X, P.Y + Pulse, FLinearColor::Red, 3 * Scale);
+			DrawLine(P.X - Pulse, P.Y, P.X + Pulse, P.Y, FLinearColor::Red, 3 * Stroke);
+			DrawLine(P.X, P.Y - Pulse, P.X, P.Y + Pulse, FLinearColor::Red, 3 * Stroke);
 		}
 		else if (*It == Viewed)
 			Arrow(P, FBrMinimapRules::Offset(It->GetActorLocation() + It->GetActorForwardVector(), It->GetActorLocation(), Yaw, 1), Color);
@@ -215,7 +225,7 @@ void ABrHUD::DrawMinimap()
 		{
 			const FVector CameraForward = FRotator(0, Viewed->GetCameraYaw(), 0).Vector();
 			const FVector2D Direction(CameraForward.Y, -CameraForward.X);
-			DrawLine(P.X, P.Y, P.X + Direction.X * Marker * 5, P.Y + Direction.Y * Marker * 5, FLinearColor::Yellow, Scale);
+			DrawLine(P.X, P.Y, P.X + Direction.X * Marker * 5, P.Y + Direction.Y * Marker * 5, FLinearColor::Yellow, Stroke);
 		}
 	}
 	// Public objective markers, deliberately drawn after fog on both map modes.
@@ -223,7 +233,7 @@ void ABrHUD::DrawMinimap()
 	{
 		const FVector2D Offset = FBrMinimapRules::Offset(It->GetActorLocation(), Origin, Yaw, Radius);
 		if (!FBrMinimapRules::Inside(Offset, !bFull)) continue;
-		const FVector2D P = Center + Offset * (Size / 2);
+		const FVector2D P = Center + FBrMinimapRules::InsetOffset(Offset, !bFull, Inset) * (Size / 2);
 		DrawRect(FLinearColor::Yellow, P.X - Marker, P.Y - Marker, Marker * 2, Marker * 2);
 	}
 	if (Zone && !bFull)
@@ -232,6 +242,7 @@ void ABrHUD::DrawMinimap()
 		if (!FBrMinimapRules::Inside(Offset, true))
 			Arrow(Center + FBrMinimapRules::Edge(Offset, true) * (Size / 2 - Marker * 3), Offset, FLinearColor::Green);
 	}
-	DrawText(bFull ? TEXT("Full map | +X North | Yellow: camera | Map / Esc: close") : TEXT("Map"),
-		FLinearColor::White, Top.X, Top.Y + Size + 4 * Scale, nullptr, Scale);
+	if (bFull)
+		DrawText(TEXT("Full map | +X North | Yellow: camera | Map / Esc: close"),
+			FLinearColor::White, Top.X, Top.Y + Size + 4 * Scale, nullptr, Scale);
 }

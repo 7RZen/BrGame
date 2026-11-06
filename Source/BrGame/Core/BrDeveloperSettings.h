@@ -473,7 +473,17 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Camera", meta=(ClampMin="0.02", ClampMax="2.0"))
 	float DefaultMouseSensitivity = 0.2f;
 
-	/** Fraction of viewport height below centre occupied by the pawn origin, independent of zoom/pitch. */
+	UPROPERTY(Config, EditAnywhere, Category="Camera", meta=(ClampMin="0.75", ClampMax="2.5"))
+	float PlayAreaAspectRatio = 4.f / 3.f;
+
+	/** 160 reference pixels at 720p = 240 physical pixels at 1080p. */
+	UPROPERTY(Config, EditAnywhere, Category="Camera", meta=(ClampMin="80", ClampMax="600", DisplayName="Minimum Side Panel Width (720p reference pixels)"))
+	float MinSidePanelWidth = 160.f;
+
+	UPROPERTY(Config, EditAnywhere, Category="HUD")
+	bool bShowMovementDebugHud = false;
+
+	/** Fraction of play-area height below centre occupied by the pawn origin, independent of zoom/pitch. */
 	UPROPERTY(Config, EditAnywhere, Category="Camera", meta=(ClampMin="0.0", ClampMax="0.4"))
 	float PlayerScreenOffset = 0.25f;
 

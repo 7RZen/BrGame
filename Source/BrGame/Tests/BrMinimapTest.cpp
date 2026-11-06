@@ -72,4 +72,29 @@ bool FBrMinimapFitTest::RunTest(const FString& Parameters)
 	}
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrMinimapMarkerSizeTest, "BrGame.Minimap.BoundedTinyMapMarkers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrMinimapMarkerSizeTest::RunTest(const FString& Parameters)
+{
+	for (float Size : {1.f, 10.f, 20.f, 140.f, 220.f, 1728.f})
+		for (float Reference : {2.f, 5.f, 16.f})
+			for (float Scale : {0.65f, 1.f, 2.f})
+			{
+				const float Marker = FBrMinimapRules::MarkerPixels(Size, Reference, Scale);
+				const double Inset = FBrMinimapRules::MarkerInset(Size, Marker);
+				TestTrue(TEXT("Positive marker fits map"), Marker > 0 && Marker <= Size / 12.f);
+				TestTrue(TEXT("Strictly positive positioning inset"), FMath::IsFinite(Inset) && Inset >= 0.49);
+				for (bool bCircular : {false, true})
+					for (FVector2D Offset : {FVector2D::ZeroVector, FVector2D(1, 0), FVector2D(0, -1), FVector2D(1, 1)})
+					{
+						const FVector2D Icon = FBrMinimapRules::InsetOffset(Offset, bCircular, Inset);
+						TestFalse(TEXT("Finite icon position"), Icon.ContainsNaN());
+						TestTrue(TEXT("No flipped icon direction"), FVector2D::DotProduct(Icon, Offset) >= 0);
+						const double Extent = bCircular ? Icon.Size() : FMath::Max(FMath::Abs(Icon.X), FMath::Abs(Icon.Y));
+						TestTrue(TEXT("Icon plus stroke/arrow envelope fits map"),
+							Extent * Size / 2 + 3 * Marker <= Size / 2 + UE_KINDA_SMALL_NUMBER);
+					}
+			}
+	return true;
+}
 #endif

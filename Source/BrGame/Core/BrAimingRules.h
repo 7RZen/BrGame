@@ -34,7 +34,9 @@ struct FBrAimingRules
 	/** Horizontal displacement: its projection onto camera-up is distance * sin(pitch). */
 	static float ForwardOffset(float Width, float AspectRatio, float Pitch, float ScreenFraction)
 	{
-		return FMath::Max(1.f, Width) / FMath::Max(0.1f, AspectRatio) *
+		// Layout guarantees a positive pixel aspect, which may legitimately be
+		// far below 0.1 in tiny windows. Match the orthographic projection divisor.
+		return FMath::Max(1.f, Width) / FMath::Max(UE_SMALL_NUMBER, AspectRatio) *
 			FMath::Clamp(ScreenFraction, 0.f, 0.4f) /
 			FMath::Sin(FMath::DegreesToRadians(FMath::Clamp(Pitch, 30.f, 90.f)));
 	}

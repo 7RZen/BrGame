@@ -3,6 +3,7 @@
 #include "BrCharacterAnimInstance.h"
 #include "BrHitFeedbackComponent.h"
 #include "BrAimingRules.h"
+#include "BrViewLayoutRules.h"
 #include "BrGameInstance.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
@@ -29,7 +30,6 @@
 #include "BrSupinePose.h"
 #include "BrPickup.h"
 #include "TimerManager.h"
-#include "Components/TextRenderComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/DamageEvents.h"
 #include "Engine/World.h"
@@ -74,16 +74,6 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	HitFeedback = CreateDefaultSubobject<UBrHitFeedbackComponent>(TEXT("HitFeedback"));
 	Inventory = CreateDefaultSubobject<UBrInventoryComponent>(TEXT("Inventory"));
 	Life = CreateDefaultSubobject<UBrLifeComponent>(TEXT("Life"));
-	HelpText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("HelpText"));
-	HelpText->SetupAttachment(RootComponent);
-	HelpText->SetAbsolute(false, true, false);
-	HelpText->SetRelativeRotation(FRotator(90, 0, 0));
-	HelpText->SetRelativeLocation(FVector(0, 0, 115));
-	HelpText->SetHorizontalAlignment(EHTA_Center);
-	HelpText->SetWorldSize(45);
-	HelpText->SetTextRenderColor(FColor::Yellow);
-	HelpText->SetCollisionProfileName(TEXT("NoCollision"));
-	HelpText->SetVisibility(false);
 	WeaponVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponVisual"));
 	WeaponVisual->SetupAttachment(GetMesh(), TEXT("hand_r"));
 	WeaponVisual->SetCollisionProfileName(TEXT("NoCollision"));
@@ -101,7 +91,7 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	TopDownCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCamera"));
 	TopDownCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	TopDownCamera->bUsePawnControlRotation = false;
-	TopDownCamera->bConstrainAspectRatio = false;
+	TopDownCamera->bConstrainAspectRatio = true;
 	TopDownCamera->SetProjectionMode(ECameraProjectionMode::Orthographic);
 	TopDownCamera->SetOrthoWidth(OrthoWidth);
 	TargetOrthoWidth = OrthoWidth;
@@ -129,7 +119,6 @@ void ABrCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 {
 	Super::CalcCamera(DeltaTime, OutResult);
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
-	float Aspect = TopDownCamera->AspectRatio;
 	FIntPoint ViewSize(1280, 720);
 	if (const UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport())
 	{
@@ -139,10 +128,14 @@ void ABrCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 			if (Size.X > 0 && Size.Y > 0)
 			{
 				ViewSize = Size;
-				Aspect = static_cast<float>(Size.X) / Size.Y;
 			}
 		}
 	}
+	const FBrViewLayoutRules Layout = FBrViewLayoutRules::Make(ViewSize, Settings->PlayAreaAspectRatio,
+		Settings->MinSidePanelWidth, FBrViewLayoutRules::Scale(ViewSize.Y));
+	const float Aspect = Layout.AspectRatio();
+	OutResult.bConstrainAspectRatio = true;
+	OutResult.AspectRatio = Aspect;
 	const float Pitch = FMath::Clamp(Settings->CameraPitchAngle, 30.f, 90.f);
 	OutResult.Rotation = FRotator(-Pitch, GetCameraYaw(), 0);
 	const FVector Forward = FRotator(0, GetCameraYaw(), 0).Vector();
@@ -155,7 +148,7 @@ void ABrCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 	// the optical target instead, and prevent the later projection pass from recentring on the pawn.
 	OutResult.SetCameraToViewTarget(OutResult.Location + OutResult.Rotation.Vector() * CameraBoom->TargetArmLength);
 	FSceneViewProjectionData ClipData;
-	ClipData.SetViewRectangle(FIntRect(0, 0, ViewSize.X, ViewSize.Y));
+	ClipData.SetViewRectangle(Layout.Play);
 	OutResult.AutoCalculateOrthoPlanes(ClipData);
 	OutResult.bAutoCalculateOrthoPlanes = false;
 	HitFeedback->Camera(OutResult);
@@ -192,18 +185,6 @@ void ABrCharacter::Tick(float DeltaSeconds)
 	ServiceMeshPoseSmoke(DeltaSeconds);
 	ServicePostureShot(DeltaSeconds);
 #endif
-	if (Life->State == EBrLifeState::Downed)
-	{
-		HelpText->SetText(FText::FromString(FString::Printf(TEXT("HELP! %.0fs"),
-			FMath::Max(0.0f, Life->DownedEndTime - Life->ServerTime()))));
-		HelpText->SetRelativeScale3D(FVector(1.0f + 0.15f * FMath::Sin(Life->ServerTime() * 5)));
-		// TextRender's reading direction is local -Y, top is +Z. Keep this
-		// ground-parallel sign upright for each viewer, not upside down at yaw 0
-		// or following the supine mesh. Cosmetic only; never replicate camera yaw.
-		const APlayerController* Viewer = GetWorld()->GetFirstPlayerController();
-		if (Viewer && Viewer->IsLocalController() && Viewer->PlayerCameraManager)
-			HelpText->SetWorldRotation(FRotator(90, Viewer->PlayerCameraManager->GetCameraRotation().Yaw + 180, 0));
-	}
 	GetMesh()->SetVisibility(Life->State != EBrLifeState::Eliminated &&
 		(!Life->IsInvulnerable() || FMath::Fmod(Life->ServerTime(), 0.3f) < 0.2f));
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
@@ -340,7 +321,6 @@ void ABrCharacter::ApplyLifePresentation()
 	GetBrMovement()->SetSprinting(false);
 	GetBrMovement()->CancelSlide();
 	bUseControllerRotationYaw = Life->State != EBrLifeState::Eliminated;
-	HelpText->SetVisibility(Life->State == EBrLifeState::Downed);
 	WeaponVisual->SetVisibility(bAlive);
 	// Dead/dying bodies must not stop grenade movement or pawn movement.
 	GetCapsuleComponent()->SetCollisionEnabled(bAlive ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
