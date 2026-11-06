@@ -29,6 +29,8 @@ struct FBrRoundRecord
 	UPROPERTY()
 	FBrInventoryState Gear;
 	UPROPERTY()
+	TArray<float> ArmorPlates;
+	UPROPERTY()
 	FBrQuestJournal Journal;
 	FBrScoreEpisode ScoreEpisode;
 	UPROPERTY()
@@ -69,6 +71,7 @@ struct FBrReconnectRules
 		Record.Life.bEliminated = true;
 		Record.State = EBrLifeState::Eliminated;
 		Record.Health = 0;
+		Record.ArmorPlates.Reset();
 		Record.DownedEndTime = Record.ProtectionEndTime = 0;
 		return true;
 	}

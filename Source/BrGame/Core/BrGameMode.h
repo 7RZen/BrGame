@@ -87,6 +87,7 @@ private:
 	friend class FBrServerAimTest;
 	friend class FBrSprintPendingCombatTest;
 	friend class FBrQuestRuntimeTest;
+	friend class FBrArmorRuntimeTest;
 #endif
 	FTimerHandle FlowTimer, ResultsTimer;
 	struct FPendingSteamLogin
@@ -160,6 +161,16 @@ private:
 	int32 SprintSmokeLoaded = 0;
 	bool ServiceAudioSmoke(ABrPlayerController* Host, ABrPlayerController* Listener);
 	bool ServiceHitSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
+	bool ServiceArmorSmoke(ABrPlayerController* Host, ABrPlayerController* Observer);
+	void ServiceArmorSpectatorSmoke(ABrPlayerController* Host);
+	int32 ArmorSmokeStage = 0;
+	float ArmorSmokeDeadline = 0, ArmorSmokeHealth = 0;
+	TWeakObjectPtr<ABrCharacter> ArmorSmokeVictim;
+	TWeakObjectPtr<ABrPlayerController> ArmorSmokeVictimController;
+	FVector ArmorSmokeVictimLocation, ArmorSmokeObserverLocation;
+	int32 ArmorSmokeVictimTeam = -1, ArmorSmokeObserverTeam = -1;
+	uint8 ArmorSmokeVictimMode = 0, ArmorSmokeObserverMode = 0;
+	uint8 ArmorSmokeVictimCustomMode = 0, ArmorSmokeObserverCustomMode = 0;
 	int32 HitSmokeStage = 0;
 	float HitSmokeDeadline = 0;
 	TWeakObjectPtr<ABrCharacter> HitSmokeVictim;

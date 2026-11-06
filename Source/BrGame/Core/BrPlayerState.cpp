@@ -1,6 +1,7 @@
 #include "BrPlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "BrCharacter.h"
+#include "BrArmorComponent.h"
 
 void ABrPlayerState::SetTeam(int32 NewTeam, FLinearColor Color)
 {
@@ -21,7 +22,20 @@ void ABrPlayerState::ResetRound()
 	RoundScore = 0;
 	Quests.Reset();
 	bEliminated = false;
+	ResetArmor();
 	ForceNetUpdate();
+}
+
+void ABrPlayerState::StoreArmorPlates(const TArray<float>& Values)
+{
+	if (HasAuthority()) ArmorPlates = bEliminated ? TArray<float>() : Values;
+}
+
+void ABrPlayerState::ResetArmor()
+{
+	if (!HasAuthority()) return;
+	ArmorPlates.Reset();
+	if (ABrCharacter* C = Cast<ABrCharacter>(GetPawn())) C->GetArmor()->Clear();
 }
 
 void ABrPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -62,6 +76,7 @@ void ABrPlayerState::RestoreLifeBookkeeping(const FBrLifeBookkeeping& Life)
 	DeathCount = FMath::Max(0, Life.Deaths);
 	VoluntaryRespawnCount = FMath::Max(0, Life.VoluntaryRespawns);
 	bEliminated = Life.bEliminated;
+	if (bEliminated) ResetArmor();
 	ForceNetUpdate();
 }
 
@@ -77,6 +92,7 @@ void ABrPlayerState::CopyProperties(APlayerState* PlayerState)
 		Other->DownsInflicted = DownsInflicted;
 		Other->RoundScore = RoundScore;
 		Other->Quests = Quests;
+		Other->StoreArmorPlates(ArmorPlates);
 	}
 }
 

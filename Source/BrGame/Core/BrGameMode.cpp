@@ -572,6 +572,7 @@ void ABrGameMode::RecordPlayer(AController* Player)
 	Record->Life = FBrReconnectRules::Merge(Record->Life, PS->GetLifeBookkeeping());
 	Record->Life.bEliminated |= Record->bForfeited;
 	Record->DownsInflicted = PS->DownsInflicted;
+	Record->ArmorPlates = PS->GetArmorPlates();
 	if (const ABrCharacter* Pawn = Cast<ABrCharacter>(Player->GetPawn()))
 	{
 		Record->bHasPawnSnapshot = true;
@@ -596,6 +597,7 @@ void ABrGameMode::RecordPlayer(AController* Player)
 	{
 		Record->State = EBrLifeState::Eliminated;
 		Record->Health = 0;
+		Record->ArmorPlates.Reset();
 		Record->DownedEndTime = Record->ProtectionEndTime = 0;
 	}
 }
@@ -678,6 +680,7 @@ bool ABrGameMode::PreparePlayer(AController* Player)
 		                                            UBrDeveloperSettings::Get()->MaxHealthPenaltyPerRespawn,
 		                                            UBrDeveloperSettings::Get()->MinMaxHealthFraction);
 		Initial.Health = Initial.MaxHealth;
+		Initial.ArmorPlates = PS->GetArmorPlates();
 		Initial.ActiveController = Player;
 		Record = &RoundRecords.Add(Key, Initial);
 	}
@@ -690,6 +693,7 @@ bool ABrGameMode::PreparePlayer(AController* Player)
 		}
 		ServiceRoundRecord(Key, *Record); // No timer-frame loophole at the grace boundary.
 		PS->RestoreLifeBookkeeping(Record->Life);
+		PS->StoreArmorPlates(Record->ArmorPlates);
 		PS->SetTeam(Record->Team, Record->TeamColor);
 		PS->SetPlayerId(Record->PlayerId);
 		PS->DownsInflicted = Record->DownsInflicted;
@@ -701,6 +705,7 @@ bool ABrGameMode::PreparePlayer(AController* Player)
 	if (Record->bAwaitingInitialization || Record->bForfeited)
 	{
 		PS->RestoreLifeBookkeeping(Record->Life);
+		PS->StoreArmorPlates(Record->ArmorPlates);
 		PS->SetTeam(Record->Team, Record->TeamColor);
 		PS->SetPlayerId(Record->PlayerId);
 		PS->DownsInflicted = Record->DownsInflicted;
@@ -760,6 +765,7 @@ void ABrGameMode::FailedSpawn(AController* Controller)
 	if (PS)
 	{
 		PS->bEliminated = true;
+		PS->ResetArmor();
 		PS->ForceNetUpdate();
 	}
 	BlockSpawn(Controller);
@@ -789,6 +795,7 @@ void ABrGameMode::ServiceRoundRecord(const FString& Key, FBrRoundRecord& Record)
 		Record.bOfflineCorpseLeft = true;
 		Record.DownedEndTime = Record.ProtectionEndTime = 0;
 		Record.Health = Record.Life.bEliminated ? 0 : Record.MaxHealth;
+		if (Record.Life.bEliminated) Record.ArmorPlates.Reset();
 		UE_LOG(LogBr, Display, TEXT("Offline timeout: Id=%s Deaths=%d Eliminated=%d"), *Key, Record.Life.Deaths,
 		       Record.Life.bEliminated);
 	}

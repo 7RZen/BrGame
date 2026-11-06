@@ -11,6 +11,7 @@ class UBrCharacterMovementComponent;
 class UBrInputConfig;
 class UBrInventoryComponent;
 class UBrHealthComponent;
+class UBrArmorComponent;
 class UStaticMeshComponent;
 class UBrLifeComponent;
 class UTextRenderComponent;
@@ -53,6 +54,7 @@ public:
 	virtual float TakeDamage(float Damage, const FDamageEvent& Event, AController* InstigatorController, AActor* Causer) override;
 	UBrInventoryComponent* GetInventory() const { return Inventory; }
 	UBrHealthComponent* GetHealth() const { return Health; }
+	UBrArmorComponent* GetArmor() const { return Armor; }
 	class UBrHitFeedbackComponent* GetHitFeedback() const { return HitFeedback; }
 	void UpdateWeaponVisual();
 	/** Game-thread post-animation callback; cosmetic only, no firing-origin changes. */
@@ -82,6 +84,7 @@ protected:
 private:
 	friend class FBrSprintIntegrationTest;
 	friend class FBrSprintPickupRetryTest;
+	friend class FBrArmorRuntimeTest;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
 	TObjectPtr<class UBrHitFeedbackComponent> HitFeedback;
 	FTimerHandle FootstepTimer;
@@ -133,6 +136,8 @@ private:
 	TObjectPtr<UBrInventoryComponent> Inventory;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
 	TObjectPtr<UBrHealthComponent> Health;
+	UPROPERTY(VisibleAnywhere, Category="Combat")
+	TObjectPtr<UBrArmorComponent> Armor;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
 	TObjectPtr<UStaticMeshComponent> WeaponVisual;
 	UPROPERTY(Transient)

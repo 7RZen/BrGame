@@ -41,6 +41,7 @@ const FBrAudioVoicePolicy& UBrDeveloperSettings::VoicePolicy(EBrSoundKind Kind) 
 	case EBrSoundKind::Explosion: return ExplosionVoice;
 	case EBrSoundKind::Downed: return DownedVoice;
 	case EBrSoundKind::Pickup: return PickupVoice;
+	case EBrSoundKind::ArmorBreak: return PickupVoice;
 	default: return FootstepVoice;
 	}
 }

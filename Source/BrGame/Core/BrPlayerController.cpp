@@ -83,6 +83,8 @@ void ABrPlayerController::ClientSound_Implementation(EBrSoundKind Kind, const TS
 	FVector_NetQuantize Location)
 {
 #if !UE_BUILD_SHIPPING
+	if (Kind == EBrSoundKind::ArmorBreak && FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")))
+		++ArmorSmokeBreakSounds; // Real received sound route, including -nosound headless runs.
 	if (FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) &&
 		FVector::DistSquared2D(Location, AudioSmokeOrigin) < 100.f)
 	{
@@ -171,6 +173,9 @@ void ABrPlayerController::BeginPlay()
 
 void ABrPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+#if !UE_BUILD_SHIPPING
+	GetWorldTimerManager().ClearTimer(ArmorSmokeProbeTimer);
+#endif
 	CloseMenu();
 	GetWorldTimerManager().ClearTimer(LeaveTimer);
 	GetWorldTimerManager().ClearTimer(UnstuckTimer);
@@ -180,6 +185,7 @@ void ABrPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	FlowWidget = nullptr;
 	SpectatorTarget = nullptr;
 	FlowSpectatorPawn = nullptr;
+	SpectatorArmor = {};
 	AppliedSpectatorPawn.Reset();
 	LastLoggedFlow.Empty();
 	FlowInputPhase = -1;
@@ -399,6 +405,7 @@ void ABrPlayerController::ResetFlowRequests()
 		SpectatorTarget = nullptr;
 		FlowSpectatorPawn = nullptr;
 		AppliedSpectatorPawn.Reset();
+		RefreshSpectatorArmor();
 		ForceNetUpdate();
 	}
 }
@@ -413,6 +420,28 @@ void ABrPlayerController::ServiceSpectator()
 		SetViewTarget(GetPawn() ? static_cast<AActor*>(GetPawn()) : this);
 		ForceNetUpdate();
 	}
+	RefreshSpectatorArmor();
+}
+void ABrPlayerController::RefreshSpectatorArmor()
+{
+	if (!HasAuthority()) return;
+	const ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>();
+	ABrCharacter* Target = Mode && Mode->IsAdmitted(this) && IsFlowSpectating() &&
+		SpectatorTarget && FlowSpectatorPawn && SpectatorTarget->GetPawn() == FlowSpectatorPawn &&
+		!SpectatorTarget->bEliminated && Mode->IsAdmitted(Cast<AController>(SpectatorTarget->GetOwner())) &&
+		FlowSpectatorPawn->GetLife()->IsAlive() ? FlowSpectatorPawn.Get() : nullptr;
+	const TArray<float> Values = Target ? Target->GetArmor()->GetPlates() : TArray<float>();
+	if (SpectatorArmor.Pawn != Target || SpectatorArmor.Plates != Values)
+	{
+		SpectatorArmor.Pawn = Target;
+		SpectatorArmor.Plates = Values;
+		ForceNetUpdate();
+	}
+}
+const TArray<float>* ABrPlayerController::GetSpectatorArmor(const ABrCharacter* ViewedPawn) const
+{
+	return ViewedPawn && IsFlowSpectating() && GetViewTarget() == ViewedPawn &&
+		FlowSpectatorPawn == ViewedPawn && SpectatorArmor.Pawn == ViewedPawn ? &SpectatorArmor.Plates : nullptr;
 }
 void ABrPlayerController::SelectSpectator(bool bCycle)
 {
@@ -478,6 +507,7 @@ void ABrPlayerController::SelectSpectator(bool bCycle)
 #endif
 	AActor* TargetActor = SelectedPawn ? static_cast<AActor*>(SelectedPawn) : this;
 	if (GetViewTarget() != TargetActor) SetViewTarget(TargetActor);
+	RefreshSpectatorArmor();
 	if (IsLocalController()) OnRep_SpectatorTarget();
 }
 void ABrPlayerController::OnRep_SpectatorTarget()
@@ -515,6 +545,7 @@ void ABrPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION(ABrPlayerController, SpectatorTarget, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ABrPlayerController, FlowSpectatorPawn, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ABrPlayerController, SpectatorArmor, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ABrPlayerController, UnstuckStart, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ABrPlayerController, UnstuckEnd, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(ABrPlayerController, UnstuckCooldownEnd, COND_OwnerOnly);

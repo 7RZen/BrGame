@@ -31,14 +31,15 @@ bool FBrCrateLootTest::RunTest(const FString&)
 	for (int32 I = 0; I < 10000; ++I)
 	{
 		const auto Roll = [](FRandomStream& S, float Chance)
-		{ return FBrCrateRules::Roll(S, 1, 2, Chance, 3, 8, {60,30,10}, 3, 8, 2, 4); };
+		{ return FBrCrateRules::Roll(S, 1, 2, Chance, 3, 8, {60,30,10}, 3, 8, 2, 4, 2, 8); };
 		const TArray<int32> Loot = Roll(A, 0.5f);
 		if (Loot != Roll(B, 0.5f)) { AddError(TEXT("Same seed changed loot")); return false; }
 		int32 Counts[FBrCrateRules::TypeCount] = {};
 		for (int32 Type : Loot) ++Counts[Type];
 		if (Counts[0] != 1 || Counts[1] < 1 || Counts[1] > 2 || Counts[2] > 1 ||
 			Counts[3] < 3 || Counts[3] > 8 || Counts[4] < 2 || Counts[4] > 4 ||
-			Counts[5] + Counts[6] + Counts[7] < 3 || Counts[5] + Counts[6] + Counts[7] > 8)
+			Counts[5] + Counts[6] + Counts[7] < 3 || Counts[5] + Counts[6] + Counts[7] > 8 ||
+			Counts[FBrCrateRules::Armor] < 2 || Counts[FBrCrateRules::Armor] > 8)
 		{ AddError(TEXT("Loot outside configured bounds")); return false; }
 		MG += Counts[2]; Small += Counts[5]; Medium += Counts[6]; Large += Counts[7]; ++AR[Counts[1]];
 		if (Roll(A, 0).Contains(FBrCrateRules::MachineGun) || !Roll(A, 1).Contains(FBrCrateRules::MachineGun))
@@ -53,8 +54,8 @@ bool FBrCrateLootTest::RunTest(const FString&)
 		FMath::Abs(Small / Health - 0.6f) < 0.02f && FMath::Abs(Medium / Health - 0.3f) < 0.02f &&
 		FMath::Abs(Large / Health - 0.1f) < 0.02f);
 	FRandomStream S(21);
-	const auto Custom = FBrCrateRules::Roll(S, 2, 2, 0, 7, 7, {0,0,1}, 4, 4, 3, 3);
-	TestEqual(TEXT("Custom count totals"), Custom.Num(), 17);
+	const auto Custom = FBrCrateRules::Roll(S, 2, 2, 0, 7, 7, {0,0,1}, 4, 4, 3, 3, 5, 5);
+	TestEqual(TEXT("Custom count totals"), Custom.Num(), 22);
 	TestEqual(TEXT("Only weighted health selected"), Custom.FilterByPredicate([](int32 T) { return T == FBrCrateRules::Health100; }).Num(), 7);
 	return true;
 }
@@ -104,7 +105,7 @@ bool FBrCrateScheduleTest::RunTest(const FString&)
 	double Time = 123.5;
 	for (int32 I = 0; I < 100; ++I) Time = FBrCrateRules::NextDrop(Time, 12.5f);
 	TestEqual(TEXT("Periodic wave deadline is independent of initial wave count"), Time, 1373.5);
-	TestEqual(TEXT("Quest network layout requires protocol 14"), FBrSessionRules::Protocol, 14);
+	TestEqual(TEXT("Armor network layout requires protocol 15"), FBrSessionRules::Protocol, 15);
 	return true;
 }
 

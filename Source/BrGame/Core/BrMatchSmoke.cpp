@@ -12,6 +12,10 @@
 #include "BrInventoryComponent.h"
 #include "BrCombatDefinitions.h"
 #include "BrHealthComponent.h"
+#include "BrArmorComponent.h"
+#include "BrHitFeedbackComponent.h"
+#include "BrFogComponent.h"
+#include "BrVisibilitySubsystem.h"
 #include "BrLifeComponent.h"
 #include "BrCombatMath.h"
 #include "BrPickup.h"
@@ -20,10 +24,12 @@
 #include "BrLog.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "EngineUtils.h"
 #include "CollisionQueryParams.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "TimerManager.h"
 
 #if !UE_BUILD_SHIPPING
 namespace
@@ -128,7 +134,274 @@ void ABrPlayerController::ClientPostureSmoke_Implementation(EBrPosture Posture)
 #endif
 }
 
+void ABrPlayerController::ClientArmorSmokeProbe_Implementation(int32 Stage, int32 TargetId, bool bOwner)
+{
 #if !UE_BUILD_SHIPPING
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || !IsLocalController() ||
+		HasAuthority() || Stage < 1 || Stage > 3) return;
+	GetWorldTimerManager().ClearTimer(ArmorSmokeProbeTimer);
+	ArmorSmokeProbeStage = Stage;
+	ArmorSmokeProbeTargetId = TargetId;
+	bArmorSmokeProbeOwner = bOwner;
+	ArmorSmokeProbeDeadline = GetWorld()->GetTimeSeconds() + 5;
+	ArmorSmokeStableSince = -1;
+	if (Stage == 1)
+	{
+		ArmorSmokeSoundBaseline = ArmorSmokeBreakSounds;
+		bArmorSmokeBaselineCaptured = false;
+	}
+	GetWorldTimerManager().SetTimer(ArmorSmokeProbeTimer, this, &ThisClass::ServiceArmorSmokeProbe, 0.1f, true);
+	ServiceArmorSmokeProbe();
+#endif
+}
+
+void ABrPlayerController::ServerArmorSmokeResult_Implementation(int32 Stage, int32 TargetId, bool bPass)
+{
+#if !UE_BUILD_SHIPPING
+	const ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>();
+	// This acknowledgement cannot grant armor, apply damage or choose spectator targets.
+	if (!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || !HasAuthority() || IsLocalController() ||
+		!Mode || !Mode->IsAdmitted(this) || Stage != ArmorSmokeExpectedStage ||
+		TargetId != ArmorSmokeExpectedTargetId) return;
+	bArmorSmokePassed = bPass;
+	if (!bPass) UE_LOG(LogBr, Error, TEXT("E2E ARMOR PROBE FAIL: remote assertion Player=%s Stage=%d"), *GetName(), Stage);
+#endif
+}
+
+#if !UE_BUILD_SHIPPING
+void ABrPlayerController::BeginArmorSmokeProbe(int32 Stage, ABrCharacter* Target)
+{
+	if (!HasAuthority() || IsLocalController() || !Target ||
+		!FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke"))) return;
+	const ABrPlayerState* PS = Target->GetPlayerState<ABrPlayerState>();
+	if (!PS) return;
+	ArmorSmokeExpectedStage = Stage;
+	ArmorSmokeExpectedTargetId = PS->GetPlayerId();
+	bArmorSmokePassed = false;
+	ClientArmorSmokeProbe(Stage, PS->GetPlayerId(), GetPawn() == Target);
+}
+
+void ABrPlayerController::ServiceArmorSmokeProbe()
+{
+	// A one-shot actor RPC parameter can be null before a fog channel opens.
+	// Resolve the public identity afresh, just as flow retries its replicated view target.
+	ABrCharacter* Target = nullptr;
+	for (TActorIterator<ABrCharacter> It(GetWorld()); It; ++It)
+	{
+		const ABrPlayerState* PS = It->GetPlayerState<ABrPlayerState>();
+		if (PS && PS->GetPlayerId() == ArmorSmokeProbeTargetId && !It->IsActorBeingDestroyed())
+		{
+			Target = *It;
+			break;
+		}
+	}
+	const float Now = GetWorld()->GetTimeSeconds();
+	const int32 Stage = ArmorSmokeProbeStage;
+	const bool bOwner = bArmorSmokeProbeOwner;
+	const TArray<float> Expected = Stage == 2 ? TArray<float>{17} : TArray<float>{7, 20};
+	bool bGood = Target && Target->GetPlayerState<ABrPlayerState>();
+	bool bLeaked = false;
+	if (bGood)
+	{
+		if (Stage == 1 && !bArmorSmokeBaselineCaptured)
+		{
+			ArmorSmokeHitBaseline = Target->GetHitFeedback()->OwnerEvents;
+			ArmorSmokeHealth = Target->GetHealth()->Health;
+			bArmorSmokeBaselineCaptured = true;
+		}
+		const TArray<float>& Plates = Target->GetArmor()->GetPlates();
+		// The server-only PlayerState backing store must never become another public route.
+		bLeaked = !Target->GetPlayerState<ABrPlayerState>()->GetArmorPlates().IsEmpty();
+		if (Stage == 3)
+		{
+			const TArray<float>* Mirror = GetSpectatorArmor(Target);
+			bGood = !bOwner && IsFlowSpectating() && Mirror && *Mirror == Expected && Plates.IsEmpty();
+		}
+		else if (bOwner)
+		{
+			bGood = GetPawn() == Target && !IsFlowSpectating() && Plates == Expected;
+			if (Stage == 2)
+				bGood &= FMath::IsNearlyEqual(Target->GetHealth()->Health, ArmorSmokeHealth) &&
+					Target->GetHitFeedback()->OwnerEvents - ArmorSmokeHitBaseline == 1 &&
+					ArmorSmokeBreakSounds - ArmorSmokeSoundBaseline == 1;
+		}
+		else
+		{
+			bLeaked |= !Plates.IsEmpty() || !SpectatorArmor.Plates.IsEmpty();
+			bGood = GetPawn() != Target && !IsFlowSpectating() && UBrFogComponent::LocallyVisible(Target) &&
+				!bLeaked && ArmorSmokeBreakSounds == ArmorSmokeSoundBaseline;
+		}
+		bGood &= !bLeaked;
+	}
+	if (bGood && ArmorSmokeStableSince < 0) ArmorSmokeStableSince = Now;
+	if (!bGood) ArmorSmokeStableSince = -1;
+	// Observe a real, visible actor for a full second: a missing fog channel is not a privacy PASS.
+	const bool bPass = bGood && Now - ArmorSmokeStableSince >= 1;
+	if (!bPass && !bLeaked && Now < ArmorSmokeProbeDeadline) return;
+	GetWorldTimerManager().ClearTimer(ArmorSmokeProbeTimer);
+	if (!bPass)
+	{
+		UE_LOG(LogBr, Error, TEXT("E2E ARMOR PROBE FAIL Owner=%d Stage=%d Target=%s Leak=%d Health=%.1f HitEvents=%u BreakSounds=%u"),
+			bOwner, Stage, *GetNameSafe(Target), bLeaked, Target ? Target->GetHealth()->Health : -1.f,
+			Target ? Target->GetHitFeedback()->OwnerEvents - ArmorSmokeHitBaseline : 0,
+			ArmorSmokeBreakSounds - ArmorSmokeSoundBaseline);
+	}
+	else if (Stage == 3)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E ARMOR PROBE PASS Spectator=1 Mirror=1 Plates=7,20 ComponentPrivate=1"));
+	}
+	else if (bOwner)
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E ARMOR PROBE PASS Owner=1 Stage=%d Plates=%s Health=%.1f HitEvents=%u BreakSounds=%u"),
+			Stage, Stage == 1 ? TEXT("7,20") : TEXT("17"), Target->GetHealth()->Health,
+			Target->GetHitFeedback()->OwnerEvents - ArmorSmokeHitBaseline, ArmorSmokeBreakSounds - ArmorSmokeSoundBaseline);
+	}
+	else
+	{
+		UE_LOG(LogBr, Display, TEXT("E2E ARMOR PROBE PASS Owner=0 Private=1 Stage=%d Visible=1 BreakSounds=0"), Stage);
+	}
+	ServerArmorSmokeResult(Stage, ArmorSmokeProbeTargetId, bPass);
+}
+
+bool ABrGameMode::ServiceArmorSmoke(ABrPlayerController* Host, ABrPlayerController* Observer)
+{
+	if (!HasAuthority() || !FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke"))) return false;
+	if (ArmorSmokeStage >= 4) return true;
+	const float Now = GetWorld()->GetTimeSeconds();
+	ABrCharacter* Source = Host ? Cast<ABrCharacter>(Host->GetPawn()) : nullptr;
+	ABrCharacter* ObserverPawn = Observer ? Cast<ABrCharacter>(Observer->GetPawn()) : nullptr;
+	if (ArmorSmokeStage == 0)
+	{
+		ABrCharacter* Victim = HitSmokeVictim.Get();
+		ABrPlayerController* VictimPC = Victim ? Cast<ABrPlayerController>(Victim->GetController()) : nullptr;
+		const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+		if (!Source || !ObserverPawn || !Victim || !VictimPC || VictimPC->IsLocalController() ||
+			!FMath::IsNearlyEqual(S->ArmorPlateValue, 20.f) || S->MaxArmorPlates != 2)
+		{
+			FailSmoke(TEXT("E2E ARMOR PROBE FAIL: fixture needs two 20-value plates and distinct remote pawns."));
+			return false;
+		}
+		ArmorSmokeVictim = Victim;
+		ArmorSmokeVictimController = VictimPC;
+		ArmorSmokeVictimLocation = Victim->GetActorLocation();
+		ArmorSmokeObserverLocation = ObserverPawn->GetActorLocation();
+		ArmorSmokeVictimMode = Victim->GetBrMovement()->MovementMode;
+		ArmorSmokeObserverMode = ObserverPawn->GetBrMovement()->MovementMode;
+		ArmorSmokeVictimCustomMode = Victim->GetBrMovement()->CustomMovementMode;
+		ArmorSmokeObserverCustomMode = ObserverPawn->GetBrMovement()->CustomMovementMode;
+		ArmorSmokeVictimTeam = Victim->GetPlayerState<ABrPlayerState>()->Team;
+		ArmorSmokeObserverTeam = ObserverPawn->GetPlayerState<ABrPlayerState>()->Team;
+		Victim->GetPlayerState<ABrPlayerState>()->Team = 10001;
+		ObserverPawn->GetPlayerState<ABrPlayerState>()->Team = 10002;
+		Victim->GetBrMovement()->DisableMovement();
+		ObserverPawn->GetBrMovement()->DisableMovement();
+		// Same known visible lane as the existing hit fixture; restore both real spawns afterward.
+		Victim->SetActorLocation(FVector(-6000, -6000, 100), false, nullptr, ETeleportType::TeleportPhysics);
+		ObserverPawn->SetActorLocation(Victim->GetActorLocation() + FVector(200, 0, 0), false, nullptr, ETeleportType::TeleportPhysics);
+		Victim->GetArmor()->Clear();
+		const bool bFirst = Victim->GetArmor()->AddPlate();
+		Victim->GetArmor()->Absorb(13, false); // Partial plate, no health/feedback/sound event.
+		const bool bSecond = Victim->GetArmor()->AddPlate();
+		if (!bFirst || !bSecond || Victim->GetArmor()->GetPlates() != TArray<float>({7, 20}))
+		{
+			FailSmoke(TEXT("E2E ARMOR PROBE FAIL: authority grant did not produce 7,20."));
+			return false;
+		}
+		ArmorSmokeHealth = Victim->GetHealth()->Health;
+		Victim->ForceNetUpdate();
+		ObserverPawn->ForceNetUpdate();
+		GetWorld()->GetSubsystem<UBrVisibilitySubsystem>()->RequestDiscovery(Victim, Observer);
+		ArmorSmokeStage = 1;
+		ArmorSmokeDeadline = Now + 2;
+		return false;
+	}
+	ABrCharacter* Victim = ArmorSmokeVictim.Get();
+	ABrPlayerController* VictimPC = ArmorSmokeVictimController.Get();
+	if (!Source || !ObserverPawn || !Victim || !VictimPC)
+	{
+		FailSmoke(TEXT("E2E ARMOR PROBE FAIL: fixture pawn/controller disappeared."));
+		return false;
+	}
+	if (ArmorSmokeStage == 1 && Now >= ArmorSmokeDeadline)
+	{
+		VictimPC->BeginArmorSmokeProbe(1, Victim);
+		Observer->BeginArmorSmokeProbe(1, Victim);
+		ArmorSmokeStage = 2;
+		ArmorSmokeDeadline = Now + 7;
+	}
+	else if (ArmorSmokeStage == 2 && VictimPC->HasArmorSmokePassed(1) && Observer->HasArmorSmokePassed(1))
+	{
+		const float Multiplier = UBrDeveloperSettings::Get()->StandingDamageMultiplier;
+		if (Victim->GetPosture() != EBrPosture::Standing || !FMath::IsFinite(Multiplier) || Multiplier <= 0)
+		{
+			FailSmoke(TEXT("E2E ARMOR PROBE FAIL: bullet fixture requires standing damage multiplier > 0."));
+			return false;
+		}
+		const FVector Origin = Victim->GetActorLocation() + FVector(1000, -500, 0);
+		const FBrDamageEvent Event(CaptureDamageSource(Host), UBrBulletDamageType::StaticClass(), Origin);
+		const float Applied = Victim->TakeDamage(10.f / Multiplier, Event, Host, Source);
+		if (!FMath::IsNearlyEqual(Applied, 10.f) || !FMath::IsNearlyEqual(Victim->GetHealth()->Health, ArmorSmokeHealth) ||
+			Victim->GetArmor()->GetPlates() != TArray<float>({17}))
+		{
+			FailSmoke(TEXT("E2E ARMOR PROBE FAIL: bullet absorption/health/most-damaged carry-over mismatch."));
+			return false;
+		}
+		VictimPC->BeginArmorSmokeProbe(2, Victim);
+		Observer->BeginArmorSmokeProbe(2, Victim);
+		ArmorSmokeStage = 3;
+		ArmorSmokeDeadline = Now + 7;
+	}
+	else if (ArmorSmokeStage == 3 && VictimPC->HasArmorSmokePassed(2) && Observer->HasArmorSmokePassed(2))
+	{
+		// PASS requires the owner's actual received hit-feedback and break-sound RPC counters too.
+		UE_LOG(LogBr, Display, TEXT("E2E ARMOR PROBE PASS Authority=1 Absorbed=10 HealthUnchanged=1 MostDamagedFirst=1 HitFeedback=1 BreakSoundRoute=1 Private=1"));
+		Victim->GetArmor()->Clear(); // Isolate every pre-existing exact health-delta assertion.
+		Victim->GetPlayerState<ABrPlayerState>()->Team = ArmorSmokeVictimTeam;
+		ObserverPawn->GetPlayerState<ABrPlayerState>()->Team = ArmorSmokeObserverTeam;
+		Victim->SetActorLocation(ArmorSmokeVictimLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		ObserverPawn->SetActorLocation(ArmorSmokeObserverLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		Victim->GetBrMovement()->SetMovementMode(static_cast<EMovementMode>(ArmorSmokeVictimMode), ArmorSmokeVictimCustomMode);
+		ObserverPawn->GetBrMovement()->SetMovementMode(static_cast<EMovementMode>(ArmorSmokeObserverMode), ArmorSmokeObserverCustomMode);
+		Victim->ForceNetUpdate();
+		ObserverPawn->ForceNetUpdate();
+		ArmorSmokeStage = 4;
+		return true;
+	}
+	else if (Now >= ArmorSmokeDeadline && ArmorSmokeStage >= 2)
+		FailSmoke(TEXT("E2E ARMOR PROBE FAIL: bounded remote replication/feedback acknowledgement timed out."));
+	return false;
+}
+
+void ABrGameMode::ServiceArmorSpectatorSmoke(ABrPlayerController* Host)
+{
+	if (!HasAuthority() || !FParse::Param(FCommandLine::Get(), TEXT("BrMatchSmoke")) || MatchSmokeStage != 6) return;
+	ABrPlayerController* Viewer = ArmorSmokeVictimController.Get();
+	ABrCharacter* Viewed = Host ? Cast<ABrCharacter>(Host->GetPawn()) : nullptr;
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (ArmorSmokeStage == 4 && Viewer && Viewed)
+	{
+		// All remote contestants were eliminated by the existing final match fixture.
+		Viewer->ServiceSpectator();
+		Viewer->BeginArmorSmokeProbe(3, Viewed);
+		ArmorSmokeStage = 5;
+		ArmorSmokeDeadline = Now + 7;
+	}
+	else if (ArmorSmokeStage == 5 && Viewer && Viewer->HasArmorSmokePassed(3))
+	{
+		const TArray<float>* Mirror = Viewed ? Viewer->GetSpectatorArmor(Viewed) : nullptr;
+		if (!Mirror || *Mirror != TArray<float>({7, 20}))
+		{
+			FailSmoke(TEXT("E2E ARMOR PROBE FAIL: authoritative spectator mirror mismatch."));
+			return;
+		}
+		UE_LOG(LogBr, Display, TEXT("E2E ARMOR PROBE PASS Authority=1 Spectator=1 Mirror=1"));
+		Viewed->GetArmor()->Clear();
+		ArmorSmokeStage = 6;
+	}
+	else if (ArmorSmokeStage == 5 && Now >= ArmorSmokeDeadline)
+		FailSmoke(TEXT("E2E ARMOR PROBE FAIL: bounded spectator mirror acknowledgement timed out."));
+}
+
 void ABrPlayerController::ReportMatchSmokeReady(ABrCharacter* ObserverPawn)
 {
 	if (HasAuthority() || !IsLocalController() || !ObserverPawn || ObserverPawn != GetPawn() ||
@@ -281,6 +554,7 @@ void ABrGameMode::ServiceMatchSmoke()
 		return;
 	}
 
+	ServiceArmorSpectatorSmoke(Host); // Existing result-phase spectating continues before lobby travel.
 	if (GS->bResults) return;
 	const float Now = World->GetTimeSeconds();
 	if (MatchSmokeStage == 0)
@@ -315,6 +589,7 @@ void ABrGameMode::ServiceMatchSmoke()
 				if (!ServiceHitSmoke(Host, Observer)) return;
 				if (!ServiceAudioSmoke(Host, Observer)) return;
 				if (!ServiceSprintSmoke(Observer)) return;
+				if (!ServiceArmorSmoke(Host, Observer)) return;
 			}
 		for (APlayerState* Entry : GS->PlayerArray)
 		{
@@ -742,6 +1017,21 @@ void ABrGameMode::ServiceMatchSmoke()
 			}
 			UE_LOG(LogBr, Display, TEXT("E2E TIMEOUT RESPAWN PASS: MaxHealth=%.1f Deaths=%d GearKept=1 Invulnerable=1"),
 				Respawned->GetHealth()->MaxHealth, PS->DeathCount);
+			ABrCharacter* Viewed = Cast<ABrCharacter>(Host->GetPawn());
+			if (!Viewed)
+			{
+				FailSmoke(TEXT("E2E ARMOR PROBE FAIL: spectator fixture has no host pawn."));
+				return;
+			}
+			Viewed->GetArmor()->Clear();
+			const bool bFirst = Viewed->GetArmor()->AddPlate();
+			Viewed->GetArmor()->Absorb(13, false);
+			const bool bSecond = Viewed->GetArmor()->AddPlate();
+			if (!bFirst || !bSecond || Viewed->GetArmor()->GetPlates() != TArray<float>({7, 20}))
+			{
+				FailSmoke(TEXT("E2E ARMOR PROBE FAIL: spectator fixture grant failed."));
+				return;
+			}
 			for (APlayerState* Entry : GS->PlayerArray)
 				if (ABrPlayerState* OtherPS = Cast<ABrPlayerState>(Entry))
 					if (!OtherPS->bHost)

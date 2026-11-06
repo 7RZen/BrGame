@@ -87,6 +87,7 @@ count and test both modes.
   Respawn/elimination/forfeit/offline timeout must leave a grounded, arms-out,
   bone-white face-up corpse at the victim's last facing; check a late joiner too.
   Living prone/crawl stays face down. Capture command: `Scripts/RunShotSmoke.ps1 -Skeletons`.
+- [ ] **Armor plates:** collect up to 2 plates from a crate; a third is refused until one breaks. Hits drain the most damaged plate first, then health; zone damage skips armor. Hear the break sound; the HUD armor bar shows for owner and spectator only; armor survives revive/respawn and clears next round.
 - [OK] **Pickups/zone:** collect health, ammo, grenade and weapon pickups; watch
   them respawn, then move outside the shrinking zone. Expected: health and
   grenade caps hold, weapon swap drops the old loaded weapon, and outside-zone

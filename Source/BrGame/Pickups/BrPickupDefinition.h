@@ -86,6 +86,15 @@ public:
 };
 
 UCLASS(BlueprintType)
+class BRGAME_API UBrArmorPickupDefinition : public UBrPickupDefinition
+{
+	GENERATED_BODY()
+public:
+	virtual bool CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const override;
+	virtual bool Apply(ABrCharacter* Character, FBrPickupPayload& Payload) const override;
+};
+
+UCLASS(BlueprintType)
 class BRGAME_API UBrGrenadePickupDefinition : public UBrPickupDefinition
 {
 	GENERATED_BODY()

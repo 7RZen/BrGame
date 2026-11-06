@@ -50,6 +50,7 @@ bool ABrGameMode::ForfeitPlayer(ABrPlayerController* Player)
 		if (ABrPlayerState* PS = Player->GetPlayerState<ABrPlayerState>())
 		{
 			PS->bEliminated = true;
+			PS->ResetArmor();
 			PS->ForceNetUpdate();
 		}
 	}

@@ -16,6 +16,7 @@
 #include "BrInputConfig.h"
 #include "BrInventoryComponent.h"
 #include "BrHealthComponent.h"
+#include "BrArmorComponent.h"
 #include "BrCombatVisual.h"
 #include "BrCombatMath.h"
 #include "BrGameMode.h"
@@ -68,6 +69,7 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	GetMesh()->bEnableUpdateRateOptimizations = true;
 
 	Health = CreateDefaultSubobject<UBrHealthComponent>(TEXT("Health"));
+	Armor = CreateDefaultSubobject<UBrArmorComponent>(TEXT("Armor"));
 	HitFeedback = CreateDefaultSubobject<UBrHitFeedbackComponent>(TEXT("HitFeedback"));
 	Inventory = CreateDefaultSubobject<UBrInventoryComponent>(TEXT("Inventory"));
 	Life = CreateDefaultSubobject<UBrLifeComponent>(TEXT("Life"));
@@ -477,14 +479,19 @@ float ABrCharacter::TakeDamage(float Damage, const FDamageEvent& Event, AControl
 	const float Adjusted = bZone ? Damage : FBrCombatMath::Damage(Damage, GetPosture(), bExplosion, Settings->bGrenadePostureDamage,
 		Settings->StandingDamageMultiplier, Settings->CrouchingDamageMultiplier, Settings->ProneDamageMultiplier);
 	const float BeforeHealth = Health->Health;
+	const auto ArmorDamage = Armor->Absorb(Adjusted, bZone);
 	// Capture opponent identity before the health delegate can enter Down().
 	Life->SetPendingDowner(Mode->CaptureOpponentDowner(Source, this, bZone));
-	const float Applied = Super::TakeDamage(Adjusted, Event, InstigatorController, Causer);
+	// Do not broadcast a zero-health-damage event for an armor-only hit.
+	const float HealthApplied = ArmorDamage.Remainder > 0 ?
+		Super::TakeDamage(ArmorDamage.Remainder, Event, InstigatorController, Causer) : 0;
+	const float Applied = ArmorDamage.Absorbed + HealthApplied;
 	Life->SetPendingDowner(FString());
 	// The downing hit is deliberately excluded, just like all damage while downed.
 	// Only native combat events carry an authoritative launch/explosion origin.
 	if ((bBullet || bExplosion) && Event.IsOfType(FBrDamageEvent::ClassID))
-		HitFeedback->ServerDamage(BeforeHealth - Health->Health, static_cast<const FBrDamageEvent&>(Event).Origin, bExplosion);
+		HitFeedback->ServerDamage(ArmorDamage.Absorbed + BeforeHealth - Health->Health,
+			static_cast<const FBrDamageEvent&>(Event).Origin, bExplosion);
 	if (Applied > 0 && Life->State == EBrLifeState::Downed && !bSelf && !bZone) Mode->CreditDown(Source);
 	if (Applied > 0) Life->DamageReceived();
 	return Applied;
@@ -627,6 +634,7 @@ void ABrCharacter::NotifyControllerChanged()
 void ABrCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
+	Armor->RestoreFromPlayerState();
 	ApplyTeamColor();
 	RequestAutoPickupRetry(); // Initial overlaps can happen before possession.
 }

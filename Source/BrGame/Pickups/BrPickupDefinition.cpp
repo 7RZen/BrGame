@@ -4,6 +4,7 @@
 #include "BrCharacter.h"
 #include "BrDeveloperSettings.h"
 #include "BrHealthComponent.h"
+#include "BrArmorComponent.h"
 #include "BrInventoryComponent.h"
 #include "BrLifeComponent.h"
 #include "BrGameMode.h"
@@ -92,6 +93,19 @@ bool UBrHealthPickupDefinition::Apply(ABrCharacter* Character, FBrPickupPayload&
 	Health->Heal(FBrPickupRules::HealthGrant(Before, Health->MaxHealth, HealthFraction));
 	Payload.Feedback = FString::Printf(TEXT("+%.0f HP"), Health->Health - Before);
 	return Health->Health > Before;
+}
+
+bool UBrArmorPickupDefinition::CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const
+{
+	return Super::CanApply(Character, Payload) && Character->GetArmor()->CanAddPlate();
+}
+
+bool UBrArmorPickupDefinition::Apply(ABrCharacter* Character, FBrPickupPayload& Payload) const
+{
+	if (!IsValid(Character) || !Character->HasAuthority() || !CanApply(Character, Payload) ||
+		!Character->GetArmor()->AddPlate()) return false;
+	Payload.Feedback = FString::Printf(TEXT("+%.0f armor"), UBrDeveloperSettings::Get()->ArmorPlateValue);
+	return true;
 }
 
 bool UBrGrenadePickupDefinition::CanApply(const ABrCharacter* Character, const FBrPickupPayload& Payload) const

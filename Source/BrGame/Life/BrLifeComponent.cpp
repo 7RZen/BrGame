@@ -435,6 +435,7 @@ void UBrLifeComponent::Eliminate()
 	if (ABrPlayerState* PS = Character()->GetPlayerState<ABrPlayerState>())
 	{
 		PS->bEliminated = true;
+		PS->ResetArmor();
 		PS->ForceNetUpdate();
 	}
 	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())

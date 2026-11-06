@@ -6,6 +6,7 @@
 #include "BrCharacterMovementComponent.h"
 #include "BrInventoryComponent.h"
 #include "BrHealthComponent.h"
+#include "BrArmorComponent.h"
 #include "BrLifeComponent.h"
 #include "BrDeveloperSettings.h"
 #include "BrPlayerState.h"
@@ -71,6 +72,34 @@ void ABrHUD::DrawHUD()
 			DrawText(TEXT("Dead - eliminated for this round"), FLinearColor::Yellow, 20, 20);
 	}
 	const ABrCharacter* Character = PlayerOwner ? Cast<ABrCharacter>(PlayerOwner->GetPawn()) : nullptr;
+	const ABrPlayerController* ArmorPC = Cast<ABrPlayerController>(PlayerOwner);
+	if (Canvas && ArmorPC)
+	{
+		const ABrCharacter* Viewed = ArmorPC->IsFlowSpectating() ?
+			Cast<ABrCharacter>(ArmorPC->GetViewTarget()) : Character;
+		const TArray<float>* Plates = ArmorPC->IsFlowSpectating() ? ArmorPC->GetSpectatorArmor(Viewed) :
+			Viewed && Viewed->IsLocallyControlled() ? &Viewed->GetArmor()->GetPlates() : nullptr;
+		if (Viewed && ArmorPC->IsFlowSpectating())
+			DrawText(FString::Printf(TEXT("Health: %.0f / %.0f"),
+				Viewed->GetHealth()->Health, Viewed->GetHealth()->MaxHealth), FLinearColor::White, 20, 80);
+		if (Plates)
+		{
+			const UBrDeveloperSettings* S = UBrDeveloperSettings::Get();
+			const int32 Slots = FBrArmorRules::Capacity(S->MaxArmorPlates);
+			DrawText(TEXT("Armor"), FLinearColor(0.3f, 0.7f, 1), 210, 60);
+			const float Width = 150.f / FMath::Max(1, Slots);
+			for (int32 I = 0; I < Slots; ++I)
+			{
+				const float Value = Plates->IsValidIndex(I) ? (*Plates)[I] : 0;
+				const float X = 210 + I * Width;
+				DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 0.8f), X, 80, Width - 2, 8);
+				DrawRect(FLinearColor(0.3f, 0.7f, 1), X, 80, (Width - 2) *
+					FMath::Clamp(Value / FMath::Max(0.01f, S->ArmorPlateValue), 0.f, 1.f), 8);
+				if (Slots <= 6)
+					DrawText(FString::Printf(TEXT("%.0f"), Value), FLinearColor::White, X, 92);
+			}
+		}
+	}
 	if (!Canvas || !Character || !Character->IsLocallyControlled())
 	{
 		return;

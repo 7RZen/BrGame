@@ -5,7 +5,7 @@
 /** Pure policy; indices match the developer crate definition list. */
 struct FBrCrateRules
 {
-	enum ELoot { Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100, TypeCount };
+	enum ELoot { Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100, Armor, TypeCount };
 	static int32 Count(FRandomStream& Stream, int32 Min, int32 Max)
 	{
 		Min = FMath::Clamp(Min, 0, 100);
@@ -13,7 +13,7 @@ struct FBrCrateRules
 	}
 	static TArray<int32> Roll(FRandomStream& Stream, int32 ARMin, int32 ARMax, float MGChance,
 		int32 HealthMin, int32 HealthMax, const TArray<float>& HealthWeights,
-		int32 AmmoMin, int32 AmmoMax, int32 GrenadeMin, int32 GrenadeMax)
+		int32 AmmoMin, int32 AmmoMax, int32 GrenadeMin, int32 GrenadeMax, int32 ArmorMin, int32 ArmorMax)
 	{
 		TArray<int32> Result = { Pistol };
 		auto Add = [&](int32 Type, int32 N) { for (int32 I = 0; I < N; ++I) Result.Add(Type); };
@@ -27,6 +27,7 @@ struct FBrCrateRules
 			const int32 Size = FBrPickupRules::WeightedIndex(HealthWeights, Stream);
 			if (Size >= 0 && Size < 3) Result.Add(Health20 + Size);
 		}
+		Add(Armor, Count(Stream, ArmorMin, ArmorMax));
 		return Result;
 	}
 	static FVector Scatter(FRandomStream& Stream, float Min, float Max)

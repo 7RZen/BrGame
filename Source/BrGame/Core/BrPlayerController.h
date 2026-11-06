@@ -5,6 +5,7 @@
 #include "BrMatchSettings.h"
 #include "BrAudioRules.h"
 #include "BrMovement.h"
+#include "BrArmorComponent.h"
 #include "BrPlayerController.generated.h"
 
 class UBrInputConfig;
@@ -33,6 +34,11 @@ public:
 	void ClientAudioSmokeProbe(int32 Stage, FVector_NetQuantize Origin);
 	UFUNCTION(Client, Reliable)
 	void ClientHitSmokeProbe(int32 Stage, bool bVictim, FVector_NetQuantize Origin);
+	/** Development diagnostics only: clients inspect local replication, never receive armor values here. */
+	UFUNCTION(Client, Reliable)
+	void ClientArmorSmokeProbe(int32 Stage, int32 TargetId, bool bOwner);
+	UFUNCTION(Server, Reliable)
+	void ServerArmorSmokeResult(int32 Stage, int32 TargetId, bool bPass);
 	UFUNCTION(Client, Reliable)
 	void ClientSprintSmoke(bool bStart, FVector Location);
 	/** Development fixture only; normal predicted CMC input carries posture to authority. */
@@ -56,6 +62,8 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerCycleSpectator();
 	void ServiceSpectator();
+	void RefreshSpectatorArmor();
+	const TArray<float>* GetSpectatorArmor(const ABrCharacter* ViewedPawn) const;
 	void ResetFlowRequests();
 	UFUNCTION(BlueprintPure, Category="Spectating")
 	ABrPlayerState* GetSpectatorTarget() const { return SpectatorTarget; }
@@ -112,6 +120,8 @@ public:
 #if !UE_BUILD_SHIPPING
 	void ReportMatchSmokeReady(ABrCharacter* ObserverPawn);
 	bool IsMatchSmokeReady() const { return MatchSmokeReadyPawn.IsValid() && MatchSmokeReadyPawn.Get() == GetPawn(); }
+	void BeginArmorSmokeProbe(int32 Stage, ABrCharacter* Target);
+	bool HasArmorSmokePassed(int32 Stage) const { return ArmorSmokeExpectedStage == Stage && bArmorSmokePassed; }
 #endif
 	UFUNCTION(Client, Reliable)
 	void ClientPickupFeedback(const FString& Feedback);
@@ -124,6 +134,7 @@ protected:
 	virtual void SetupInputComponent() override;
 
 private:
+	friend class FBrArmorRuntimeTest;
 	UPROPERTY(Transient)
 	TObjectPtr<UBrMenuWidget> MenuWidget;
 	FTimerHandle LeaveTimer, UnstuckTimer;
@@ -145,6 +156,16 @@ private:
 	FVector AudioSmokeOrigin = FVector::ZeroVector;
 	int32 AudioSmokeFire = 0, AudioSmokeSteps = 0, AudioSmokeDown = 0, AudioSmokeProneBaseline = 0;
 	uint32 HitSmokeBaseline = 0;
+	int32 ArmorSmokeExpectedStage = -1, ArmorSmokeExpectedTargetId = INDEX_NONE;
+	bool bArmorSmokePassed = false;
+	int32 ArmorSmokeProbeStage = 0;
+	bool bArmorSmokeProbeOwner = false;
+	int32 ArmorSmokeProbeTargetId = INDEX_NONE;
+	bool bArmorSmokeBaselineCaptured = false;
+	FTimerHandle ArmorSmokeProbeTimer;
+	float ArmorSmokeProbeDeadline = 0, ArmorSmokeStableSince = -1, ArmorSmokeHealth = 0;
+	uint32 ArmorSmokeHitBaseline = 0, ArmorSmokeSoundBaseline = 0, ArmorSmokeBreakSounds = 0;
+	void ServiceArmorSmokeProbe();
 #endif
 	UPROPERTY(VisibleAnywhere, Category="Fog")
 	TObjectPtr<UBrFogComponent> Fog;
@@ -158,6 +179,8 @@ private:
 	 * authoritative pawn too so a newly opened fog channel can resolve directly. */
 	UPROPERTY(ReplicatedUsing=OnRep_SpectatorTarget)
 	TObjectPtr<ABrCharacter> FlowSpectatorPawn;
+	UPROPERTY(Replicated)
+	FBrSpectatorArmor SpectatorArmor;
 	TWeakObjectPtr<APawn> AppliedSpectatorPawn;
 	float LastSpectatorRequest = -1;
 	float NextSpectatorLog = 0;

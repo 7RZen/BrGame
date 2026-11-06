@@ -27,6 +27,10 @@ public:
 	void RestoreQuests(const FBrQuestJournal& Journal);
 	void SetTeam(int32 NewTeam, FLinearColor Color);
 	void ResetRound();
+	/** Server-only persistent pawn-independent armor, never replicated on this public actor. */
+	const TArray<float>& GetArmorPlates() const { return ArmorPlates; }
+	void StoreArmorPlates(const TArray<float>& Values);
+	void ResetArmor();
 	UPROPERTY(Replicated, BlueprintReadOnly, Category="Life")
 	int32 DeathCount = 0;
 	UPROPERTY(Replicated, BlueprintReadOnly, Category="Life")
@@ -39,6 +43,8 @@ public:
 	FBrLifeBookkeeping GetLifeBookkeeping() const;
 	void RestoreLifeBookkeeping(const FBrLifeBookkeeping& Life);
 private:
+	UPROPERTY(Transient)
+	TArray<float> ArmorPlates;
 	UFUNCTION()
 	void OnRep_Team();
 };

@@ -45,7 +45,7 @@ void ABrPickupManager::Initialize(int32 PlayersAtStart)
 		S->CrateHealthWeights.Num() != 3 ||
 		FBrPickupRules::WeightedIndex(S->CrateHealthWeights, Stream) == INDEX_NONE)
 	{
-		UE_LOG(LogBr, Error, TEXT("Crates disabled: require eight definitions and three positive-total health weights"));
+		UE_LOG(LogBr, Error, TEXT("Crates disabled: require nine definitions and three positive-total health weights"));
 		return;
 	}
 	for (const auto& Ref : S->CrateDefinitions)
@@ -58,6 +58,13 @@ void ABrPickupManager::Initialize(int32 PlayersAtStart)
 			return;
 		}
 		Definitions.Add(Definition);
+	}
+	if (!Cast<UBrArmorPickupDefinition>(Definitions[FBrCrateRules::Armor]) ||
+		Definitions[FBrCrateRules::Armor]->bRequiresInteract)
+	{
+		UE_LOG(LogBr, Error, TEXT("Crates disabled: Armor must be an automatic BrArmorPickupDefinition."));
+		Definitions.Reset();
+		return;
 	}
 	QuestDefinition = Cast<UBrQuestPickupDefinition>(S->QuestPickup.LoadSynchronous());
 	if (!QuestDefinition || !QuestDefinition->bRequiresInteract)
@@ -292,7 +299,8 @@ bool ABrPickupManager::LandCrate(ABrSupplyCrate* Crate)
 	}
 	const TArray<int32> Loot = FBrCrateRules::Roll(Stream, FMath::Clamp(S->CrateARMin, 1, 2),
 		FMath::Clamp(S->CrateARMax, 1, 2), S->CrateMGChance, S->CrateHealthMin, S->CrateHealthMax,
-		S->CrateHealthWeights, S->CrateAmmoMin, S->CrateAmmoMax, S->CrateGrenadeMin, S->CrateGrenadeMax);
+		S->CrateHealthWeights, S->CrateAmmoMin, S->CrateAmmoMax, S->CrateGrenadeMin, S->CrateGrenadeMax,
+		S->CrateArmorMin, S->CrateArmorMax);
 	int32 Spawned = 0, Closer = 0;
 	for (const int32 Type : Loot)
 	{

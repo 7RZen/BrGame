@@ -255,7 +255,7 @@ void UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound
 {
 	UWorld* World = GetWorld();
 	if (!World || World->GetNetMode() == NM_DedicatedServer) return;
-	if (Kind != EBrSoundKind::Pickup)
+	if (Kind != EBrSoundKind::Pickup && Kind != EBrSoundKind::ArmorBreak)
 	{
 		const ABrPlayerController* PC = Cast<ABrPlayerController>(World->GetFirstPlayerController());
 		if (!ListenerPawn(PC) || !FBrAudioRules::InRange(Location, ListenerPosition(PC), Range(Kind))) return;
@@ -293,7 +293,11 @@ void UBrAudioSubsystem::Play(EBrSoundKind Kind, TSoftObjectPtr<USoundBase> Sound
 		}
 		Concurrencies.Add(Category, Concurrency);
 	}
-	if (Kind == EBrSoundKind::Pickup) { UGameplayStatics::PlaySound2D(World, Wave, 1, 1, 0, Concurrency); return; }
+	if (Kind == EBrSoundKind::Pickup || Kind == EBrSoundKind::ArmorBreak)
+	{
+		UGameplayStatics::PlaySound2D(World, Wave, 1, 1, 0, Concurrency);
+		return;
+	}
 	USoundAttenuation* Attenuation = Attenuations.FindRef(Kind);
 	if (!Attenuation)
 	{

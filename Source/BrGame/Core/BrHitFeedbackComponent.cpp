@@ -53,11 +53,11 @@ void UBrHitFeedbackComponent::EndPlay(const EEndPlayReason::Type Reason)
 	Indicators.Reset();
 	Super::EndPlay(Reason);
 }
-void UBrHitFeedbackComponent::ServerDamage(float LostHealth, const FVector& Origin, bool bExplosion)
+void UBrHitFeedbackComponent::ServerDamage(float DamageReceived, const FVector& Origin, bool bExplosion)
 {
 	if (!GetOwner()->HasAuthority() || Origin.ContainsNaN() ||
-		!FBrHitFeedbackRules::DamageEligible(LostHealth, Character()->GetLife()->IsAlive(), Character()->GetLife()->IsInvulnerable())) return;
-	ClientDamage(Origin, bExplosion, static_cast<uint8>(FMath::Clamp(FMath::CeilToInt(LostHealth), 1, 255)));
+		!FBrHitFeedbackRules::DamageEligible(DamageReceived, Character()->GetLife()->IsAlive(), Character()->GetLife()->IsInvulnerable())) return;
+	ClientDamage(Origin, bExplosion, static_cast<uint8>(FMath::Clamp(FMath::CeilToInt(DamageReceived), 1, 255)));
 	MulticastReaction((Character()->GetActorLocation() - Origin).GetSafeNormal2D());
 }
 void UBrHitFeedbackComponent::ClientDamage_Implementation(FVector_NetQuantize Origin, bool bExplosion, uint8 Damage)

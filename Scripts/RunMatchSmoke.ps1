@@ -44,7 +44,7 @@ function WaitLog([string]$Role, [string]$Pattern, [int]$Minimum = 1) {
             if ($Process.HasExited) { throw "Launched PID $($Process.Id) exited early: $($Process.ExitCode)" }
         }
         foreach ($ProbeLog in Get-ChildItem -LiteralPath $Logs -Filter *.log) {
-            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E HIT PROBE FAIL|E2E SPRINT (CLIENT|SERVER) FAIL|E2E SLIDE .*FAIL" | Select-Object -Last 1
+            $Failure = Select-String -Path $ProbeLog.FullName -Pattern "E2E MATCH SMOKE FAIL|E2E MESH POSE FAIL|E2E AUDIO PROBE FAIL|E2E HIT PROBE FAIL|E2E ARMOR PROBE FAIL|E2E SPRINT (CLIENT|SERVER) FAIL|E2E SLIDE .*FAIL" | Select-Object -Last 1
             if ($Failure) { throw "$($ProbeLog.Name) E2E assertion failed: $($Failure.Line)" }
         }
         if (Test-Path -LiteralPath $File) {
@@ -96,6 +96,19 @@ try {
     foreach ($Stage in 1..5) {
         WaitLog "Client3" "E2E AUDIO PROBE PASS Stage=$Stage " 2
     }
+    foreach ($Stage in 1..2) {
+        WaitLog "Client3" "E2E ARMOR PROBE PASS Owner=0 Private=1 Stage=$Stage Visible=1" 2
+        $ArmorOwners = @(Get-ChildItem -LiteralPath $Logs -Filter "Client*.log" |
+            Select-String -Pattern "E2E ARMOR PROBE PASS Owner=1 Stage=$Stage ")
+        if ($ArmorOwners.Count -ne 2) { throw "Expected one owning-client armor assertion per round at stage $Stage; found $($ArmorOwners.Count)." }
+        $ArmorOwners | ForEach-Object { Write-Output $_.Line }
+    }
+    $ArmorSpectators = @(Get-ChildItem -LiteralPath $Logs -Filter "Client*.log" |
+        Select-String -Pattern "E2E ARMOR PROBE PASS Spectator=1 Mirror=1")
+    if ($ArmorSpectators.Count -ne 2) { throw "Expected one remote spectator armor assertion per round; found $($ArmorSpectators.Count)." }
+    $ArmorSpectators | ForEach-Object { Write-Output $_.Line }
+    WaitLog "Host" "E2E ARMOR PROBE PASS Authority=1 Absorbed=10 .*HitFeedback=1 BreakSoundRoute=1 Private=1" 2
+    WaitLog "Host" "E2E ARMOR PROBE PASS Authority=1 Spectator=1 Mirror=1" 2
     WaitLog "Host" "E2E SECOND ROUND CLEAN"
     WaitLog "Host" "Flow ready: L_Town Lobby=0" 2
     WaitLog "Host" "Flow Results:"
@@ -121,7 +134,7 @@ try {
         if ($Count -lt $Minimum) { throw "Expected $Minimum '$Pattern' assertions in host log, found $Count." }
     }
     foreach ($File in Get-ChildItem -LiteralPath $Logs -Filter *.log) {
-        $Errors = @(Select-String -Path $File.FullName -Pattern "LogBr: Error|Fatal error|Assertion failed|Ensure condition failed|LogScript: Warning|E2E MATCH SMOKE FAIL")
+        $Errors = @(Select-String -Path $File.FullName -Pattern "LogBr: Error|Fatal error|Assertion failed|Ensure condition failed|LogScript: Warning|E2E MATCH SMOKE FAIL|E2E ARMOR PROBE FAIL")
         if ($Errors.Count) {
             $Errors | ForEach-Object { Write-Output $_.Line }
             throw "Smoke log errors in $($File.Name)"

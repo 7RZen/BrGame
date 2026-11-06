@@ -22,7 +22,8 @@ class BRGAME_API UBrHitFeedbackComponent : public UActorComponent
 	GENERATED_BODY()
 public:
 	UBrHitFeedbackComponent();
-	void ServerDamage(float LostHealth, const FVector& Origin, bool bExplosion);
+	/** Effective damage includes armor absorbed as well as health lost. */
+	void ServerDamage(float DamageReceived, const FVector& Origin, bool bExplosion);
 	void Camera(FMinimalViewInfo& View) const;
 	void Draw(AHUD* HUD, UCanvas* Canvas) const;
 	/** Called by the character's existing tick; true also on the final restoration frame. */

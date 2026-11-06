@@ -53,6 +53,12 @@ def samples(name, duration, seed, kind, frequency):
         elif kind == "step":
             value = (0.45 * noise * math.exp(-t * 60) +
                      0.5 * math.sin(2 * math.pi * frequency * t) * math.exp(-t * 45))
+        elif kind == "shatter":
+            # Plate crack: sharp broadband transient plus fast-decaying inharmonic partials (dissonant, glassy/metallic).
+            partials = [(1.0, 0.5), (1.47, 0.35), (2.13, 0.25), (2.9, 0.18)]
+            tone = sum(a * math.sin(2 * math.pi * frequency * r * t) for r, a in partials)
+            value = (0.7 * noise * math.exp(-t * 110) + 0.35 * tone * math.exp(-t * 26) +
+                     0.15 * low * math.exp(-t * 8))
         elif kind == "slide":
             value = (noise * 0.24 + low * 1.8) * math.sin(math.pi * t / duration) ** 0.6
         else:
@@ -96,6 +102,8 @@ def main():
         specs += [("Step_Run" + str(n), 0.14, "step", 95 + n * 15),
                   ("Step_Soft" + str(n), 0.10, "step", 160 + n * 20)]
     specs += [("Slide", settings.get_editor_property("SlideDuration"), "slide", 0)]
+    # Appended last so earlier seeds (index-based) are unchanged. Plays on PickupVoice (category "Pickup").
+    specs += [("ArmorBreak", 0.45, "shatter", 1250)]
     for seed, (key, duration, kind, frequency) in enumerate(specs):
         name = "SW_" + key
         file = SOURCE / (name + ".wav")

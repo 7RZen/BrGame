@@ -190,6 +190,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundBase> DefaultPickupSound;
 	UPROPERTY(Config, EditAnywhere, Category="Audio")
+	TSoftObjectPtr<USoundBase> ArmorBreakSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/BrGame/Audio/SW_ArmorBreak.SW_ArmorBreak")));
+	UPROPERTY(Config, EditAnywhere, Category="Combat|Armor", meta=(ClampMin="0.01", ClampMax="1000"))
+	float ArmorPlateValue = 20;
+	UPROPERTY(Config, EditAnywhere, Category="Combat|Armor", meta=(ClampMin="0", ClampMax="100"))
+	int32 MaxArmorPlates = 2;
+	UPROPERTY(Config, EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundClass> MasterSoundClass;
 	UPROPERTY(Config, EditAnywhere, Category="Audio")
 	TSoftObjectPtr<USoundClass> EffectsSoundClass;
@@ -273,7 +280,7 @@ public:
 	/** Required interactive quest token; missing asset cancels crate landings. */
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
 	TSoftObjectPtr<UBrPickupDefinition> QuestPickup;
-	/** Ordered: Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100. */
+	/** Ordered: Pistol, AssaultRifle, MachineGun, Ammo, Grenade, Health20, Health50, Health100, Armor. */
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot")
 	TArray<TSoftObjectPtr<UBrPickupDefinition>> CrateDefinitions;
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="1", ClampMax="2"))
@@ -296,6 +303,10 @@ public:
 	int32 CrateGrenadeMin = 2;
 	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
 	int32 CrateGrenadeMax = 4;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateArmorMin = 2;
+	UPROPERTY(Config, EditAnywhere, Category="Crates|Loot", meta=(ClampMin="0", ClampMax="100"))
+	int32 CrateArmorMax = 8;
 	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="1", ClampMax="256"))
 	int32 CratePlacementAttempts = 64;
 	UPROPERTY(Config, EditAnywhere, Category="Crates", meta=(ClampMin="300", Units="cm"))
