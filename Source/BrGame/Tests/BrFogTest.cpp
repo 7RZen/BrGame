@@ -1,6 +1,21 @@
 #include "BrFogRules.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
+#include <limits>
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrFogBlurTuningTest, "BrGame.Fog.BlurTuning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrFogBlurTuningTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Disabled ignores configured radius"), FBrFogRules::DimBlurRadius(false, 37.f), 0.f);
+	TestEqual(TEXT("Interior tuning preserved"), FBrFogRules::DimBlurRadius(true, 37.f), 37.f);
+	TestEqual(TEXT("Negative config cannot invert kernel"), FBrFogRules::DimBlurRadius(true, -7.f), 0.f);
+	TestEqual(TEXT("Oversized config bounded"), FBrFogRules::DimBlurRadius(true, 1e6f),
+		FBrFogRules::DimBlurRadius(true, 40.f));
+	TestEqual(TEXT("Non-finite config disables kernel"),
+		FBrFogRules::DimBlurRadius(true, std::numeric_limits<float>::infinity()), 0.f);
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrFogVisibilityTest, "BrGame.Fog.Visibility",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

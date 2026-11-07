@@ -125,6 +125,20 @@ count and test both modes.
   eliminate one player, and join during a match. Expected: unseen enemies are
   absent on the remote client, teammates share vision, spectators see eligible
   players, and late joiners spawn away from enemies.
+- [ ] **#31 fog blur (host, remote, spectator):** traverse textured terrain, then
+  look back into explored dim terrain: subtle readable blur and 0.6 dimming
+  must ramp together over 2 s; re-entering vision restores sharp details.
+  Test min/max wheel zoom and camera rotation: the radius stays world-sized.
+  Check visible→dim and dim→black edges at thin walls, doors, raised cover and
+  unexplored high-contrast props: no outward LOS/exploration growth or imported
+  hidden scene details. Friends and depth-matched static obstacles stay sharp;
+  compare contrasting explored floors separated by 10/15/20 cm walls at
+  content radii 25/40 cm. Three intermediate depth probes are approximate:
+  inspect subpixel walls and spans narrower than the probe gap at each zoom.
+  Occluded friend stencils never light the wall/floor. Disable `bFogDimBlur` to
+  compare content; `FogEdgeFeather=0` independently disables edge softness.
+  Minimap/full map remain unchanged. Measure PostProcess GPU time with blur
+  on/off at a fixed camera/resolution and record device, zoom and dim coverage.
 - [ ] **Minimap/full map:** rotate/zoom and approach the zone edge; press M,
   move/fire with the full map open, then close with M/Esc (also test rebinding).
   Expected: minimap screen-up follows camera forward; north-up full map fits

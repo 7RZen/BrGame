@@ -57,11 +57,13 @@ function WaitLog($Role, $Pattern) {
 try {
     $URL = "/Game/BrGame/Maps/L_Lobby?listen?Name=FogHost"
     if ($Grouped) { $URL += "?Mode=Grouped?NumGroups=2" }
-    $MatchExtra = @()
+    # Do not let a machine-local saved host map choice invalidate the smoke's
+    # expected level (or turn a Town render check into a Battlefield check).
+    $MatchExtra = @("-BrSmokeMapId=Town")
     if ($MatchLevel -ne "L_Town") {
-        # Override the match map for this run only (e.g. Lvl_TopDown). Default run uses DefaultGame.ini (L_Town).
+        # Override the match map for this run only; the default is explicitly Town.
         if ($MatchLevel -ne "Lvl_TopDown") { throw "Unknown allowlisted MatchLevel: $MatchLevel" }
-        $MatchExtra += "-BrSmokeMapId=TestArena"
+        $MatchExtra = @("-BrSmokeMapId=TestArena")
     }
     Launch "Host" $URL (@("-Port=$Port", "-BrFlowSmoke") + $MatchExtra)
     WaitLog "Host" "Flow ready: L_Lobby Lobby=1"

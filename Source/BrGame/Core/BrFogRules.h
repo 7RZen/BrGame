@@ -4,6 +4,14 @@
 /** Pure policy shared by replication, local rendering and tests. */
 struct FBrFogRules
 {
+	/** Also clamp hand-edited config, including non-finite values, before MID upload. */
+	static float DimBlurRadius(bool bEnabled, float Radius)
+	{
+		// Three screen-segment probes divide the content kernel into four gaps.
+		// Keep the longest nominal world-space gap at 10 cm (see validation doc).
+		return bEnabled && FMath::IsFinite(Radius) ? FMath::Clamp(Radius, 0.f, 40.f) : 0.f;
+	}
+
 	template <typename T>
 	static T Viewer(bool bSpectating, T Own, T Target) { return bSpectating ? Target : Own; }
 

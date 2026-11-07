@@ -43,7 +43,8 @@ namespace
 		{TEXT("forest"), 7000.0, -6000.0},
 	};
 	constexpr int32 ShotPointCount = UE_ARRAY_COUNT(ShotPoints);
-	constexpr float ShotSettleSeconds = 2.0f;
+	// Give dense_explored at least the default 2 s dim fade plus an update margin.
+	constexpr float ShotSettleSeconds = 3.0f;
 }
 
 void ABrGameMode::ServiceShotSmoke()

@@ -386,4 +386,6 @@ void UBrFogComponent::Update()
 	Material->SetScalarParameterValue(TEXT("DimOpacity"), FMath::Clamp(Settings->DimOpacity, 0.f, 1.f));
 	Material->SetScalarParameterValue(TEXT("FogDimDelay"), FMath::Max(0.01f, Settings->FogDimDelay));
 	Material->SetScalarParameterValue(TEXT("EdgeFeather"), FMath::Clamp(Settings->FogEdgeFeather, 0.f, 150.f));
+	Material->SetScalarParameterValue(TEXT("DimBlurRadius"),
+		FBrFogRules::DimBlurRadius(Settings->bFogDimBlur, Settings->FogDimBlurRadius));
 }

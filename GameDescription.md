@@ -32,6 +32,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | GitHub #16 | Movement louder than gunfire | Per-sound developer volumes (Audio \| Volume) plus per-weapon FireVolume; footsteps rebalanced below gunfire; automation 31/31 and live-device audio smoke passed; listening check pending; validation: Scripts/Issue16SoundVolumeValidation.md |
 | GitHub #24 | Reduce crate spread | Contents scatter halved to 250–500 cm; wave spacing kept at 20 m via `CrateWaveSpacing`; validation: Scripts/Issue24CrateSpreadValidation.md |
 | GitHub #30 | Downed penalty items | Implemented including deadline/profile-migration review fixes; editor/game builds and penalty 5/5, full suite 134/134 pass; multiplayer visual/audio checks pending: Scripts/Issue30DownedPenaltyValidation.md |
+| GitHub #31 | More blurring | Implemented: main-view explored-content blur and inward-only softer fog edges; editor/game builds, fog 6/6, full suite 135/135, windowed fog/menu/minimap smokes passed; visual leak/fade/zoom checks and GPU timing pending: Scripts/Issue31FogBlurValidation.md |
 | Issue 16 | Airdrop crates | Implemented; navigation-independent ground checks, per-map waves and public markers; standalone nav data repaired; evidence: Scripts/Issue16CrateValidation.md |
 
 ### Posture presentation
@@ -322,6 +323,9 @@ On top of the hit chance, crouching targets take 75% damage and lying-down targe
 - Unexplored map areas are black.
 - Each player reveals a circle around them; everything inside it (enemies, pickups and so on) is visible. Walls block line of sight.
 - Explored areas outside the circle dim after a few seconds: enemies are hidden, but stationary things like pickups and the map stay visible.
+- Main view only: explored-but-not-currently-visible scene details soften with a subtle 25 cm world-space blur *(dev, `bFogDimBlur` / `FogDimBlurRadius`, 0–40 cm)*. Blur and the existing 0.6 dim opacity ramp together over `FogDimDelay` (2 s), using each center texel's last-seen timestamp. Currently visible scene content stays sharp. Three intermediate screen-depth/stencil/known checks reject content taps that cross rasterized walls or unknown strips; subpixel walls and walls narrower than the probe gap remain a documented map-authoring limitation.
+- Fog boundaries use a 16-tap disk with 60 cm inward-only softness *(dev, `FogEdgeFeather`, 0–150 cm)*, retaining center LOS/exploration gates: unknown stays black and walls cannot gain exploration. Content taps reconstruct their own world position from scene depth, require known coverage and reject surface-height discontinuities; no unmasked bilinear scene-color taps. Depth-matched friends (stencil 1) and validated static obstacles (2–17) retain their existing sharp presentation and obstacle fade.
+- Minimap and full-map materials/masks retain their existing appearance; these blur controls are developer-only, not player comfort or host settings.
 - Teammates share vision.
 - Hidden enemies are not sent to a player's computer at all, so they can't be revealed by cheating.
 

@@ -69,7 +69,7 @@ try {
         $PoseArgs = @($(if ($Slide) { "-BrSlideShot" } elseif ($Skeletons) { "-BrSkeletonShot" } else { "-BrPostureShot" }),
             "-ExecCmds=`"r.MotionBlurQuality 0`"", "-BrPostureShotWidth=$PostureOrthoWidth")
         $AimingArgs = $(if ($Slide -or $Posture -or $Skeletons) { $PoseArgs } elseif ($HitFeedback) { @("-BrHitShot", "-ExecCmds=`"r.MotionBlurQuality 0`"") } elseif ($Aiming) { @("-BrAimingShot") } else { @() })
-        Launch "Host" "/Game/BrGame/Maps/L_Lobby?listen?Name=ShotHost" (@("-Port=$Port", "-BrShotSmoke",
+        Launch "Host" "/Game/BrGame/Maps/L_Lobby?listen?Name=ShotHost" (@("-Port=$Port", "-BrShotSmoke", "-BrSmokeMapId=Town",
             "-ini:Game:[/Script/BrGame.BrDeveloperSettings]:CameraPitchAngle=$CameraPitchAngle") + $AimingArgs)
         WaitLog "Host" "Flow ready: L_Lobby Lobby=1"
         Launch "Client" "127.0.0.1:$Port`?Name=ShotClient" $(if ($Slide -or $Posture -or $Skeletons) { $PoseArgs + @("-ini:Game:[/Script/BrGame.BrDeveloperSettings]:CameraPitchAngle=$CameraPitchAngle") } else { @() }) ($Slide.IsPresent -or $Posture.IsPresent -or $Skeletons.IsPresent)

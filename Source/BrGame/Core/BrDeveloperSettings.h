@@ -292,7 +292,13 @@ public:
 	int32 FogTextureSize = 2048;
 	/** Inward-only mask filtering: never extends LOS past a blocking wall. */
 	UPROPERTY(Config, EditAnywhere, Category="Fog", meta=(ClampMin="0", ClampMax="150", Units="cm"))
-	float FogEdgeFeather = 30;
+	float FogEdgeFeather = 60;
+	/** Main-view explored content only; shares the dimming timestamp/delay. */
+	UPROPERTY(Config, EditAnywhere, Category="Fog")
+	bool bFogDimBlur = true;
+	/** Maximum 40 cm: bounded by the three intermediate screen-depth probes. */
+	UPROPERTY(Config, EditAnywhere, Category="Fog", meta=(ClampMin="0", ClampMax="40", Units="cm", EditCondition="bFogDimBlur"))
+	float FogDimBlurRadius = 25;
 	UPROPERTY(Config, EditAnywhere, Category="Fog", meta=(ClampMin="0", ClampMax="1"))
 	float DimOpacity = 0.6f;
 	UPROPERTY(Config, EditAnywhere, Category="Fog", meta=(ClampMin="0.01", Units="s"))
