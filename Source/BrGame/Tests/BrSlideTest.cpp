@@ -4,6 +4,7 @@
 #include "BrCombatMath.h"
 #include "BrLifeComponent.h"
 #include "BrPlayerController.h"
+#include "BrPlayerState.h"
 #include "BrGameState.h"
 #include "BrInputConfig.h"
 #include "InputMappingContext.h"
@@ -37,6 +38,9 @@ namespace
 			Pawn = World->SpawnActor<ABrCharacter>();
 			auto* PC = World->SpawnActor<ABrPlayerController>();
 			PC->Player = NewObject<ULocalPlayer>(GEngine);
+			// Possession restores armor from BrPlayerState even in a mapless movement fixture.
+			PC->PlayerState = World->SpawnActor<ABrPlayerState>();
+			PC->PlayerState->SetOwner(PC);
 			PC->Possess(Pawn);
 			PC->SetControlRotation(FRotator::ZeroRotator);
 			Move = Pawn->GetBrMovement();

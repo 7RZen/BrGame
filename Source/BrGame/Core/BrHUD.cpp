@@ -8,6 +8,8 @@
 #include "BrHealthComponent.h"
 #include "BrArmorComponent.h"
 #include "BrLifeComponent.h"
+#include "BrPenaltyComponent.h"
+#include "BrPenaltyRules.h"
 #include "BrDeveloperSettings.h"
 #include "BrPlayerState.h"
 #include "BrPickup.h"
@@ -263,6 +265,18 @@ void ABrHUD::DrawPanels()
 	else if (ABrPickup* Pickup = ABrPickup::FindInteractPickup(Character))
 	{
 		LifeText += FString::Printf(TEXT("\nPress %s to pick up %s"), *Binding(TEXT("Br.Interact")), *Pickup->GetPickupLabel().ToString());
+	}
+	const UBrPenaltyComponent* Penalty = Character->GetPenalty();
+	if (Penalty->PlantTarget)
+		LifeText += FString::Printf(TEXT("\nPlanting [%.0f%%]"),
+			100 * FBrPenaltyRules::Progress(Now, Penalty->PlantStartTime, Penalty->PlantEndTime));
+	else if (Penalty->FindPlantTarget())
+		LifeText += FString::Printf(TEXT("\nHold %s to plant"), *Binding(TEXT("Br.Plant")));
+	if (Penalty->Penalty.Definition)
+	{
+		LifeText += FString::Printf(TEXT("\nPenalty: %s"), *Penalty->Penalty.Definition->DisplayName.ToString());
+		LifeText += Penalty->Penalty.StartTime <= 0 ? TEXT(" (on revive/respawn)") :
+			FString::Printf(TEXT(" %.1fs"), FMath::Max(0.f, Penalty->Penalty.EndTime - Now));
 	}
 	PanelText(LifeText, FLinearColor::Yellow, false, LeftY);
 	if (GetWorld()->GetTimeSeconds() < PC->PickupFeedbackUntil)

@@ -6,6 +6,7 @@
 #include "BrGameInstance.h"
 #include "BrCharacter.h"
 #include "BrLifeComponent.h"
+#include "BrPenaltyComponent.h"
 #include "BrInventoryComponent.h"
 #include "BrCharacterMovementComponent.h"
 #include "BrPlayerState.h"
@@ -30,7 +31,8 @@ FString ABrPlayerController::GetBindingLabel(FName MappingName) const
 	if (Profile)
 		if (const FKeyMappingRow* Row = Profile->GetPlayerMappingRows().Find(MappingName))
 			for (const FPlayerKeyMapping& Mapping : Row->Mappings)
-				if (Mapping.GetSlot() == EPlayerMappableKeySlot::First) return Mapping.GetCurrentKey().GetDisplayName().ToString();
+				if (Mapping.GetSlot() == EPlayerMappableKeySlot::First)
+					return Mapping.GetCurrentKey().IsValid() ? Mapping.GetCurrentKey().GetDisplayName().ToString() : TEXT("[unbound]");
 	return TEXT("[input unavailable]"); // Input installation already logs missing config/settings.
 }
 
@@ -82,6 +84,7 @@ void ABrPlayerController::ToggleMenu()
 		BrPawn->GetCharacterMovement()->StopMovementImmediately();
 		BrPawn->GetBrMovement()->SetSprinting(false);
 		BrPawn->GetLife()->StopInteract();
+		BrPawn->GetPenalty()->StopPlant();
 		BrPawn->GetLife()->StopRespawnHold();
 	}
 	MenuWidget = CreateWidget<UBrMenuWidget>(this);

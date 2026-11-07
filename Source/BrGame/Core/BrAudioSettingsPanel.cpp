@@ -12,6 +12,7 @@
 #include "BrMenuRules.h"
 #include "BrDeveloperSettings.h"
 #include "BrInputConfig.h"
+#include "BrInputProfiles.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
@@ -134,12 +135,7 @@ namespace
 		UEnhancedInputUserSettings* User = Input ? Input->GetUserSettings() : nullptr;
 		UBrInputConfig* Config = UBrDeveloperSettings::Get()->InputConfig.LoadSynchronous();
 		if (!User || !Config || !Config->DefaultMappingContext) return nullptr;
-		if (!User->IsMappingContextRegistered(Config->DefaultMappingContext) &&
-			!User->RegisterInputMappingContext(Config->DefaultMappingContext))
-		{
-			UE_LOG(LogBr, Error, TEXT("Settings: input mapping registration failed"));
-			return nullptr;
-		}
+		if (!FBrInputProfiles::Install(User, Config->DefaultMappingContext)) return nullptr;
 		return User;
 	}
 }
@@ -180,7 +176,8 @@ void UBrAudioSettingsPanel::RefreshBindings()
 			Button->MappingName = Name;
 			UTextBlock* Key = WidgetTree->ConstructWidget<UTextBlock>();
 			Key->SetFont(Font);
-			Key->SetText(Mapping.GetCurrentKey().GetDisplayName());
+			Key->SetText(Mapping.GetCurrentKey().IsValid() ? Mapping.GetCurrentKey().GetDisplayName() :
+				FText::FromString(TEXT("Unbound (click to bind)")));
 			Button->AddChild(Key);
 			Button->OnClicked.AddDynamic(Button, &UBrBindingButton::Clicked);
 			Row->AddChildToHorizontalBox(Button);

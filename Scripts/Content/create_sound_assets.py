@@ -68,6 +68,12 @@ def samples(name, duration, seed, kind, frequency):
                         (0.25 + math.exp(-((h * f - 900) / 330) ** 2) +
                          0.6 * math.exp(-((h * f - 1700) / 400) ** 2)) for h in range(1, 12))
             value *= 0.35 * math.sin(math.pi * t / duration) ** 0.5
+        elif kind == "flute":
+            notes = [523.25, 659.25, 587.33, 783.99, 659.25, 587.33, 523.25, 392.0]
+            f = notes[min(7, int(t / 0.25))]
+            phase += 2 * math.pi * f / RATE
+            envelope = math.sin(math.pi * (t % 0.25) / 0.25) ** 0.35
+            value = (0.28 * math.sin(phase) + 0.045 * math.sin(phase * 2) + 0.012 * noise) * envelope
         elif kind == "step":
             value = (0.45 * noise * math.exp(-t * 60) +
                      0.5 * math.sin(2 * math.pi * frequency * t) * math.exp(-t * 45))
@@ -163,6 +169,7 @@ def main():
     specs += [("Reload_Pistol", 1.2, "reload_pistol", 0), ("Reload_AssaultRifle", 1.8, "reload_rifle", 0),
               ("Reload_MachineGun", 3.4, "reload_mg", 0), ("DryFire", 0.12, "dry", 0),
               ("Pain", 0.35, "grunt", 0), ("PainArmor", 0.15, "thud", 140)]
+    specs += [("PenaltyFlute", 2.0, "flute", 0)]
     known = {key for key, _, _, _ in specs}
     unknown = ONLY - known
     if unknown:
@@ -189,7 +196,7 @@ def main():
         if not isinstance(sound, unreal.SoundWave):
             raise RuntimeError("WAV import failed: " + name)
         sound.set_editor_property("sound_class_object", effects)
-        sound.set_editor_property("looping", False)
+        sound.set_editor_property("looping", kind == "flute")
         category = ("Fire" if kind == "fire" else "Explosion" if kind == "boom" else
                     "Downed" if kind == "scream" else "Footstep" if kind in ["step", "slide"] else
                     "Reload" if kind.startswith("reload") else "DryFire" if kind == "dry" else

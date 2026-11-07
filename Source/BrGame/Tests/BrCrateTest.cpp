@@ -105,7 +105,7 @@ bool FBrCrateScheduleTest::RunTest(const FString&)
 	double Time = 123.5;
 	for (int32 I = 0; I < 100; ++I) Time = FBrCrateRules::NextDrop(Time, 12.5f);
 	TestEqual(TEXT("Periodic wave deadline is independent of initial wave count"), Time, 1373.5);
-	TestEqual(TEXT("Armor and new audio network layout requires protocol 16"), FBrSessionRules::Protocol, 16);
+	TestEqual(TEXT("Penalty network layout requires protocol 17"), FBrSessionRules::Protocol, 17);
 	return true;
 }
 

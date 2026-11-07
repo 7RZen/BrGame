@@ -13,6 +13,7 @@
 #include "BrPlayerState.h"
 #include "BrDeveloperSettings.h"
 #include "BrLifeComponent.h"
+#include "BrPenaltyComponent.h"
 #include "BrLifeRules.h"
 #include "BrCorpse.h"
 #include "BrHealthComponent.h"
@@ -485,6 +486,7 @@ bool ABrGameMode::RespawnPlayer(ABrCharacter* OldPawn, const FBrInventoryState& 
 	NewPawn->GetHealth()->SetMaxHealth(MaxHealth);
 	NewPawn->GetHealth()->SetHealth(MaxHealth);
 	NewPawn->GetLife()->GrantSpawnProtection();
+	NewPawn->GetPenalty()->Restore(OldPawn->GetPenalty()->Penalty);
 	UGameplayStatics::FinishSpawningActor(NewPawn, Transform);
 	PC->Possess(NewPawn);
 	if (PC->GetPawn() != NewPawn)
@@ -539,6 +541,7 @@ void ABrGameMode::ClearRoundRecords()
 		return;
 	}
 	RoundRecords.Empty();
+	for (TActorIterator<ABrCharacter> It(GetWorld()); It; ++It) It->GetPenalty()->ResetRound();
 	AcceptedQuestOffers.Reset();
 	if (IsValid(PickupManager)) PickupManager->ClearRoundPickups();
 	for (const TWeakObjectPtr<AController>& Entry : AdmittedControllers)
@@ -593,6 +596,7 @@ void ABrGameMode::RecordPlayer(AController* Player)
 		Record->MaxHealth = Pawn->GetHealth()->MaxHealth;
 		Record->DownedEndTime = Pawn->GetLife()->DownedEndTime;
 		Record->ProtectionEndTime = Pawn->GetLife()->InvulnerabilityEndTime;
+		Record->Penalty = Pawn->GetPenalty()->Penalty;
 		Record->GroundLocation = Pawn->GetActorLocation() -
 			FVector(0, 0, Pawn->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
 		Record->Yaw = Pawn->GetActorRotation().Yaw;
@@ -602,6 +606,7 @@ void ABrGameMode::RecordPlayer(AController* Player)
 		Record->State = EBrLifeState::Eliminated;
 		Record->Health = 0;
 		Record->ArmorPlates.Reset();
+		Record->Penalty = FBrPenaltyState();
 		Record->DownedEndTime = Record->ProtectionEndTime = 0;
 	}
 }
@@ -795,6 +800,12 @@ void ABrGameMode::ServiceRoundRecord(const FString& Key, FBrRoundRecord& Record)
 	                                             Settings->bTimeoutRespawnCountsAsDeath))
 	{
 		ResolveQuestRecord(Record, Record.Life.bEliminated);
+		if (Record.Life.bEliminated) Record.Penalty = FBrPenaltyState();
+		else if (Record.Penalty.Definition && Record.Penalty.StartTime <= 0)
+		{
+			Record.Penalty.StartTime = FMath::Max(UE_SMALL_NUMBER, Record.DownedEndTime);
+			Record.Penalty.EndTime = Record.Penalty.StartTime + Record.Penalty.Definition->Duration;
+		}
 		LeaveRecordedCorpse(Record);
 		Record.bOfflineCorpseLeft = true;
 		Record.DownedEndTime = Record.ProtectionEndTime = 0;
@@ -1035,6 +1046,7 @@ APawn* ABrGameMode::SpawnDefaultPawnAtTransform_Implementation(AController* NewP
 	if (Snapshot.bHasPawnSnapshot)
 	{
 		Pawn->GetInventory()->RestoreState(Snapshot.Gear);
+		Pawn->GetPenalty()->Restore(Snapshot.Penalty);
 		if (Snapshot.State == EBrLifeState::Downed)
 		{
 			Pawn->GetLife()->RestoreDowned(Snapshot.DownedEndTime);

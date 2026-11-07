@@ -64,6 +64,7 @@ public:
 	void CreditDown(const FBrDamageSource& Source, const ABrCharacter* Victim = nullptr);
 	FString CaptureOpponentDowner(const FBrDamageSource& Source, const ABrCharacter* Victim, bool bZone) const;
 	void CommitQuestDown(AController* Victim, const FString& DownerKey);
+	void AwardPlantScore(AController* Player);
 	void ClearQuestDown(AController* Player);
 	void ResolveQuestLife(AController* Player, bool bFinal);
 	bool CanAcceptQuest(AController* Player, const FBrQuestOffer& Offer) const;
@@ -83,6 +84,7 @@ public:
 protected:
 	virtual void HandleMatchHasStarted() override;
 private:
+	friend class FBrPenaltyRuntimeTest;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBrMenuSameFrameForfeitTest;
 	friend class FBrServerAimTest;

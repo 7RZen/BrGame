@@ -31,6 +31,7 @@ This document is the agreed design. Values marked *(dev)* are developer settings
 | GitHub #26 | Narrower play area with side-panel HUD | 4:3 engine-constrained play area, black side panels holding all HUD text, no world text; automation 35/35, shot/flow smokes and 16:9 / 5:4 screenshots passed; validation: Scripts/Issue26SidePanelValidation.md |
 | GitHub #16 | Movement louder than gunfire | Per-sound developer volumes (Audio \| Volume) plus per-weapon FireVolume; footsteps rebalanced below gunfire; automation 31/31 and live-device audio smoke passed; listening check pending; validation: Scripts/Issue16SoundVolumeValidation.md |
 | GitHub #24 | Reduce crate spread | Contents scatter halved to 250–500 cm; wave spacing kept at 20 m via `CrateWaveSpacing`; validation: Scripts/Issue24CrateSpreadValidation.md |
+| GitHub #30 | Downed penalty items | Implemented including deadline/profile-migration review fixes; editor/game builds and penalty 5/5, full suite 134/134 pass; multiplayer visual/audio checks pending: Scripts/Issue30DownedPenaltyValidation.md |
 | Issue 16 | Airdrop crates | Implemented; navigation-independent ground checks, per-map waves and public markers; standalone nav data repaired; evidence: Scripts/Issue16CrateValidation.md |
 
 ### Posture presentation
@@ -116,6 +117,7 @@ Joining a different session leaves the previous session first. Browser joins and
 | Throw grenade | G |
 | Reload | R |
 | Pick up weapon / revive | E (hold to revive) |
+| Plant penalty in downed player | Hold F (10 s; rebindable) |
 | Respawn while downed | Hold Space |
 | Zoom | Mouse wheel |
 | Scoreboard | Tab |
@@ -199,12 +201,19 @@ Base running speed is 600.
 
 ### Downed (dying)
 - When health reaches 0 the player is downed for 30 s *(dev)*. They can't move, shoot or be damaged, and they call for help (the downed pose and the minimap red cross mark them; there is no floating text).
-- Downed players lie on their back, face up, with their head toward their current facing. Turning rotates this grounded pose; the help sign remains overhead. This is separate from the living face-down prone/crawl animation.
-- **Revive:** another player stands within about 150 cm and holds E for 5 s *(dev)*. It is cancelled if they let go, move away or take damage. The revived player gets 30% of their max health *(dev)*. A revive is not a death and has no penalty.
+- Downed players lie on their back, face up, with their head toward their current facing. Turning rotates this grounded pose. This is separate from the living face-down prone/crawl animation; there is no floating help text.
+- **Revive:** another player stands within about 150 cm and holds E for 5 s *(dev)*. It is cancelled if they let go, move away or take damage. The revived player gets 30% of their max health *(dev)*. A revive is not a death and has no max-health penalty; any planted item activates.
 - **Respawn by choice:** hold Space. Each respawn by choice permanently lowers max health by 10% for the round: 1 time = 90, 2 times = 80, and so on.
-- **Timer runs out:** the player respawns with no penalty.
+- **Timer runs out:** the player respawns with no max-health penalty; any planted item activates.
 - **Death limit:** every respawn counts as a death. After 10 deaths *(dev)* the player can no longer respawn, only be revived. If the timer runs out, the player is out of the game.
 - **On respawn:** the player keeps the gear they had, gets full (current max) health, spawns at a random location away from enemies, and can't be hit for 3 s *(dev)*, ending early if they fire.
+- **Plant penalty (#30):** any alive player, teammate or enemy, can hold F for 10 s *(dev: PlantDuration)* within the revive radius. Release, leaving range, damage, becoming non-alive or the target leaving Downed cancels the hold. E retains its existing revive/pickup priority; the left status panel shows the bound Plant key and hold progress.
+- Revive and Plant can run concurrently. A revive completing first cancels Plant with no item or score; Plant completing first leaves the revive running. One successful plant per down, with the earliest-finishing valid planter winning and earning +1 round score. The server picks from the developer's extensible `PenaltyDefinitions` soft-reference list.
+- Delayed service frames resolve the earliest valid Downed-exit deadline consistently for both Plant and life. Exit ties prefer revive, then timeout, then voluntary respawn; any tied exit defeats Plant. Installing new input defaults preserves saved custom bindings: if another customized action already uses F, Plant starts unbound and remains available in settings to bind.
+- A tinted cylinder tube attaches to the pelvis while an item is present, including its dormant downed period. The effect starts on revive/respawn: Rocket lasts 15 s, Smoke/Sound/Buttplug 30 s *(dev, per-definition)*. Downing again does not pause a running timer. A later successful plant replaces it with a new dormant item. Elimination and round reset clear it; reconnect retains the definition, absolute deadline/dormancy and one-per-down flag.
+- **Rocket:** continuous facing-forward movement, 2× weapon-adjusted normal run speed, no sprint/slide or crouch/prone requests; shooting remains allowed. CMC predicts this movement and replays saved facing/time; native collision and uncrouch clearance remain authoritative.
+- **Smoke:** bounded world-space mesh puffs linger up to 2.4 s, with no sound. **Sound:** original looping toy-flute placeholder, positional within nearby hearing range *(dev)*, using the existing Effects/master volume mix. Both follow character relevancy AND local fog visibility, never revealing a hidden player. Optional per-definition Niagara/sound assets can replace the placeholders.
+- **Buttplug:** 0.5× weapon-adjusted normal run speed, sprint/slide disabled. Penalty and weapon speed multipliers multiply; ordinary crouch/prone modifiers still apply unless the item forces standing.
 
 ### Dead (eliminated)
 - Every death leaves a skeleton on the ground for the rest of the round.

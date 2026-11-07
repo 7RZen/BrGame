@@ -16,6 +16,7 @@
 #include "BrLog.h"
 #include "BrCharacterMovementComponent.h"
 #include "BrInputConfig.h"
+#include "BrPenaltyComponent.h"
 #include "BrInventoryComponent.h"
 #include "BrHealthComponent.h"
 #include "BrArmorComponent.h"
@@ -74,6 +75,7 @@ ABrCharacter::ABrCharacter(const FObjectInitializer& ObjectInitializer)
 	HitFeedback = CreateDefaultSubobject<UBrHitFeedbackComponent>(TEXT("HitFeedback"));
 	Inventory = CreateDefaultSubobject<UBrInventoryComponent>(TEXT("Inventory"));
 	Life = CreateDefaultSubobject<UBrLifeComponent>(TEXT("Life"));
+	Penalty = CreateDefaultSubobject<UBrPenaltyComponent>(TEXT("Penalty"));
 	WeaponVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponVisual"));
 	WeaponVisual->SetupAttachment(GetMesh(), TEXT("hand_r"));
 	WeaponVisual->SetCollisionProfileName(TEXT("NoCollision"));
@@ -258,12 +260,15 @@ void ABrCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	Input->BindAction(LoadedInputConfig->FireAction, ETriggerEvent::Canceled, this, &ABrCharacter::FireStopped);
 	Input->BindAction(LoadedInputConfig->ReloadAction, ETriggerEvent::Started, this, &ABrCharacter::Reload);
 	Input->BindAction(LoadedInputConfig->ThrowGrenadeAction, ETriggerEvent::Started, this, &ABrCharacter::ThrowGrenade);
-	if (!LoadedInputConfig->InteractAction || !LoadedInputConfig->RespawnHoldAction)
+	if (!LoadedInputConfig->InteractAction || !LoadedInputConfig->RespawnHoldAction || !LoadedInputConfig->PlantAction)
 	{
 		UE_LOG(LogBr, Error, TEXT("Br life input actions are missing."));
 		return;
 	}
 	Input->BindAction(LoadedInputConfig->InteractAction, ETriggerEvent::Started, this, &ABrCharacter::InteractStarted);
+	Input->BindAction(LoadedInputConfig->PlantAction, ETriggerEvent::Started, this, &ABrCharacter::PlantStarted);
+	Input->BindAction(LoadedInputConfig->PlantAction, ETriggerEvent::Completed, this, &ABrCharacter::PlantStopped);
+	Input->BindAction(LoadedInputConfig->PlantAction, ETriggerEvent::Canceled, this, &ABrCharacter::PlantStopped);
 	Input->BindAction(LoadedInputConfig->InteractAction, ETriggerEvent::Completed, this, &ABrCharacter::InteractStopped);
 	Input->BindAction(LoadedInputConfig->InteractAction, ETriggerEvent::Canceled, this, &ABrCharacter::InteractStopped);
 	Input->BindAction(LoadedInputConfig->RespawnHoldAction, ETriggerEvent::Started, this, &ABrCharacter::RespawnStarted);
@@ -277,6 +282,8 @@ void ABrCharacter::Reload() { if (!IsGameplayInputBlocked()) Inventory->RequestR
 void ABrCharacter::ThrowGrenade() { if (!IsGameplayInputBlocked()) Inventory->RequestGrenade(); }
 void ABrCharacter::InteractStarted() { if (!IsGameplayInputBlocked()) Life->StartInteract(); }
 void ABrCharacter::InteractStopped() { Life->StopInteract(); }
+void ABrCharacter::PlantStarted() { if (!IsGameplayInputBlocked()) Penalty->StartPlant(); }
+void ABrCharacter::PlantStopped() { Penalty->StopPlant(); }
 void ABrCharacter::RespawnStarted() { if (!IsGameplayInputBlocked()) Life->StartRespawnHold(); }
 void ABrCharacter::RespawnStopped() { Life->StopRespawnHold(); }
 
@@ -631,7 +638,7 @@ void ABrCharacter::PossessedBy(AController* NewController)
 
 void ABrCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	GetWorld()->GetTimerManager().ClearTimer(FootstepTimer);
+	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(FootstepTimer);
 	Super::EndPlay(EndPlayReason);
 }
 

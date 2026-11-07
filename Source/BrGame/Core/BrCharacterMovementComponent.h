@@ -75,6 +75,9 @@ public:
 	/** Move-local replay context; never changes the controller's live input rotation. */
 	void PrepareSprintReplay(float FacingYaw, double MoveWorldTime);
 	void FinishSprintReplay();
+	/** Synchronized server time recorded locally; never supplied as client authority. */
+	void PreparePenaltyReplay(float ServerTime) { PenaltyReplayTime = ServerTime; }
+	float PenaltyMoveTime() const;
 	/** Only native move combining rewinds energy. Correction replay uses the server snapshot instead. */
 	void RestoreSprintStateForCombine(const FBrSprintState& State) { Sprint = State; }
 	/** Cancels move intent and starts the fire gate immediately, also before the next CMC update. */
@@ -99,6 +102,7 @@ protected:
 	virtual void CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration) override;
 
 private:
+	friend class FBrPenaltyRuntimeTest;
 	friend class FBrSlideIntegrationTest;
 	friend class FBrSlideReplayTest;
 	friend class FBrSlideReplayWireYawTest;
@@ -134,6 +138,7 @@ private:
 	FBrNetworkMoveDataContainer NetworkMoveData;
 	double SprintFireReadyTime = 0;
 	TOptional<float> SprintReplayYaw;
+	TOptional<float> PenaltyReplayTime;
 	double SprintReplayWorldTime = 0;
 	void UpdateSprint(float DeltaSeconds);
 	void SprintStopped();

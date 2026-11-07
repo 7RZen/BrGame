@@ -64,7 +64,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrSoundWireTest, "BrGame.Sounds.WireAndProfile
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FBrSoundWireTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("Protocol"), FBrSessionRules::Protocol, 16);
+	TestEqual(TEXT("Protocol"), FBrSessionRules::Protocol, 17);
 	for (uint8 Kind = 0; Kind <= 14; ++Kind)
 	{
 		FBrSoundType Source;

@@ -11,6 +11,15 @@ enum class EBrReviveRule : uint8 { Anyone, TeammatesOnly };
 
 enum class EBrDownedOutcome : uint8 { Refused, VoluntaryRespawn, TimeoutRespawn, Eliminated };
 
+enum class EBrDownedExit : uint8 { None, Revive, Timeout, VoluntaryRespawn };
+
+struct FBrDownedExit
+{
+	EBrDownedExit Kind = EBrDownedExit::None;
+	float Deadline = TNumericLimits<float>::Max();
+	bool IsDue(float Now) const { return Kind != EBrDownedExit::None && Now >= Deadline; }
+};
+
 struct FBrSpawnThreat
 {
 	FVector Location = FVector::ZeroVector;
@@ -21,6 +30,18 @@ struct FBrSpawnThreat
 
 struct FBrLifeRules
 {
+	/** Earliest valid exit, even on a late service frame. Ties: revive > timeout > voluntary. */
+	static FBrDownedExit SelectDownedExit(float Timeout, bool bValidRevive, float Revive,
+		bool bValidVoluntary, float Voluntary)
+	{
+		FBrDownedExit Exit;
+		if (FMath::IsFinite(Timeout) && Timeout >= 0) Exit = {EBrDownedExit::Timeout, Timeout};
+		if (bValidVoluntary && FMath::IsFinite(Voluntary) && Voluntary > 0 && Voluntary < Exit.Deadline)
+			Exit = {EBrDownedExit::VoluntaryRespawn, Voluntary};
+		if (bValidRevive && FMath::IsFinite(Revive) && Revive > 0 && Revive <= Exit.Deadline)
+			Exit = {EBrDownedExit::Revive, Revive};
+		return Exit;
+	}
 	static float MaxHealth(float Base, int32 VoluntaryCount, float Penalty, float MinimumFraction)
 	{
 		return FMath::Clamp(Base, 1.0f, 100.0f) * FMath::Clamp(

@@ -37,6 +37,8 @@ public:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> InteractAction;
 	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> PlantAction;
+	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> RespawnHoldAction;
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> ScoreboardAction;

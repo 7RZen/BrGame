@@ -14,6 +14,7 @@ class UBrHealthComponent;
 class UBrArmorComponent;
 class UStaticMeshComponent;
 class UBrLifeComponent;
+class UBrPenaltyComponent;
 class USoundBase;
 struct FInputActionValue;
 
@@ -45,6 +46,7 @@ public:
 	virtual bool CanChangePosture() const;
 	bool IsGameplayInputBlocked() const;
 	UBrLifeComponent* GetLife() const { return Life; }
+	UBrPenaltyComponent* GetPenalty() const { return Penalty; }
 	void ApplyLifePresentation();
 	void ApplyTeamColor();
 	virtual void OnRep_PlayerState() override;
@@ -128,6 +130,8 @@ private:
 	TArray<TObjectPtr<class UMaterialInstanceDynamic>> TeamMaterials;
 	UPROPERTY(VisibleAnywhere, Category="Life")
 	TObjectPtr<UBrLifeComponent> Life;
+	UPROPERTY(VisibleAnywhere, Category="Life")
+	TObjectPtr<UBrPenaltyComponent> Penalty;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
 	TObjectPtr<UBrInventoryComponent> Inventory;
 	UPROPERTY(VisibleAnywhere, Category="Combat")
@@ -158,6 +162,8 @@ private:
 	void ThrowGrenade();
 	void InteractStarted();
 	void InteractStopped();
+	void PlantStarted();
+	void PlantStopped();
 	void RespawnStarted();
 	void RespawnStopped();
 };

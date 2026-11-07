@@ -56,6 +56,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
+	friend class FBrPenaltyRuntimeTest;
 	FString PendingDownerKey;
 	bool bAudioPresentationInitialized = false;
 	EBrLifeState AudioPresentedState = EBrLifeState::Alive;
@@ -65,6 +66,7 @@ private:
 	ABrCharacter* Character() const;
 	void EnsureServiceTimer();
 	void Service();
+	void ServiceDowned(float Now);
 	void FinishRevive();
 	void ResolveDowned(bool bVoluntary);
 	UFUNCTION()

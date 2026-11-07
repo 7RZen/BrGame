@@ -39,7 +39,7 @@ def main():
     specs = [
         ("Move", "Move"), ("Look", "Look"), ("Sprint", "Sprint"), ("Slide", "Slide"), ("Crouch", "Crouch"),
         ("Prone", "Prone"), ("Fire", "Fire"), ("ThrowGrenade", "Throw Grenade"),
-        ("Reload", "Reload"), ("Interact", "Interact"), ("RespawnHold", "Hold to Respawn"),
+        ("Reload", "Reload"), ("Interact", "Interact"), ("Plant", "Plant"), ("RespawnHold", "Hold to Respawn"),
         ("Scoreboard", "Scoreboard"), ("Menu", "Menu"), ("Zoom", "Zoom"), ("Map", "Full Map"),
     ]
     actions = {}
@@ -92,7 +92,7 @@ def main():
     for action_name, key in [
         ("Sprint", "LeftShift"), ("Slide", "LeftControl"), ("Crouch", "C"), ("Prone", "Z"),
         ("Fire", "LeftMouseButton"), ("ThrowGrenade", "G"), ("Reload", "R"),
-        ("Interact", "E"), ("RespawnHold", "SpaceBar"), ("Scoreboard", "Tab"), ("Menu", "Escape"), ("Map", "M"),
+        ("Interact", "E"), ("Plant", "F"), ("RespawnHold", "SpaceBar"), ("Scoreboard", "Tab"), ("Menu", "Escape"), ("Map", "M"),
     ]:
         map_key(action_name, key, display=dict(specs)[action_name])
     map_key("Zoom", "MouseWheelAxis", mapping_name="Zoom", display="Zoom")
@@ -130,7 +130,7 @@ def main():
     expected_keys = {
         "Br.MoveForward": "W", "Br.MoveBackward": "S", "Br.MoveLeft": "A", "Br.MoveRight": "D",
         "Br.Sprint": "LeftShift", "Br.Slide": "LeftControl", "Br.Crouch": "C", "Br.Prone": "Z", "Br.Fire": "LeftMouseButton",
-        "Br.ThrowGrenade": "G", "Br.Reload": "R", "Br.Interact": "E", "Br.RespawnHold": "SpaceBar",
+        "Br.ThrowGrenade": "G", "Br.Reload": "R", "Br.Interact": "E", "Br.Plant": "F", "Br.RespawnHold": "SpaceBar",
         "Br.Scoreboard": "Tab", "Br.Menu": "Escape", "Br.Map": "M", "Zoom": "MouseWheelAxis",
     }
     for mapping in reloaded:

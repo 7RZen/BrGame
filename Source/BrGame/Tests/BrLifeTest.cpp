@@ -3,6 +3,22 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrLifeExitOrderTest, "BrGame.Life.DownedExitDeadlineOrdering",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FBrLifeExitOrderTest::RunTest(const FString&)
+{
+	const auto Late = FBrLifeRules::SelectDownedExit(25, true, 20, true, 10);
+	TestTrue(TEXT("Late service crosses all exit deadlines"), Late.IsDue(30));
+	TestEqual(TEXT("Earliest voluntary wins over later completed revive/timeout"), Late.Kind, EBrDownedExit::VoluntaryRespawn);
+	TestEqual(TEXT("Chosen cutoff is voluntary deadline"), Late.Deadline, 10.f);
+	TestEqual(TEXT("Revive wins three-way tie"), FBrLifeRules::SelectDownedExit(10, true, 10, true, 10).Kind, EBrDownedExit::Revive);
+	TestEqual(TEXT("Timeout wins tie with voluntary"), FBrLifeRules::SelectDownedExit(10, false, 0, true, 10).Kind, EBrDownedExit::Timeout);
+	TestEqual(TEXT("Invalid voluntary ignored"), FBrLifeRules::SelectDownedExit(25, true, 20, false, 10).Kind, EBrDownedExit::Revive);
+	TestEqual(TEXT("Invalid revive ignored"), FBrLifeRules::SelectDownedExit(25, false, 5, true, 10).Kind, EBrDownedExit::VoluntaryRespawn);
+	TestFalse(TEXT("No early transition"), Late.IsDue(9));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBrLifePenaltyTest, "BrGame.Life.MaxHealthPenalty",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FBrLifePenaltyTest::RunTest(const FString& Parameters)

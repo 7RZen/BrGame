@@ -5,6 +5,7 @@
 #include "BrLifeRules.h"
 #include "BrZoneRules.h"
 #include "BrQuestRules.h"
+#include "BrPenaltyDefinition.h"
 #include "BrRoundRecord.generated.h"
 
 USTRUCT()
@@ -32,6 +33,8 @@ struct FBrRoundRecord
 	TArray<float> ArmorPlates;
 	UPROPERTY()
 	FBrQuestJournal Journal;
+	UPROPERTY()
+	FBrPenaltyState Penalty;
 	FBrScoreEpisode ScoreEpisode;
 	UPROPERTY()
 	TWeakObjectPtr<AController> ActiveController;
@@ -72,6 +75,7 @@ struct FBrReconnectRules
 		Record.State = EBrLifeState::Eliminated;
 		Record.Health = 0;
 		Record.ArmorPlates.Reset();
+		Record.Penalty = FBrPenaltyState();
 		Record.DownedEndTime = Record.ProtectionEndTime = 0;
 		return true;
 	}

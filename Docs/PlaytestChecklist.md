@@ -78,6 +78,34 @@ count and test both modes.
   restores configured health without a death; choice respawn penalizes max
   health by 10% per choice, timeout follows its configured rule, gear persists,
   and respawn protection ends on firing or timeout.
+- [ ] **#30 Plant (host + two remotes, both modes):** down someone, hold F from
+  a teammate and an enemy. Verify 10 s, release/range/damage/non-alive cancellation,
+  rebind/reset/conflict rejection, and actual bound key/progress in the left panel.
+  Run E revive concurrently: revive-first yields no item/score; plant-first keeps
+  revive running. Race two planters: earliest wins +1 exactly once, nobody can
+  plant again until a later down. Repeat near timeout/voluntary respawn deadlines.
+- [ ] **#30 review regressions:** delay server service across voluntary < Plant <
+  revive < timeout deadlines: voluntary wins, with no later item/score/revive.
+  Repeat ties (revive > timeout > voluntary; any exit beats tied Plant). Load a
+  pre-feature saved profile with another action customized to F: that action
+  keeps F, Plant shows "Unbound (click to bind)" in both menu and in-game settings,
+  and F cannot trigger Plant. Bind Plant to a free key, restart, check persistence
+  and actual HUD key, then reset defaults.
+- [ ] **#30 penalty lifecycle/prediction:** test each definition via developer
+  tuning on host and owner/remote. Dormant tube before revive/respawn; 15 s Rocket,
+  30 s others afterwards. Rocket steers with mouse/facing and cannot stop/reverse,
+  sprint/crouch/prone/slide; can shoot. Check weapon-adjusted 2× / 0.5× speeds,
+  ceilings/stairs/walls, 100–200 ms lag/loss, saved-move replay and expiry corrections.
+  Down again during an effect: timer continues; a new plant replaces it dormant.
+  Reconnect both dormant/active, offline timeout, final elimination and next round:
+  no renewed timer, duplicate point or stale item.
+- [ ] **#30 cosmetics/fog/audio:** inspect backward pelvis tube on standing,
+  downed supine, crouch/prone and remote smoothing. Smoke puffs stay in world
+  space for a few seconds, capped at 16; flame readable at tube. Hide/reveal behind
+  walls and leave vision (listen host, remote, spectator, late joiner): no tube,
+  trail or flute from fog-hidden players, including retained puffs/channel delay.
+  Smoke is silent; nearby flute loops and responds to master/Effects mute/volume,
+  and stops on expiry, elimination, disconnect and travel. No floating text.
 - [ ] **Issue 3 — face-up bodies:** down a standing/crouched/prone player at several
   facings, view as owner and remote observer at pitch 65° and min/default/max zoom.
   Expect chest/face upward, head along facing, back resting on ground, readable

@@ -1,4 +1,5 @@
 #include "BrLifeComponent.h"
+#include "BrPenaltyComponent.h"
 #include "BrAudioSubsystem.h"
 #include "BrCharacter.h"
 #include "BrCharacterMovementComponent.h"
@@ -38,11 +39,12 @@ void UBrLifeComponent::BeginPlay()
 
 void UBrLifeComponent::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (GetOwner()->HasAuthority())
+	if (GetWorld() && GetOwner()->HasAuthority())
 	{
 		CancelRevive();
 	}
-	GetWorld()->GetTimerManager().ClearTimer(ServiceTimer);
+	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(ServiceTimer);
+	Reviver = ReviveTarget = nullptr;
 	Character()->GetHealth()->OnHealthDepleted.RemoveDynamic(this, &UBrLifeComponent::HealthDepleted);
 	Super::EndPlay(Reason);
 }
@@ -102,6 +104,7 @@ void UBrLifeComponent::Down()
 	CancelRevive();
 	GearAtDown = Character()->GetInventory()->CaptureState();
 	State = EBrLifeState::Downed;
+	Character()->GetPenalty()->NewDown();
 	if (ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>())
 		Mode->CommitQuestDown(Character()->GetController(), PendingDownerKey);
 	PendingDownerKey.Reset();
@@ -146,6 +149,8 @@ void UBrLifeComponent::RestoreDowned(float Deadline)
 void UBrLifeComponent::OnRep_State()
 {
 	Character()->ApplyLifePresentation();
+	if (GetOwner()->HasAuthority() && Character()->GetPenalty()->HasBegunPlay())
+		Character()->GetPenalty()->LifeChanged();
 	if (bAudioPresentationInitialized && State == EBrLifeState::Downed &&
 		AudioPresentedState != EBrLifeState::Downed && Character()->IsLocallyControlled())
 	{
@@ -280,6 +285,7 @@ void UBrLifeComponent::CancelRevive()
 
 void UBrLifeComponent::DamageReceived()
 {
+	Character()->GetPenalty()->CancelPlant();
 	if (GetOwner()->HasAuthority())
 	{
 		if (ABrPlayerController* PC = Cast<ABrPlayerController>(Character()->GetController()))
@@ -336,26 +342,35 @@ void UBrLifeComponent::Service()
 	}
 	if (State == EBrLifeState::Downed)
 	{
-		if (Reviver && (!IsValid(Reviver) || !Reviver->GetLife()->CanRevive(Character())))
-		{
-			CancelRevive();
-		}
-		// A revive completed before the dying deadline wins even if this service frame was late.
-		if (Reviver && Now >= ReviveEndTime && ReviveEndTime <= DownedEndTime)
-		{
-			FinishRevive();
-			return;
-		}
-		if (Now >= DownedEndTime)
-		{
-			ResolveDowned(false);
-			return;
-		}
-		if (RespawnHoldEndTime > 0 && Now >= RespawnHoldEndTime) { ResolveDowned(true); }
+		ServiceDowned(Now);
 	}
 	else if (InvulnerabilityEndTime <= 0)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ServiceTimer);
+	}
+}
+
+void UBrLifeComponent::ServiceDowned(float Now)
+{
+	if (!GetOwner()->HasAuthority() || State != EBrLifeState::Downed) return;
+	const bool bValidRevive = IsValid(Reviver) && Reviver->GetLife()->CanRevive(Character());
+	if (Reviver && !bValidRevive) CancelRevive();
+	const ABrPlayerState* PS = Character()->GetPlayerState<ABrPlayerState>();
+	const ABrGameMode* Mode = GetWorld()->GetAuthGameMode<ABrGameMode>();
+	const bool bValidVoluntary = PS && Mode && !Mode->AreRespawnsDisabled() &&
+		FBrLifeRules::Outcome(true, PS->DeathCount, UBrDeveloperSettings::Get()->MaxDeaths) != EBrDownedOutcome::Refused;
+	if (!bValidVoluntary) RespawnHoldEndTime = 0;
+	// Select once. Plant arbitration and the life transition consume this same snapshot.
+	const FBrDownedExit Exit = FBrLifeRules::SelectDownedExit(DownedEndTime,
+		bValidRevive, ReviveEndTime, bValidVoluntary, RespawnHoldEndTime);
+	Character()->GetPenalty()->ResolvePlants(Now, Exit);
+	if (!Exit.IsDue(Now)) return;
+	switch (Exit.Kind)
+	{
+	case EBrDownedExit::Revive: FinishRevive(); break;
+	case EBrDownedExit::Timeout: ResolveDowned(false); break;
+	case EBrDownedExit::VoluntaryRespawn: ResolveDowned(true); break;
+	default: break;
 	}
 }
 

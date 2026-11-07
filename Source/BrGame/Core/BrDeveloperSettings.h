@@ -22,6 +22,7 @@ class USoundBase;
 class USoundClass;
 class USoundMix;
 class UBrVoiceSet;
+class UBrPenaltyDefinition;
 
 UCLASS(Config=Game, DefaultConfig, meta=(DisplayName="BrGame"))
 class BRGAME_API UBrDeveloperSettings : public UDeveloperSettings
@@ -29,6 +30,12 @@ class BRGAME_API UBrDeveloperSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(Config, EditAnywhere, Category="Life|Penalties", meta=(ClampMin="0.1", ClampMax="120", Units="s"))
+	float PlantDuration = 10;
+	UPROPERTY(Config, EditAnywhere, Category="Life|Penalties", meta=(ClampMin="0", ClampMax="5000", Units="cm"))
+	float PenaltyHearingRange = 1200;
+	UPROPERTY(Config, EditAnywhere, Category="Life|Penalties")
+	TArray<TSoftObjectPtr<UBrPenaltyDefinition>> PenaltyDefinitions;
 	UPROPERTY(Config, EditAnywhere, Category="Movement|Slide", meta=(ClampMin="1", ClampMax="2"))
 	float SlideSpeedMultiplier = 1.2f;
 	UPROPERTY(Config, EditAnywhere, Category="Movement|Slide", meta=(ClampMin="0.05", ClampMax="2", Units="s"))

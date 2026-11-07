@@ -79,6 +79,19 @@ void ABrGameMode::ClearQuestDown(AController* Player)
 	if (FBrRoundRecord* Record = ActiveQuestRecord(Player)) FBrQuestRules::Revive(Record->ScoreEpisode);
 }
 
+void ABrGameMode::AwardPlantScore(AController* Player)
+{
+	const ABrGameState* GS = GetGameState<ABrGameState>();
+	FBrRoundRecord* Record = ActiveQuestRecord(Player);
+	if (!GS || GS->bLobby || GS->bResults || !Record || Record->Life.bEliminated)
+	{
+		UE_LOG(LogBr, Error, TEXT("Plant score rejected: missing active round ledger."));
+		return;
+	}
+	FBrQuestRules::AddScore(Record->Journal, 1);
+	PublishQuests(*Record); // Update ledger first, then replicated journal, in every match mode.
+}
+
 void ABrGameMode::ResolveQuestRecord(FBrRoundRecord& Record, bool bFinal)
 {
 	const FString Credit = FBrQuestRules::Resolve(Record.Journal, Record.ScoreEpisode, bFinal);

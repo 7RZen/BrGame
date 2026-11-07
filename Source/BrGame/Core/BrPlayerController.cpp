@@ -17,6 +17,8 @@
 #include "BrInventoryComponent.h"
 #include "BrHealthComponent.h"
 #include "BrLifeComponent.h"
+#include "BrPenaltyComponent.h"
+#include "BrInputProfiles.h"
 #include "BrPlayerState.h"
 #include "BrGameMode.h"
 #include "BrGameState.h"
@@ -239,11 +241,7 @@ void ABrPlayerController::BeginPlay()
 		InputSubsystem = Subsystem;
 		if (UEnhancedInputUserSettings* UserSettings = Subsystem->GetUserSettings())
 		{
-			if (!UserSettings->IsMappingContextRegistered(LoadedInputConfig->DefaultMappingContext) &&
-				!UserSettings->RegisterInputMappingContext(LoadedInputConfig->DefaultMappingContext))
-			{
-				UE_LOG(LogBr, Error, TEXT("Br input mapping context registration failed."));
-			}
+			if (!FBrInputProfiles::Install(UserSettings, LoadedInputConfig->DefaultMappingContext)) return;
 		}
 		else
 		{
@@ -374,6 +372,7 @@ void ABrPlayerController::ToggleMap()
 		{
 			BrPawn->GetInventory()->StopFire();
 			BrPawn->GetLife()->StopInteract();
+			BrPawn->GetPenalty()->StopPlant();
 			BrPawn->GetLife()->StopRespawnHold();
 		}
 		RefreshCursorMode();

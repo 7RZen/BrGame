@@ -5,6 +5,8 @@
 #include "BrAimingRules.h"
 #include "BrInventoryComponent.h"
 #include "BrLifeComponent.h"
+#include "BrPenaltyComponent.h"
+#include "BrPenaltyRules.h"
 #include "BrHealthComponent.h"
 #include "BrAudioSubsystem.h"
 #include "Engine/World.h"
@@ -21,6 +23,8 @@ namespace
 		bool bForwardSprint = false;
 		float SprintFacingYaw = 0;
 		double SprintMoveWorldTime = 0;
+		float PenaltyServerTime = 0;
+		bool bHasPenalty = false;
 		FBrSprintState StartSprint;
 		FBrSprintState EndSprint;
 		FBrSlideState StartSlide;
@@ -38,6 +42,8 @@ namespace
 			bForwardSprint = false;
 			SprintFacingYaw = 0;
 			SprintMoveWorldTime = 0;
+			PenaltyServerTime = 0;
+			bHasPenalty = false;
 			StartSprint = FBrSprintState();
 			EndSprint = FBrSprintState();
 			StartSlide = EndSlide = FBrSlideState();
@@ -61,7 +67,8 @@ namespace
 				S->SprintMinimumStart, S->SprintRegenDelay, S->SprintRegenDuration);
 			// Combine linear drain/regen, but never span a gait/eligibility boundary.
 			// Native combining reruns the pending move; CombineWith must rewind our state too.
-			return !bSlidePressed && !Other->bSlidePressed && !StartSlide.bActive && !EndSlide.bActive &&
+			return !bHasPenalty && !Other->bHasPenalty &&
+				!bSlidePressed && !Other->bSlidePressed && !StartSlide.bActive && !EndSlide.bActive &&
 				!Other->StartSlide.bActive && StartSlide.Cooldown <= 0 && Other->StartSlide.Cooldown <= 0 &&
 				bInputBlocked == Other->bInputBlocked &&
 				bSprint == Other->bSprint && bForwardSprint == Other->bForwardSprint &&
@@ -87,6 +94,8 @@ namespace
 			// World time at this move's simulation end, retained across timestamp resets
 			// and combining (the newest move's end remains the combined move's end).
 			SprintMoveWorldTime = Character->GetWorld()->GetTimeSeconds();
+			PenaltyServerTime = CastChecked<ABrCharacter>(Character)->GetLife()->ServerTime();
+			bHasPenalty = CastChecked<ABrCharacter>(Character)->GetPenalty()->Penalty.Definition != nullptr;
 			StartSprint = EndSprint = Movement->GetSprintState();
 			bForwardSprint = Movement->IsMovingOnGround() && Movement->GetPosture() == EBrPosture::Standing &&
 				FBrSprintState::IsForward(NewAccel, SprintFacingYaw,
@@ -127,6 +136,7 @@ namespace
 			UBrCharacterMovementComponent* Movement = CastChecked<UBrCharacterMovementComponent>(Character->GetCharacterMovement());
 			Movement->RestoreSprintIntent(bSprint);
 			Movement->PrepareSprintReplay(SprintFacingYaw, SprintMoveWorldTime);
+			Movement->PreparePenaltyReplay(PenaltyServerTime);
 			Movement->SetProne(bProne);
 			Movement->RestoreSlideRequest(bSlidePressed);
 			Movement->RestoreInputBlock(bInputBlocked);
@@ -428,7 +438,8 @@ float UBrCharacterMovementComponent::GetMaxSpeed() const
 	const UBrDeveloperSettings* Settings = UBrDeveloperSettings::Get();
 	if (IsSliding()) return Slide.Speed();
 	return FBrMovementSpeed::Calculate(GetPosture(), IsSprinting(),
-		Character ? Character->GetWeaponRunSpeedMultiplier() : 1.0f,
+		Character ? FBrPenaltyRules::Speed(Character->GetWeaponRunSpeedMultiplier(),
+			Character->GetPenalty()->SpeedMultiplier(PenaltyMoveTime())) : 1.0f,
 		Settings->BaseRunSpeed, Settings->SprintSpeedMultiplier,
 		Settings->CrouchSpeedMultiplier, Settings->ProneSpeedMultiplier);
 }
@@ -496,6 +507,19 @@ void UBrCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float Del
 			bSlidePressed = false;
 			return;
 		}
+		if (Character->GetPenalty()->ForcesStanding(PenaltyMoveTime()))
+		{
+			bWantsToCrouch = bWantsToProne = false;
+			RejectedPostureRequest.Reset();
+			CancelSlide();
+			bSlidePressed = false;
+		}
+		if (Character->GetPenalty()->DisablesSprint(PenaltyMoveTime()))
+		{
+			SetSprinting(false);
+			CancelSlide();
+			bSlidePressed = false;
+		}
 		UpdateSlideBeforeMovement(DeltaSeconds);
 		if (CharacterOwner->GetLocalRole() == ROLE_AutonomousProxy &&
 			RejectedPostureRequest.IsSet() && RejectedPostureRequest.GetValue() == GetRequestedPosture())
@@ -554,7 +578,13 @@ void UBrCharacterMovementComponent::PrepareSprintReplay(float FacingYaw, double 
 void UBrCharacterMovementComponent::FinishSprintReplay()
 {
 	SprintReplayYaw.Reset();
+	PenaltyReplayTime.Reset();
 	MoveInputYaw.Reset();
+}
+
+float UBrCharacterMovementComponent::PenaltyMoveTime() const
+{
+	return PenaltyReplayTime.Get(CastChecked<ABrCharacter>(CharacterOwner)->GetLife()->ServerTime());
 }
 
 void UBrCharacterMovementComponent::SprintStopped()
@@ -589,6 +619,7 @@ void UBrCharacterMovementComponent::UpdateSprint(float DeltaSeconds)
 	// Acceleration is CMC's move acceleration on authority, not a separately supplied direction.
 	const float Yaw = SprintReplayYaw.Get(CharacterOwner->GetControlRotation().Yaw);
 	const bool bAllowed = bWantsToSprint && Character->CanMove() && !Character->IsGameplayInputBlocked() &&
+		!Character->GetPenalty()->DisablesSprint(PenaltyMoveTime()) && !Character->GetPenalty()->PlantTarget &&
 		!IsSliding() && !bMoveInputBlocked &&
 		GetPosture() == EBrPosture::Standing && IsMovingOnGround() &&
 		(!CharacterOwner->HasAuthority() || !Character->GetInventory()->IsCombatHeld()) && !Character->GetLife()->ReviveTarget &&
@@ -691,6 +722,18 @@ void UBrCharacterMovementComponent::UpdateSlideBeforeMovement(float DeltaSeconds
 
 void UBrCharacterMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)
 {
+	const ABrCharacter* Character = CastChecked<ABrCharacter>(CharacterOwner);
+	if (Character->CanMove() && Character->GetPenalty()->ForcesForward(PenaltyMoveTime()) &&
+		(IsMovingOnGround() || IsFalling()))
+	{
+		// Both prediction and authority run this in CMC (not AddMovementInput on a server timer).
+		// Ignore move acceleration, including zero/reverse input. Native walking still owns collision.
+		const float Yaw = SprintReplayYaw.Get(MoveInputYaw.Get(CharacterOwner->GetControlRotation().Yaw));
+		const FVector ForwardVelocity = FRotator(0, Yaw, 0).Vector() * GetMaxSpeed();
+		Velocity.X = ForwardVelocity.X;
+		Velocity.Y = ForwardVelocity.Y; // Preserve native gravity/vertical velocity when crossing a ledge.
+		return;
+	}
 	if (!Slide.bActive || !IsMovingOnGround())
 	{
 		Super::CalcVelocity(DeltaTime, Friction, bFluid, BrakingDeceleration);

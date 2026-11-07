@@ -204,7 +204,7 @@ void UBrInventoryComponent::StartFire()
 
 void UBrInventoryComponent::StopFire()
 {
-	GetWorld()->GetTimerManager().ClearTimer(FireTimer);
+	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(FireTimer);
 	bFireHeld = false;
 	UpdateCombatIntent();
 }
@@ -212,21 +212,24 @@ void UBrInventoryComponent::StopFire()
 void UBrInventoryComponent::CancelCombat()
 {
 	bPendingFire = bPendingGrenade = false;
-	GetWorld()->GetTimerManager().ClearTimer(SprintFireTimer);
-	GetWorld()->GetTimerManager().ClearTimer(SprintGrenadeTimer);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(SprintFireTimer);
+		World->GetTimerManager().ClearTimer(SprintGrenadeTimer);
+	}
 	ClearServerPendingCombat();
 	StopFire();
 	// Remote menus/downing/gear changes must cancel the authority's queued action,
 	// not only the already-expired local recovery timer. StopFire (tap release)
 	// intentionally does NOT cancel an accepted pending single shot.
 	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
-	if (Character && Character->IsLocallyControlled()) ServerCancelCombat();
+	if (GetWorld() && !GetWorld()->bIsTearingDown && Character && Character->IsLocallyControlled()) ServerCancelCombat();
 }
 
 void UBrInventoryComponent::UpdateCombatIntent()
 {
 	const ABrCharacter* Character = Cast<ABrCharacter>(GetOwner());
-	if (Character && Character->IsLocallyControlled())
+	if (GetWorld() && !GetWorld()->bIsTearingDown && Character && Character->IsLocallyControlled())
 		ServerCombatIntent(bFireHeld || bPendingFire || bPendingGrenade);
 }
 
@@ -241,8 +244,11 @@ void UBrInventoryComponent::ClearServerPendingCombat()
 {
 	PendingServerFire.Reset();
 	PendingServerGrenade.Reset();
-	GetWorld()->GetTimerManager().ClearTimer(PendingServerFireTimer);
-	GetWorld()->GetTimerManager().ClearTimer(PendingServerGrenadeTimer);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PendingServerFireTimer);
+		World->GetTimerManager().ClearTimer(PendingServerGrenadeTimer);
+	}
 	if (GetOwner()->HasAuthority()) bServerCombatHeld = false;
 }
 

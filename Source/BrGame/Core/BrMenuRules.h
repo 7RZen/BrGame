@@ -4,6 +4,13 @@
 
 struct FBrMenuRules
 {
+	/** A new/default key must never steal a retained customized key. Customized/unbound rows stay intact. */
+	static bool ShouldUnbindDefault(FName Name, FKey Key, bool bCustomized,
+		const TMap<FName, FKey>& RetainedCustomBindings)
+	{
+		FString Error;
+		return !bCustomized && Key.IsValid() && !CanBind(Name, Key, RetainedCustomBindings, Error);
+	}
 	static bool CanBind(FName Name, FKey Key, const TMap<FName, FKey>& Bindings, FString& Error)
 	{
 		if (!Key.IsValid() || Key.IsGamepadKey() || Key == EKeys::Tilde || Key == EKeys::Period ||
